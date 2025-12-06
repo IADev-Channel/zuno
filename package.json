@@ -1,0 +1,16 @@
+{
+  "name": "zuno",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsc index.ts"
+  },
+  "keywords": ["state", "server-state", "universal-state"],
+  "author": "Ibrahim Aftab",
+  "license": "MIT",
+  "packageManager": "pnpm@10.24.0",
+  "dependencies": {
+    "typescript": "^5.9.3"
+  }
+}

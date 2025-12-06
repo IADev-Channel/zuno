@@ -28,7 +28,7 @@ export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, h
   // Subscribe to state events and send them to the client
   const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
     const data = JSON.stringify(event);
-    res.write(`event: state\n`); // Event type for client-side filtering
+    // res.write(`event: state\n`); // Event type for client-side filtering
     res.write(`data: ${data}\n\n`); // The actual event data
   });
 

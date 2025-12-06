@@ -31,7 +31,6 @@ export const startSSE = (options: ZunoSSEOptions) => {
    */
   const listener = (event: MessageEvent) => {
     let eventState: ZunoStateEvent;
-
     try {
       eventState = JSON.parse(event.data);
     } catch (error) {
@@ -39,20 +38,22 @@ export const startSSE = (options: ZunoSSEOptions) => {
     }
 
     if (options.universe) {
-      options.universe.getStore(
+      const store = options.universe.getStore(
         eventState.storeKey,
         () => eventState.state
       );
+      store.set(eventState.state);
+
     } else if (options.store) {
       options.store.set(eventState.state);
     }
   };
 
-  eventSource.addEventListener("state", listener);
+  eventSource.addEventListener("message", listener);
 
   return () => {
-    // Clean up: remove the state listener and close the SSE connection.
-    eventSource.removeEventListener("state", listener);
+    // Clean up: remove the message listener and close the SSE connection.
+    eventSource.removeEventListener("message", listener);
     eventSource.close();
   };
 };

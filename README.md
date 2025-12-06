@@ -131,7 +131,7 @@ applyStateEvent({
 This update instantly shows on all connected clients.
 
 🗺️ Roadmap
-Level 1 — Core (DONE)
+# Level 1 — Core (DONE)
 
 ✔ Universe store
 ✔ Event bus
@@ -139,53 +139,67 @@ Level 1 — Core (DONE)
 ✔ Sync transport (HTTP + SSE)
 ✔ Real-time update propagation
 
-Level 2 — Transport Layer
+# Level 2 — Transport Layer
 
 ⬜ WebSocket transport
+
 ⬜ BroadcastChannel (multi-tab sync)
 
-Level 3 — Framework Adapters
+# Level 3 — Framework Adapters
 
 ⬜ React adapter (useZunoStore)
+
 ⬜ Solid.js adapter
+
 ⬜ Vue adapter
+
 ⬜ Angular adapter
 
-Level 4 — DevTools
+# Level 4 — DevTools
 
 ⬜ Store inspector panel
+
 ⬜ Event timeline
+
 ⬜ Time-travel state playback
 
-Level 5 — Local/Testing Storage
+# Level 5 — Local/Testing Storage
 
 ⬜ In-memory adapter
+
 ⬜ JSON file adapter
+
 ⬜ SQLite adapter
 
-Level 6 — Cloud DB Integration
+# Level 6 — Cloud DB Integration
 
 ⬜ Firebase adapter
+
 ⬜ Supabase adapter
+
 ⬜ Postgres adapter
 
-Level 7 — Multi-Tenant & Auth
+# Level 7 — Multi-Tenant & Auth
 
 ⬜ Rooms / channels
+
 ⬜ Namespaced universes
+
 ⬜ Secure event validation
 
-Level 8 — Offline Mode
+# Level 8 — Offline Mode
 
 ⬜ Event queueing
+
 ⬜ Auto-reconnect
+
 ⬜ Conflict resolution strategies
 
-Level 9 — Analytics
+# Level 9 — Analytics
 
 ⬜ GTM integration
-⬜ Amplitude / Mixpanel
-⬜ Branch attribution
+
+⬜ Other analytics integration
 
 🤝 Contributing
 
@@ -200,15 +214,15 @@ MIT License — free for personal and commercial use.
 
 Zuno draws conceptual inspiration from:
 
-Phoenix LiveView
+- Phoenix LiveView
 
-Solid.js Signals
+- Solid.js Signals
 
-Zustand
+- Zustand
 
-Remix loader/streaming
+- Remix loader/streaming
 
-Meteor reactivity
+- Meteor reactivity
 
 But is fully hand-rolled and environment-agnostic.
 

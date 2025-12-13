@@ -21,7 +21,6 @@ export const startBroadcastChannel = (opts: ZunoBCOptions) => {
    * Broadcash message event handler
   */
   const onMessage = (e: MessageEvent) => {
-    console.log("asdasd")
     const event = e.data as ZunoStateEvent | undefined;
     if (!event || typeof event !== "object") return;
 

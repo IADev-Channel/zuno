@@ -108,9 +108,15 @@ export const startSSE = (options: ZunoSSEOptions) => {
   const onState = (event: MessageEvent) => {
     try {
       const eventState: ZunoStateEvent = JSON.parse(event.data);
-      if (typeof eventState.version === "number") {
-        versions.set(eventState.storeKey, eventState.version);
-      }
+      const incomingVersion =
+        typeof eventState.version === "number" ? eventState.version : null;
+
+      const currentVersion = versions.get(eventState.storeKey) ?? 0;
+
+      if (incomingVersion !== null && incomingVersion <= currentVersion) return;
+
+      if (incomingVersion !== null) versions.set(eventState.storeKey, incomingVersion);
+
       applyEventToTarget(eventState);
     } catch {
       console.error("Zuno SSE: failed to parse state payload");
@@ -141,12 +147,16 @@ export const startSSE = (options: ZunoSSEOptions) => {
     const payload: ZunoStateEvent = {
       ...event,
       baseVersion,
+      origin: clientId
     };
 
     /**
      * Optimistic logic applied locally
      */
-    if (options.optimistic) applyEventToTarget(payload);
+    if (options.optimistic) {
+      applyEventToTarget(payload);
+      versions.set(event.storeKey, baseVersion + 1);
+    }
 
     /**
      * FAST: update other tabs immediately

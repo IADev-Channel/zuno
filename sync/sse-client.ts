@@ -1,5 +1,6 @@
 import type { ZunoSSEOptions, ZunoStateEvent } from "./types";
 import { createHttpTransport } from "./transport";
+import { startBroadcastChannel } from "./broadcast-channel";
 
 type SnapshotRecord = { state: unknown; version: number };
 type SnapshotState = Record<string, SnapshotRecord>;
@@ -15,6 +16,10 @@ export const startSSE = (options: ZunoSSEOptions) => {
   if (!options?.url) throw new Error("startSSE: 'url' is required");
   if (!options.universe && !options.store)
     throw new Error("startSSE: provide either 'universe' or 'store'");
+
+  const clientId =
+    options.clientId ?? (crypto?.randomUUID?.() ?? String(Math.random()));
+
 
   const eventSource = new EventSource(options.url);
   const transport = createHttpTransport(options.syncUrl);
@@ -37,7 +42,25 @@ export const startSSE = (options: ZunoSSEOptions) => {
     }
   };
 
+  /** 
+   * Tracks the version of each store to handle conflicts.
+   */
   const versions = new Map<string, number>();
+
+  /**
+   * Broadcast Channel instance for real-time state updates.
+   */
+  const bc = options.channelName
+    ? startBroadcastChannel({
+      channelName: options.channelName,
+      clientId,
+      onEvent: (ev) => {
+        // Broadcast Channel event should update local store but NOT affect server version directly.
+        applyEventToTarget(ev);
+      },
+    })
+    : null;
+
 
   /**
    * Applies an incoming snapshot to the target Zuno universe or store.
@@ -104,6 +127,7 @@ export const startSSE = (options: ZunoSSEOptions) => {
     eventSource.removeEventListener("snapshot", onSnapshot);
     eventSource.removeEventListener("state", onState);
     eventSource.close();
+    bc?.stop();
   };
 
   /**
@@ -119,10 +143,24 @@ export const startSSE = (options: ZunoSSEOptions) => {
       baseVersion,
     };
 
+    /**
+     * Optimistic logic applied locally
+     */
     if (options.optimistic) applyEventToTarget(payload);
 
+    /**
+     * FAST: update other tabs immediately
+     */
+    bc?.publish(payload);
+
+    /**
+     * AUTHORITATIVE: send to server
+     */
     const result = await transport.publish(payload);
 
+    /**
+     * If server rejects, reconcile (optional but good)
+     */
     if (!result.ok && result.status === 409 && result.json?.current && options.universe) {
       const { state, version } = result.json.current;
       versions.set(event.storeKey, version);

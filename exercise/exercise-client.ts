@@ -14,6 +14,7 @@ const initiate = () => {
     url: "http://localhost:3000/zuno/sse",
     syncUrl: "http://localhost:3000/zuno/sync",
     optimistic: true, // set false if you want authoritative server mode
+    channelName: "zuno-demo", // enable multi tab sync if provided
     getSnapshot: () => {
       // after snapshot applied, store already contains server value
       counterEl.textContent = String(counterStore.get());

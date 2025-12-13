@@ -23,7 +23,11 @@ export interface ZunoStateEvent {
   ts?: number;
 
   /** The global monotonic id of the event. */
-  eventId?: number;   
+  eventId?: number;
+
+  /** The transport layer that published the event. */
+  via?: "http" | "sse" | "bc";
+
 }
 
 export type ZunoSSEOptionsDefault = {
@@ -48,6 +52,17 @@ export type ZunoSSEOptionsDefault = {
    * If true, the client will update its state optimistically before receiving the server's response.
    */
   optimistic?: boolean;
+
+  /**
+   * The client id for the Broadcast Channel.
+   */
+  clientId?: string;
+
+  /**
+   * The name of the Broadcast Channel.
+   */
+  channelName?: string;
+
 }
 
 /**

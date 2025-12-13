@@ -1,7 +1,8 @@
 import type { ZunoSSEOptions, ZunoStateEvent } from "./types";
 import { createHttpTransport } from "./transport";
 
-type SnapshotState = Record<string, unknown>;
+type SnapshotRecord = { state: unknown; version: number };
+type SnapshotState = Record<string, SnapshotRecord>;
 
 /**
  * Starts a Server-Sent Events (SSE) connection to synchronize state from a server.
@@ -36,6 +37,8 @@ export const startSSE = (options: ZunoSSEOptions) => {
     }
   };
 
+  const versions = new Map<string, number>();
+
   /**
    * Applies an incoming snapshot to the target Zuno universe or store.
    * If a universe is provided, it updates all stores in the snapshot.
@@ -45,13 +48,16 @@ export const startSSE = (options: ZunoSSEOptions) => {
   const applySnapshotToTarget = (snapshot: unknown) => {
     if (options.universe) {
       const snap = (snapshot ?? {}) as SnapshotState;
-      for (const [storeKey, state] of Object.entries(snap)) {
-        const store = options.universe.getStore(storeKey, () => state);
-        store.set(state);
+
+      for (const [storeKey, rec] of Object.entries(snap)) {
+        versions.set(storeKey, rec?.version ?? 0);
+
+        const store = options.universe.getStore(storeKey, () => rec.state);
+        store.set(rec.state);
       }
+
       options.getSnapshot?.(options.universe);
     } else if (options.store) {
-      // For single-store mode: snapshot is the store's state
       options.store.set(snapshot);
       options.getSnapshot?.(options.store);
     }
@@ -67,7 +73,6 @@ export const startSSE = (options: ZunoSSEOptions) => {
       const snapshotState = JSON.parse(event.data);
       applySnapshotToTarget(snapshotState);
     } catch {
-      // don’t throw inside event handler; it can kill your stream flow silently
       console.error("Zuno SSE: failed to parse snapshot payload");
     }
   };
@@ -80,6 +85,9 @@ export const startSSE = (options: ZunoSSEOptions) => {
   const onState = (event: MessageEvent) => {
     try {
       const eventState: ZunoStateEvent = JSON.parse(event.data);
+      if (typeof eventState.version === "number") {
+        versions.set(eventState.storeKey, eventState.version);
+      }
       applyEventToTarget(eventState);
     } catch {
       console.error("Zuno SSE: failed to parse state payload");
@@ -103,9 +111,25 @@ export const startSSE = (options: ZunoSSEOptions) => {
    * If optimistic = true, also applies the event locally immediately.
    * @param event - The state event to dispatch.
    */
-  const dispatch = (event: ZunoStateEvent) => {
-    if (options.optimistic) applyEventToTarget(event);
-    transport.publish(event);
+  const dispatch = async (event: ZunoStateEvent) => {
+    const baseVersion = versions.get(event.storeKey) ?? 0;
+
+    const payload: ZunoStateEvent = {
+      ...event,
+      baseVersion,
+    };
+
+    if (options.optimistic) applyEventToTarget(payload);
+
+    const result = await transport.publish(payload);
+
+    if (!result.ok && result.status === 409 && result.json?.current && options.universe) {
+      const { state, version } = result.json.current;
+      versions.set(event.storeKey, version);
+      options.universe.getStore(event.storeKey, () => state).set(state);
+    }
+
+    return result;
   };
 
   return { unsubscribe, dispatch };

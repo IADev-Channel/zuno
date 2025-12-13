@@ -6,8 +6,21 @@ import type { Store, Universe } from "../core/types";
 export interface ZunoStateEvent {
   /** The key of the store that emitted the state change. */
   storeKey: string;
+
   /** The new state value. */
   state: unknown;
+
+  /** The version of the store before the state change to resolve conflicts and ordering. */
+  baseVersion?: number;
+
+  /** The authoritative version after server applies. */
+  version?: number;
+
+  /** The origin of the state change. */
+  origin?: string;
+
+  /** The timestamp of the state change. */
+  ts?: number;
 }
 
 export type ZunoSSEOptionsDefault = {
@@ -60,7 +73,7 @@ export interface ZunoTransport {
    * Publishes a state event to the transport.
    * @param event The state event to publish.
    */
-  publish(event: ZunoStateEvent): void | Promise<void>;
+  publish(event: ZunoStateEvent): { ok: boolean, status: number, json: unknown } | Promise<{ ok: boolean, status: number, json: any }>;
   /**
    * Subscribes to state events from the transport.
    * @param handler The function to call when a new state event is received.

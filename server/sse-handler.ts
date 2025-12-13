@@ -1,4 +1,4 @@
-import { publishToStateEvent, subscribeToStateEvents } from "./state.bus";
+import { subscribeToStateEvents } from "./state.bus";
 
 import type { ZunoStateEvent } from "../sync/types";
 import type { IncomingMessage, ServerResponse } from "http";
@@ -19,24 +19,52 @@ type IncomingHeaders = IncomingMessage["headers"]
  */
 export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, headers: IncomingHeaders) => {
   res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
+    "Cache-Control": "no-cache, no-transform",
+    "Content-Type": "text/event-stream; charset=utf-8",
     Connection: "keep-alive",
     ...headers
   });
 
+  /**
+   * Immediately flushes the response headers to the client.
+   * This is crucial for SSE to ensure the client receives headers and
+   * starts processing the event stream without buffering delays.
+   */
+  res.flushHeaders?.();
+
+  /**
+   * Send an initial snapshot of the universe state to the client.
+   * This helps the client catch up with the current state before receiving
+   * real-time updates.
+   */
+  res.write(`event: snapshot\n`);
+  res.write(`data: ${JSON.stringify(getUniverseState())}\n\n`);
+
   // Subscribe to state events and send them to the client
   const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
-    const data = JSON.stringify(event);
-    // res.write(`event: state\n`); // Event type for client-side filtering
-    res.write(`data: ${data}\n\n`); // The actual event data
+    res.write(`event: state\n`);
+    res.write(`data: ${JSON.stringify(event)}\n\n`); // The actual event data
   });
 
-  // Send an initial connection message
+  /**
+   * Set up a heartbeat mechanism to keep the SSE connection alive.
+   * A ping event is sent every 15 seconds.
+   */
+  const heartbeat = setInterval(() => {
+    res.write(`: ping ${Date.now()}\n\n`);
+  }, 15000);
+
+  /**
+   * Send an initial connection message to the client.
+   * This helps the client know when the connection is established.
+   */
   res.write(": connected \n\n");
 
-  // Clean up subscription when the client disconnects
+  /**
+   * Clean up subscription when the client disconnects.
+   */
   req.on("close", () => {
+    clearInterval(heartbeat);
     unsubscribe();
   });
 };
@@ -58,6 +86,7 @@ export const listUniverseState = (req: IncomingMessage, res: ServerResponse, hea
   res.end(JSON.stringify(getUniverseState()));
 };
 
+
 /**
  * Synchronizes the Zuno universe state by applying an incoming event.
  *
@@ -66,6 +95,7 @@ export const listUniverseState = (req: IncomingMessage, res: ServerResponse, hea
  *
  * @param req The incoming HTTP request object, expected to contain a JSON `ZunoStateEvent` in its body.
  * @param res The server response object, used to acknowledge the update or report errors.
+ * @param transport The transport object used to publish the event to all SSE subscribers.
  */
 export const syncUniverseState = (req: IncomingMessage, res: ServerResponse) => {
 

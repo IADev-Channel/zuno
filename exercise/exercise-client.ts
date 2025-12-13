@@ -1,22 +1,38 @@
 import { createUniverse } from "../core/universe";
 import { startSSE } from "../sync/sse-client";
-import { createHttpTransport } from "../sync/transport";
 
-const universe = createUniverse();
+const initiate = () => {
+  const counterEl = document.getElementById("count") as HTMLSpanElement;
+  const inc = document.getElementById("increment") as HTMLButtonElement;
+  const dec = document.getElementById("decrement") as HTMLButtonElement;
 
-const stop = startSSE({
-  universe,
-  url: "http://localhost:3000/zuno/sse",
-});
+  const universe = createUniverse();
+  let counterStore = universe.getStore<number>("counter", () => 0);
 
-// You can now subscribe to the local universe stores
-const counterStore = universe.getStore("counter", () => (0));
-const transport = createHttpTransport("http://localhost:3000/zuno/sync")
-counterStore.subscribe((state) => {
-  console.log("client counter:", state);
-  transport.publish({ storeKey: "counter", state });
-});
+  const { unsubscribe, dispatch } = startSSE({
+    universe,
+    url: "http://localhost:3000/zuno/sse",
+    syncUrl: "http://localhost:3000/zuno/sync",
+    optimistic: true, // set false if you want authoritative server mode
+    getSnapshot: () => {
+      // after snapshot applied, store already contains server value
+      counterEl.textContent = String(counterStore.get());
+    },
+  });
 
-counterStore.set(Math.random())
-// later:
-// stop();
+  counterStore.subscribe((v) => {
+    counterEl.textContent = String(v);
+  });
+
+  inc.addEventListener("click", () => {
+    dispatch({ storeKey: "counter", state: counterStore.get() + 1 });
+  });
+
+  dec.addEventListener("click", () => {
+    dispatch({ storeKey: "counter", state: counterStore.get() - 1 });
+  });
+
+  // later: unsubscribe();
+};
+
+initiate();

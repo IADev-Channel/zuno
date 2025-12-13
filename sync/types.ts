@@ -10,25 +10,46 @@ export interface ZunoStateEvent {
   state: unknown;
 }
 
+export type ZunoSSEOptionsDefault = {
+
+  /**
+   * The URL of the SSE endpoint.
+   * */
+  url: string;
+
+  /**
+   * The URL of the Sync endpoint.
+  */
+  syncUrl: string;
+
+  /**
+   * Get the snapshot of the universe or store.
+   */
+  getSnapshot: (data: Universe | Store<unknown>) => void;
+
+  /**
+   * Whether to enable optimistic updates.
+   * If true, the client will update its state optimistically before receiving the server's response.
+   */
+  optimistic?: boolean;
+}
+
 /**
  * Options for configuring a Zuno Server-Sent Events (SSE) connection.
  * It can be configured either with a `Universe` or a specific `Store`.
  */
 export type ZunoSSEOptions =
-  | {
-    /** The URL of the SSE endpoint. */
-    url: string;
+  ZunoSSEOptionsDefault &
+  ({
     /** The universe to subscribe to. */
     universe: Universe;
     store?: never;
   }
-  | {
-    /** The URL of the SSE endpoint. */
-    url: string;
-    /** The specific store to subscribe to. */
-    store: Store<any>;
-    universe?: never;
-  };
+    | {
+      /** The specific store to subscribe to. */
+      store: Store<any>;
+      universe?: never;
+    });
 
 /**
  * Defines the interface for a Zuno transport layer, responsible for

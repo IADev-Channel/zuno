@@ -8,6 +8,7 @@ import type { ZunoStateEvent } from "../sync/types";
  * This is independent of HTTP / WebSocket / whatever transport.
  */
 export const applyStateEvent = (event: ZunoStateEvent) => {
-  updateUniverseState(event);
+  if (event.state)
+    updateUniverseState(event);
   publishToStateEvent(event);
 };

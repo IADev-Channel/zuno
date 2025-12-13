@@ -1,7 +1,8 @@
 import http from "http";
 import { createSSEConnection, listUniverseState, syncUniverseState } from "../server/sse-handler";
-import fs from "node:fs/promises"
 import { createInMemoryTransport } from "../server/inmemory-transport";
+
+const transport = createInMemoryTransport();
 
 const server = http.createServer((req, res) => {
   // CORS Headers
@@ -9,7 +10,6 @@ const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  const transport = createInMemoryTransport();
 
   if (req.method === "OPTIONS") {
     res.writeHead(204);
@@ -21,12 +21,14 @@ const server = http.createServer((req, res) => {
     createSSEConnection(req, res, {
       "Access-Control-Allow-Origin": "*"
     });
-  } else if (req.url === "/zuno/listing" && req.method === "GET") {
+  }
+  // Optional for listing internally
+  else if (req.url === "/zuno/listing" && req.method === "GET") {
     listUniverseState(req, res, {
       "Access-Control-Allow-Origin": "*"
     });
   } else if (req.url === "/zuno/sync" && req.method === "POST") {
-    syncUniverseState(req, res)
+    syncUniverseState(req, res);
   } else if (req.url?.includes("/zuno/counter") && req.method === "GET") {
     const counter = req.url?.split("/")?.pop();
     if (counter) {
@@ -36,10 +38,7 @@ const server = http.createServer((req, res) => {
         res.end("Invalid counter value");
         return;
       }
-      transport.publish({
-        storeKey: "counter",
-        state: counterValue,
-      })
+      transport.publish({ storeKey: "counter", state: counterValue });
       res.writeHead(200);
       res.end("Counter updated");
     }

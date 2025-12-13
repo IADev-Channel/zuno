@@ -7,7 +7,6 @@ import type { ZunoStateEvent, ZunoTransport } from "./types";
  * @param headers Additional headers to include in the HTTP request.
  * @returns A ZunoTransport object with a publish method.
  */
-
 export const createHttpTransport = (url: string, headers?: HeadersInit): ZunoTransport => {
   return {
     async publish(event: ZunoStateEvent) {

@@ -21,6 +21,9 @@ export interface ZunoStateEvent {
 
   /** The timestamp of the state change. */
   ts?: number;
+
+  /** The global monotonic id of the event. */
+  eventId?: number;   
 }
 
 export type ZunoSSEOptionsDefault = {

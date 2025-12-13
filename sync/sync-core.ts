@@ -1,5 +1,7 @@
 import { publishToStateEvent } from "../server/state.bus";
 import { getUniverseRecord, updateUniverseState } from "../server/universe-store";
+import { appendEvent } from "../server/state.log";
+
 import type { ZunoStateEvent } from "../sync/types";
 
 /**
@@ -26,15 +28,12 @@ export const applyStateEvent = (incoming: ZunoStateEvent): ApplyResult => {
     return { ok: false, reason: "VERSION_CONFLICT", current };
   }
 
-  // If applyStateEvent already computed event.version, prefer it.
-  const nextVersion = current.version + 1;
-
   // Create a new event with the next version and current timestamp.
-  const event: ZunoStateEvent = {
+  const event: ZunoStateEvent = appendEvent({
     ...incoming,
-    version: nextVersion,
+    version: current.version + 1,
     ts: Date.now(),
-  };
+  });
 
   updateUniverseState(event);
   publishToStateEvent(event);

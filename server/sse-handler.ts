@@ -4,6 +4,7 @@ import type { ZunoStateEvent } from "../sync/types";
 import type { IncomingMessage, ServerResponse } from "http";
 import { getUniverseState } from "./universe-store";
 import { applyStateEvent } from "../sync/sync-core";
+import { getEventsAfter } from "./state.log";
 
 type IncomingHeaders = IncomingMessage["headers"]
 
@@ -32,16 +33,37 @@ export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, h
    */
   res.flushHeaders?.();
 
-  /**
-   * Send an initial snapshot of the universe state to the client.
-   * This helps the client catch up with the current state before receiving
-   * real-time updates.
-   */
-  res.write(`event: snapshot\n`);
-  res.write(`data: ${JSON.stringify(getUniverseState())}\n\n`);
+  /** Get the last event id from header `last-evend-id` */
+  const lastEventId = Number(req.headers["last-event-id"] ?? 0);
 
-  // Subscribe to state events and send them to the client
+  /**
+   * If the client has a `last-event-id`, it means it's reconnecting after a disconnect.
+   * In this case, we need to send it any missed events since the last event it received.
+   */
+  if (lastEventId > 0) {
+    /** Get the events that occurred after the last event the client received. */
+    const missed = getEventsAfter(lastEventId);
+
+    /** Send the missed events to the client. */
+    for (const event of missed) {
+      res.write(`id: ${event.eventId}\n`);
+      res.write(`event: state\n`);
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+  }
+  /**
+   * If the client doesn't have a `last-event-id`, it means it's a fresh connection.
+   * In this case, we need to send it the current state of the universe.
+   */
+  else {
+    /** Send the current state of the universe to the client. */
+    res.write(`event: snapshot\n`);
+    res.write(`data: ${JSON.stringify(getUniverseState())}\n\n`);
+  }
+
+  /** Subscribe to state events and send them to the client */
   const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
+    res.write(`id: ${event.eventId}\n`);
     res.write(`event: state\n`);
     res.write(`data: ${JSON.stringify(event)}\n\n`); // The actual event data
   });

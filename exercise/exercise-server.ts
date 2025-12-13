@@ -1,8 +1,6 @@
 import http from "http";
 import { createSSEConnection, listUniverseState, syncUniverseState } from "../server/sse-handler";
-import { createInMemoryTransport } from "../server/inmemory-transport";
-
-const transport = createInMemoryTransport();
+import { applyStateEvent } from "../sync/sync-core";
 
 const server = http.createServer((req, res) => {
   // CORS Headers
@@ -29,19 +27,20 @@ const server = http.createServer((req, res) => {
     });
   } else if (req.url === "/zuno/sync" && req.method === "POST") {
     syncUniverseState(req, res);
-  } else if (req.url?.includes("/zuno/counter") && req.method === "GET") {
-    const counter = req.url?.split("/")?.pop();
-    if (counter) {
-      const counterValue = parseInt(counter);
-      if (isNaN(counterValue)) {
-        res.writeHead(400);
-        res.end("Invalid counter value");
-        return;
-      }
-      transport.publish({ storeKey: "counter", state: counterValue });
-      res.writeHead(200);
-      res.end("Counter updated");
+  } else if (req.url?.startsWith("/zuno/counter/") && req.method === "GET") {
+    const counter = req.url.split("/").pop();
+    const counterValue = Number(counter);
+
+    if (!Number.isFinite(counterValue)) {
+      res.writeHead(400);
+      res.end("Invalid counter value");
+      return;
     }
+
+    const result = applyStateEvent({ storeKey: "counter", state: counterValue });
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, event: result.ok ? result.event : null }));
   } else {
     res.writeHead(404);
     res.end("Not found");

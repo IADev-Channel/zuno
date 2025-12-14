@@ -211,6 +211,160 @@ Zuno is currently **frozen for stabilization and documentation**.
 
 ---
 
+## 🧭 Design Principles
+
+These principles define Zuno’s shape. They are **constraints**, not suggestions.
+
+1. **Core first, adapters second**
+   The core must remain framework-agnostic. Adapters (React, Solid, Vue, etc.) are thin bindings.
+
+2. **Events, not mutations**
+   All state changes are expressed as events. Transports move events; stores apply them.
+
+3. **Snapshot + replay**
+   Late joiners must converge via a snapshot, then continue via events.
+
+4. **Transport-agnostic by default**
+   No logic should assume BroadcastChannel, SSE, HTTP, or any specific runtime.
+
+5. **DX over ceremony**
+   Prefer `store.set(p => p + 1)` over reducers, actions, or providers.
+
+6. **Stop when invariants hold**
+   Once correctness is achieved, do not add features for novelty.
+
+---
+
+## 🧩 Architecture Overview
+
+```
+[ Store ]
+    ↑
+[ Universe ]
+    ↑
+[ Event ]  ←── created by set()/dispatch()
+    ↑
+[ Transport ]
+    ├─ Local (in-memory)
+    ├─ BroadcastChannel (multi-tab)
+    └─ SSE + HTTP (server)
+```
+
+* **Universe** owns stores
+* **Stores** are isolated and deterministic
+* **Events** describe state transitions
+* **Transports** replicate events between replicas
+
+---
+
+## 📚 Core API (Stable)
+
+### `createZuno(options)`
+
+Creates a Zuno instance.
+
+```ts
+const zuno = createZuno({
+  channelName?,
+  sseUrl?,
+  syncUrl?,
+  optimistic?,
+});
+```
+
+---
+
+### `zuno.store(key, init)`
+
+Creates a bound store.
+
+```ts
+const counter = zuno.store<number>("counter", () => 0);
+```
+
+Returns:
+
+* `get()`
+* `set(next | updater)`
+* `subscribe(cb)`
+* `raw()` (escape hatch)
+
+---
+
+### `zuno.set(key, next, init?)`
+
+Low-level setter (used internally by bound stores).
+
+---
+
+### `zuno.dispatch(event)`
+
+Advanced API for power users.
+
+```ts
+zuno.dispatch({ storeKey: "counter", state: 5 });
+```
+
+---
+
+### `zuno.stop()`
+
+Stops transports and listeners.
+
+---
+
+## ⚛️ React Adapter API (Stable)
+
+### `createZunoReact(options)`
+
+Convenience wrapper around `createZuno + bindReact`.
+
+```ts
+const zuno = createZunoReact({ channelName: "zuno-react" });
+```
+
+---
+
+### `counter.use(selector?, equality?)`
+
+React hook bound to a store.
+
+```tsx
+const count = counter.use();
+const doubled = counter.use(c => c * 2);
+```
+
+Uses `useSyncExternalStore` internally.
+
+---
+
+## 🧪 Guarantees
+
+Zuno guarantees:
+
+* Deterministic local updates
+* Eventual consistency between replicas
+* No duplicate self-events
+* Late join convergence
+
+Zuno does **not** guarantee:
+
+* Strong consistency
+* Conflict-free merges (CRDT-level)
+
+---
+
+## 🛑 Non-Goals
+
+Zuno intentionally does **not**:
+
+* Replace all UI-local state
+* Provide reducers or actions
+* Handle complex CRDT merges
+* Abstract networking concerns beyond transports
+
+---
+
 ## 📜 License
 
 MIT © Ibrahim Aftab

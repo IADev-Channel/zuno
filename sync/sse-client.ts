@@ -1,6 +1,5 @@
 import type { ZunoSSEOptions, ZunoStateEvent } from "./types";
 import { createHttpTransport } from "./transport";
-import { startBroadcastChannel } from "./broadcast-channel";
 
 type SnapshotRecord = { state: unknown; version: number };
 type SnapshotState = Record<string, SnapshotRecord>;
@@ -46,21 +45,6 @@ export const startSSE = (options: ZunoSSEOptions) => {
    * Tracks the version of each store to handle conflicts.
    */
   const versions = new Map<string, number>();
-
-  /**
-   * Broadcast Channel instance for real-time state updates.
-   */
-  const bc = options.channelName
-    ? startBroadcastChannel({
-      channelName: options.channelName,
-      clientId,
-      onEvent: (ev) => {
-        // Broadcast Channel event should update local store but NOT affect server version directly.
-        applyEventToTarget(ev);
-      },
-    })
-    : null;
-
 
   /**
    * Applies an incoming snapshot to the target Zuno universe or store.
@@ -133,7 +117,6 @@ export const startSSE = (options: ZunoSSEOptions) => {
     eventSource.removeEventListener("snapshot", onSnapshot);
     eventSource.removeEventListener("state", onState);
     eventSource.close();
-    bc?.stop();
   };
 
   /**
@@ -144,6 +127,7 @@ export const startSSE = (options: ZunoSSEOptions) => {
   const dispatch = async (event: ZunoStateEvent) => {
     const baseVersion = versions.get(event.storeKey) ?? 0;
 
+    /** Payload to send to server with event metadata, version and origin */
     const payload: ZunoStateEvent = {
       ...event,
       baseVersion,
@@ -157,11 +141,6 @@ export const startSSE = (options: ZunoSSEOptions) => {
       applyEventToTarget(payload);
       versions.set(event.storeKey, baseVersion + 1);
     }
-
-    /**
-     * FAST: update other tabs immediately
-     */
-    bc?.publish(payload);
 
     /**
      * AUTHORITATIVE: send to server

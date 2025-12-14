@@ -1,39 +1,54 @@
-import { createUniverse } from "../core/universe";
-import { startSSE } from "../sync/sse-client";
+import { createZuno } from "../core/createZuno";
 
+/**
+ * Initiate Zuno
+ */
 const initiate = () => {
+  /** Counter element */
   const counterEl = document.getElementById("count") as HTMLSpanElement;
+
+  /** Increment button */
   const inc = document.getElementById("increment") as HTMLButtonElement;
+
+  /** Decrement button */
   const dec = document.getElementById("decrement") as HTMLButtonElement;
 
-  const universe = createUniverse();
-  let counterStore = universe.getStore<number>("counter", () => 0);
+  /** Create Zuno */
+  const zuno = createZuno({
+    /** Channel name (for mutiple tabs sync broadcast channel) */
+    channelName: "zuno-demo",
 
-  const { unsubscribe, dispatch } = startSSE({
-    universe,
-    url: "http://localhost:3000/zuno/sse",
+    /** SSE URL (for server sync - real-time updates) */
+    sseUrl: "http://localhost:3000/zuno/sse",
+
+    /** Sync URL (for client sync - state updates) */
     syncUrl: "http://localhost:3000/zuno/sync",
-    optimistic: true, // set false if you want authoritative server mode
-    channelName: "zuno-demo", // enable multi tab sync if provided
-    getSnapshot: () => {
-      // after snapshot applied, store already contains server value
-      counterEl.textContent = String(counterStore.get());
-    },
+
+    /** Optimistic (for optimistic updates - local updates before server confirmation) */
+    optimistic: true,
+  })
+
+  /** Counter store */
+  const counter = zuno.store<number>("counter", () => 0);
+
+  /** Set counter element */
+  counterEl.textContent = String(counter.get());
+
+  /** Counter subscription */
+  counter.subscribe((counterValue) => {
+    counterEl.textContent = String(counterValue);
   });
 
-  counterStore.subscribe((v) => {
-    counterEl.textContent = String(v);
-  });
-
+  /** Increment button click handler */
   inc.addEventListener("click", () => {
-    dispatch({ storeKey: "counter", state: counterStore.get() + 1 });
+    counter.set((prev: number) => prev + 1);
   });
 
+  /** Decrement button click handler */
   dec.addEventListener("click", () => {
-    dispatch({ storeKey: "counter", state: counterStore.get() - 1 });
+    counter.set((prev: number) => prev - 1);
   });
 
-  // later: unsubscribe();
 };
 
 initiate();

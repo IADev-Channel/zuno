@@ -1,5 +1,10 @@
 import type { ZunoStateEvent } from "./types";
 
+type BCMsg =
+  | { type: "zuno:hello"; origin: string }
+  | { type: "zuno:snapshot"; origin: string; target: string; snapshot: Record<string, unknown> }
+  | { type: "zuno:event"; origin: string; event: ZunoStateEvent };
+
 /**
  * Options for starting a broadcast channel.
  */
@@ -7,6 +12,8 @@ export type ZunoBCOptions = {
   channelName: string;           // e.g. "zuno"
   clientId: string;              // unique per tab
   onEvent: (event: ZunoStateEvent) => void; // apply into universe/store
+  getSnapshot?: () => Record<string, unknown>;
+  onSnapshot?: (snapshot: Record<string, unknown>) => void;
 };
 
 /**
@@ -17,30 +24,94 @@ export type ZunoBCOptions = {
 export const startBroadcastChannel = (opts: ZunoBCOptions) => {
   const bc = new BroadcastChannel(opts.channelName);
 
-  /** 
-   * Broadcash message event handler
-  */
-  const onMessage = (e: MessageEvent) => {
-    const event = e.data as ZunoStateEvent | undefined;
-    if (!event || typeof event !== "object") return;
+  const post = (msg: BCMsg) => bc.postMessage(msg);
 
-    /** Ignore my own echoes */
-    if (event.origin && event.origin === opts.clientId) return;
+  /**
+   * Handles incoming messages from the broadcast channel.
+   * @param e The message event.
+   */
+  bc.onmessage = (e) => {
 
-    opts.onEvent({ ...event, via: "bc" });
+    /** Message */
+    const msg = e.data as BCMsg;
+
+    /** Invalid message */
+    if (!msg || typeof msg !== "object") return;
+
+    /** Ignore self messages */
+    if ((msg as any).origin === opts.clientId) return;
+
+    /** Event message */
+    if (msg.type === "zuno:event") {
+
+      /** Event */
+      const event = msg.event;
+
+      /** Apply event */
+      opts.onEvent(event);
+
+      return;
+    }
+
+    /** Hello message */
+    if (msg.type === "zuno:hello") {
+
+      /** Someone joined: respond with snapshot (if available) */
+      if (!opts.getSnapshot) return;
+
+      /** Snapshot */
+      const snapshot = opts.getSnapshot();
+
+      /** Post snapshot */
+      post({
+        type: "zuno:snapshot",
+        origin: opts.clientId,
+        target: msg.origin,
+        snapshot,
+      });
+
+      return;
+    }
+
+    /** Snapshot message */
+    if (msg.type === "zuno:snapshot") {
+
+      /** Accept only if snapshot is meant for me */
+      if (msg.target !== opts.clientId) return;
+
+      /** Apply snapshot */
+      opts.onSnapshot?.(msg.snapshot);
+
+      return;
+    }
   };
 
-  bc.addEventListener("message", onMessage);
+  /** Publish event */
+  const publish = (event: ZunoStateEvent) => {
 
-  return {
-    /** Publishes a state event to the broadcast channel. */
-    publish: (event: ZunoStateEvent) => {
-      bc.postMessage({ ...event, via: "bc", origin: opts.clientId });
-    },
-    /** Stops the broadcast channel. */
-    stop: () => {
-      bc.removeEventListener("message", onMessage);
-      bc.close();
-    },
+    /** Post event */
+    post({
+      type: "zuno:event",
+      origin: opts.clientId,
+      event,
+    });
+
   };
+
+  /** Hello */
+  const hello = () => {
+
+    /** Post hello - to notify others about my presence */
+    post({ type: "zuno:hello", origin: opts.clientId });
+
+    /** Hello - to notify me about others presence */
+    hello();
+
+  };
+
+  /** Stop */
+  const stop = () => bc.close();
+
+  return { publish, hello, stop };
+
 };

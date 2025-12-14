@@ -1,246 +1,216 @@
-# Zuno  
-### Universal Real-Time State Management & Sync Engine
+# Zuno
 
-Zuno is a lightweight, framework-agnostic architecture for **synchronizing state between client and server in real time**.  
-It provides a unified “universe” store, an event-driven state bus, Server-Sent Events for live updates, and a pluggable transport system for bi-directional communication.
+**Zuno** is a transport-agnostic, event-driven **universal state replication engine**.
 
-Zuno is designed as a *foundation-level* project—similar to what powers frameworks like LiveView, Remix loaders, Solid signals, and Zustand stores—but fully environment-agnostic.
+It is not a typical UI state manager.
+Zuno focuses on **how state exists, synchronizes, and converges** across tabs, runtimes, and (optionally) servers — while keeping developer experience minimal.
+
+---
+
+## ✨ What makes Zuno different?
+
+Most state libraries answer:
+
+> *“How do I update UI efficiently?”*
+
+Zuno answers:
+
+> *“How does state move, synchronize, and stay consistent across replicas?”*
+
+Zuno works:
+
+* without React
+* without Context / Providers
+* without Redux-style boilerplate
+* without a server (optional)
+
+And still scales **from local-only → multi-tab → real-time server sync**.
+
+---
+
+## 🧠 Mental Model
+
+Zuno is built on four simple concepts:
+
+### 1. Universe
+
+A **Universe** is a collection of independent stores.
+Each store is identified by a `storeKey`.
+
+### 2. Store
+
+A store holds a single piece of state and supports:
+
+* `get()`
+* `set()`
+* `subscribe()`
+
+### 3. Event
+
+Every mutation is an **event**:
+
+```ts
+{ storeKey, state, origin?, version?, baseVersion? }
+```
+
+Events are transport-agnostic.
+
+### 4. Transport
+
+Transports move events between replicas:
+
+* Local (in-memory)
+* BroadcastChannel (multi-tab)
+* SSE + HTTP (server sync)
 
 ---
 
 ## 🚀 Features
 
-- ⚡ **Real-time client ↔ server state synchronization**  
-- 🌍 **Universal “Universe Store”** shared across processes  
-- 📡 **SSE-based broadcast pipeline** for server → client updates  
-- 🔁 **Transport system** (HTTP, SSE, InMemory; WS coming soon)  
-- 🧩 **Pluggable architecture** for future framework adapters  
-- 🔧 **Event-driven core with shared pub/sub bus**  
-- 📦 Zero dependencies, simple and fast  
-- 🧪 Perfect foundation for multi-user, dashboard, and real-time UIs
+* ✅ Framework-agnostic core
+* ✅ Vanilla JS friendly
+* ✅ React adapter (no providers)
+* ✅ Multi-tab sync via BroadcastChannel
+* ✅ Optional server sync (SSE + POST)
+* ✅ Snapshot + replay for late-joining replicas
+* ✅ Optimistic updates
+* ✅ Extremely small API surface
 
 ---
 
-## 🧱 Architecture Overview
+## 📦 Installation
 
-Zuno's architecture is built around four core modules:
-
-### **1. Universe Store**
-A global registry of reactive stores.  
-Each store is accessed via:
-
-```ts
-universe.getStore("counter", () => 0);
-```
-This ensures a single shared instance per key.
-
-2. State Bus (Pub/Sub)
-
-All state changes pass through an internal event bus:
-
-```ts
-publishToStateEvent(event);
-subscribeToStateEvents(handler);
+```bash
+pnpm add zuno
 ```
 
-This powers real-time broadcasting.
+(React is an optional peer dependency.)
 
-3. Transport Layer (Client → Server)
+---
 
-Zuno uses pluggable transports so apps can decide how state sync happens.
-
-Included today:
-
-- `HttpTransport` → simple POST sync
-
-- `InMemoryTransport` → SSR/tests
-
-- `SSETransport` (server → client)
-
-Upcoming:
-
-- WebSocket transport
-
-- BroadcastChannel (multi-tab sync)
-
-4. SSE Stream (Server → Client)
-
-Server emits real-time events to all connected clients:
+## 🟢 Vanilla JS Example
 
 ```ts
-createSSEConnection(req, res);
-```
+import { createZuno } from "zuno";
 
-Clients reactively update local stores:
-
-```ts
-startSSE({ universe, url: "/zuno/sse" });
-```
-
-### 🏗️ Project Layout
-
-```dir
-/core
-  universe.ts                     → Global store registry
-  store.ts                        → Store implementation
-
-/server
-  sse-handler.ts                  → SSE endpoint + event streaming
-  universe-store.ts               → Server-side universe storage
-  state.bus.ts                    → Core pub/sub event bus
-  inmemory-transport.ts           → InMemoryTransport
-
-/sync
-  sse-client.ts                   → Client-side SSE listener
-  sync-core.ts                    → Sync core
-  transport.ts                    → Transport interface
-
-/examples
-  exercise-server.ts              → Demo SSE server
-  exercise-client.ts              → Demo browser client
-  exercise-index.html             → Demo browser client
-  exercise-memory-management.ts   → Demo memory management
-```
-
-🧪 Example: Real-Time Counter Sync
-Client
-
-```ts
-const universe = createUniverse();
-startSSE({ universe, url: "/zuno/sse" });
-
-const counter = universe.getStore("counter", () => 0);
-counter.subscribe((value) => {
-  console.log("Counter updated:", value);
-  transport.publish({ storeKey: "counter", state: value });
+const zuno = createZuno({
+  channelName: "zuno-demo",
+  optimistic: true,
 });
 
-counter.set(Math.random());
+const counter = zuno.store<number>("counter", () => 0);
+
+counter.subscribe((v) => {
+  console.log("counter:", v);
+});
+
+counter.set((p) => p + 1);
 ```
-## Server
+
+Open the same page in two tabs — they stay in sync.
+
+---
+
+## 🔁 Multi-tab Sync (BroadcastChannel)
 
 ```ts
-import { applyStateEvent } from "./sync-core";
-
-applyStateEvent({
-  storeKey: "counter",
-  state: Math.random(),
+const zuno = createZuno({
+  channelName: "zuno-multitab",
 });
 ```
 
-This update instantly shows on all connected clients.
+Zuno automatically:
 
-🗺️ Roadmap
-# Level 1 — Core (DONE)
+* discovers other tabs
+* hydrates new tabs via snapshot
+* syncs future updates via events
 
-✔ Universe store
-✔ Event bus
-✔ SSE server
-✔ Sync transport (HTTP + SSE)
-✔ Real-time update propagation
+No server required.
 
-# Level 2 — Transport Layer
+---
 
-⬜ WebSocket transport
+## 🌐 Server Sync (Optional)
 
-⬜ BroadcastChannel (multi-tab sync)
+```ts
+const zuno = createZuno({
+  channelName: "zuno",
+  sseUrl: "http://localhost:3000/zuno/sse",
+  syncUrl: "http://localhost:3000/zuno/sync",
+  optimistic: true,
+});
+```
 
-# Level 3 — Framework Adapters
+* SSE provides snapshots + authoritative updates
+* HTTP POST sends mutations
+* BroadcastChannel still gives instant local-tab sync
 
-⬜ React adapter (useZunoStore)
+---
 
-⬜ Solid.js adapter
+## ⚛️ React Usage
 
-⬜ Vue adapter
+### Create a React-enabled Zuno
 
-⬜ Angular adapter
+```ts
+import { createZunoReact } from "zuno/react";
 
-# Level 4 — DevTools
+export const zuno = createZunoReact({
+  channelName: "zuno-react",
+});
+```
 
-⬜ Store inspector panel
+> ⚠️ Call this at **module scope**, not inside components.
 
-⬜ Event timeline
+---
 
-⬜ Time-travel state playback
+### Using a bound store
 
-# Level 5 — Local/Testing Storage
+```tsx
+const counter = zuno.store<number>("counter", () => 0);
 
-⬜ In-memory adapter
+function App() {
+  const count = counter.use();
 
-⬜ JSON file adapter
+  return (
+    <div>
+      <p>{count}</p>
+      <button onClick={() => counter.set((p) => p + 1)}>+</button>
+    </div>
+  );
+}
+```
 
-⬜ SQLite adapter
+No Provider. No Context. No reducers.
 
-# Level 6 — Cloud DB Integration
+---
 
-⬜ Firebase adapter
+## 🎯 When should you use Zuno?
 
-⬜ Supabase adapter
+Zuno is ideal for:
 
-⬜ Postgres adapter
+* cross-tab state
+* auth/session state
+* feature flags
+* collaborative UIs
+* admin dashboards
+* streaming / media apps
+* offline-first tools
 
-# Level 7 — Multi-Tenant & Auth
+Zuno is **not** meant to replace all UI-local state.
+Use it where **state needs to exist beyond a single component tree**.
 
-⬜ Rooms / channels
+---
 
-⬜ Namespaced universes
+## 🧊 Project Status
 
-⬜ Secure event validation
+* ✅ Core complete (v0)
+* ✅ BroadcastChannel transport
+* ✅ SSE transport
+* ✅ React adapter
 
-# Level 8 — Offline Mode
+Zuno is currently **frozen for stabilization and documentation**.
 
-⬜ Event queueing
+---
 
-⬜ Auto-reconnect
+## 📜 License
 
-⬜ Conflict resolution strategies
-
-# Level 9 — Analytics
-
-⬜ GTM integration
-
-⬜ Other analytics integration
-
-🤝 Contributing
-
-Zuno is in early exploration stage.
-Ideas, issues, and PRs are welcome — especially around adapters, transports, and devtools.
-
-📄 License
-
-MIT License — free for personal and commercial use.
-
-⭐ Inspiration
-
-Zuno draws conceptual inspiration from:
-
-- Phoenix LiveView
-
-- Solid.js Signals
-
-- Zustand
-
-- Remix loader/streaming
-
-- Meteor reactivity
-
-But is fully hand-rolled and environment-agnostic.
-
-🌌 Final Thoughts
-
-Zuno is the foundation of a universal real-time engine.
-You can build:
-
-- dashboards
-
-- SaaS tools
-
-- collaboration apps
-
-- multi-user state systems
-
-- real-time viewers
-
-…and eventually a full framework.
-
-Stay tuned for more upgrades.
+MIT © Ibrahim Aftab

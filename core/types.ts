@@ -63,3 +63,18 @@ export interface Universe {
   clear(): void;
 
 }
+
+/**
+ * Context for incoming events.
+ * It is used to prevent loops (don’t re-apply your own broadcast) and to track per-store version tracking (SSE uses it, BC can ignore it).
+ */
+export type IncomingEventContext = {
+  /** Used to prevent loops (don’t re-apply your own broadcast) */
+  clientId: string;
+
+  /** Per-store version tracking (SSE uses it, BC can ignore it) */
+  versions?: Map<string, number>;
+
+  /** Optional in-memory snapshot state for BC “hello/snapshot” */
+  localState?: Map<string, unknown>;
+};

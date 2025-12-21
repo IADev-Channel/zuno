@@ -4,6 +4,9 @@ import type { Store, Universe } from "../core/types";
  * Represents a state event received from a Zuno SSE stream.
  */
 export interface ZunoStateEvent {
+  /** The kind of the event. */
+  kind?: "state";
+
   /** The key of the store that emitted the state change. */
   storeKey: string;
 

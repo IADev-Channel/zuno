@@ -1,4 +1,4 @@
-import type { ZunoStateEvent, ZunoTransport } from "./types";
+import type { ZunoStateEvent, ZunoTransport } from "./sync-types";
 
 /**
  * Creates an HTTP transport for publishing Zuno state events.

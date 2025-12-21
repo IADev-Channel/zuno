@@ -1,6 +1,6 @@
 import { subscribeToStateEvents } from "./state.bus";
 
-import type { ZunoStateEvent } from "../sync/types";
+import type { ZunoStateEvent } from "../sync/sync-types";
 import type { IncomingMessage, ServerResponse } from "http";
 import { getUniverseState } from "./universe-store";
 import { applyStateEvent } from "../sync/sync-core";

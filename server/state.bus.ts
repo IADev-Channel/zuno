@@ -1,6 +1,9 @@
-import type { ZunoStateEvent } from "../sync/types";
+import type { ZunoStateEvent } from "../sync/sync-types";
 import type { ZunoStateListener } from "./types";
 
+/**
+ * The set of listeners subscribed to state events.
+ */
 const listeners = new Set<ZunoStateListener>();
 
 /**

@@ -1,4 +1,4 @@
-import type { ZunoStateEvent } from "../sync/types";
+import type { ZunoStateEvent } from "../sync/sync-types";
 
 /** Maximum number of events to keep in the log. */
 const MAX_EVENTS = 1000;

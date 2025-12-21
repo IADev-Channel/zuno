@@ -2,7 +2,8 @@ import { createUniverse } from "./universe";
 import { startSSE } from "../sync/sse-client";
 import { startBroadcastChannel } from "../sync/broadcast-channel";
 
-import type { ZunoStateEvent } from "../sync/types";
+import type { ZunoStateEvent } from "../sync/sync-types";
+import { applyIncomingEvent } from "../sync/sync-core";
 
 /** Local state */
 const localState = new Map<string, unknown>();
@@ -74,18 +75,8 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
       : null;
 
   /** Apply event to target */
-  const applyEventToTarget = (eventState: ZunoStateEvent) => {
-
-    /** Update local state */
-    localState.set(eventState.storeKey, eventState.state);
-
-    /** Update store */
-    const store = universe.getStore(
-      eventState.storeKey,
-      () => eventState.state
-    );
-    store.set(eventState.state);
-  };
+  const apply = (event: ZunoStateEvent) =>
+    applyIncomingEvent(universe as any, event, { clientId, localState });
 
   /** BroadcastChannel */
   const bc = opts.channelName
@@ -98,7 +89,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 
       /** Apply event to target */
       onEvent: (ev) => {
-        applyEventToTarget(ev);
+        apply(ev);
       },
 
       /** Get snapshot of local state */
@@ -107,7 +98,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
       /** Apply snapshot to target */
       onSnapshot: (snap) => {
         for (const [storeKey, state] of Object.entries(snap)) {
-          applyEventToTarget({ storeKey, state });
+          apply({ storeKey, state });
         }
       },
     })
@@ -116,29 +107,29 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
   /** Post message hello to BroadcastChannel */
   setTimeout(() => bc?.hello(), 0);
 
-  /** Store */
+  /** Store factory */
   const getStore = <T,>(storeKey: string, init: () => T) => {
     return universe.getStore<T>(storeKey, init);
   };
 
-  /** Get */
+  /** Get store by store key */
   const get = <T,>(storeKey: string, init?: () => T): T => {
     return universe.getStore<T>(storeKey, init ?? (() => undefined as any)).get();
   };
 
-  /** Dispatch */
+  /** Dispatch event to universe */
   const dispatch = async (event: ZunoStateEvent) => {
     const payload: ZunoStateEvent = { ...event, origin: clientId };
 
     if (sse) return sse.dispatch(payload);
     if (bc) {
-      applyEventToTarget(payload);
+      apply(payload);
       bc.publish(payload);
     }
     return { ok: true, status: 200, json: null };
   };
 
-  /** Set */
+  /** Set store state */
   const set = async <T,>(
     storeKey: string,
     next: T | ((prev: T) => T),
@@ -151,7 +142,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
     return dispatch({ storeKey, state });
   };
 
-  /** Subscribe */
+  /** Subscribe to store */
   const subscribe = <T,>(
     storeKey: string,
     init: () => T,

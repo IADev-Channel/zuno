@@ -1,4 +1,4 @@
-import type { ZunoStateEvent } from "../sync/types";
+import type { ZunoStateEvent } from "../sync/sync-types";
 
 /**
  * A global map to store the state of different parts of the universe.

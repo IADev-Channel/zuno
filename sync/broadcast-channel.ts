@@ -1,4 +1,4 @@
-import type { ZunoStateEvent } from "./types";
+import type { ZunoStateEvent } from "./sync-types";
 
 type BCMsg =
   | { type: "zuno:hello"; origin: string }
@@ -103,9 +103,6 @@ export const startBroadcastChannel = (opts: ZunoBCOptions) => {
 
     /** Post hello - to notify others about my presence */
     post({ type: "zuno:hello", origin: opts.clientId });
-
-    /** Hello - to notify me about others presence */
-    hello();
 
   };
 

@@ -1,4 +1,4 @@
-import type { ZunoStateEvent } from "../sync/types";
+import type { ZunoStateEvent } from "../sync/sync-types";
 
 /**
  * A callback function type for listening to Zuno state events.

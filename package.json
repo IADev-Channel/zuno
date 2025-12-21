@@ -19,11 +19,11 @@
   },
   "peerDependencies": {
     "@types/react": ">=18",
-    "react": ">=18",
-    "@types/react-dom": ">=18",
-    "react-dom": ">=18"
+    "react": ">=18"
   },
   "devDependencies": {
-    "@types/node": "^24.10.1"
+    "@types/node": "^24.10.1",
+    "react-dom": ">=18",
+    "@types/react-dom": ">=18"
   }
 }

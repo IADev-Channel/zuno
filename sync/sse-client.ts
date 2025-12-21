@@ -1,5 +1,6 @@
-import type { ZunoSSEOptions, ZunoStateEvent } from "./types";
+import type { ZunoSSEOptions, ZunoStateEvent } from "./sync-types";
 import { createHttpTransport } from "./transport";
+import { applyIncomingEvent } from "./sync-core";
 
 type SnapshotRecord = { state: unknown; version: number };
 type SnapshotState = Record<string, SnapshotRecord>;
@@ -40,6 +41,7 @@ export const startSSE = (options: ZunoSSEOptions) => {
       options.store.set(eventState.state);
     }
   };
+
 
   /** 
    * Tracks the version of each store to handle conflicts.
@@ -92,16 +94,12 @@ export const startSSE = (options: ZunoSSEOptions) => {
   const onState = (event: MessageEvent) => {
     try {
       const eventState: ZunoStateEvent = JSON.parse(event.data);
-      const incomingVersion =
-        typeof eventState.version === "number" ? eventState.version : null;
+      
 
-      const currentVersion = versions.get(eventState.storeKey) ?? 0;
-
-      if (incomingVersion !== null && incomingVersion <= currentVersion) return;
-
-      if (incomingVersion !== null) versions.set(eventState.storeKey, incomingVersion);
-
-      applyEventToTarget(eventState);
+      applyIncomingEvent(options.universe as any, eventState, {
+        clientId,
+        versions,
+      });
     } catch {
       console.error("Zuno SSE: failed to parse state payload");
     }

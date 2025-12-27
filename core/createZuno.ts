@@ -1,9 +1,9 @@
 import { createUniverse } from "./universe";
 import { startSSE } from "../sync/sse-client";
 import { startBroadcastChannel } from "../sync/broadcast-channel";
+import { applyIncomingEvent } from "../sync/apply-incoming-event";
 
 import type { ZunoStateEvent } from "../sync/sync-types";
-import { applyIncomingEvent } from "../sync/sync-core";
 
 /** Store */
 type ZunoStore<T> = {

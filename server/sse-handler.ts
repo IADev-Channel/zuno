@@ -3,7 +3,7 @@ import { subscribeToStateEvents } from "./state.bus";
 import type { ZunoStateEvent } from "../sync/sync-types";
 import type { IncomingMessage, ServerResponse } from "http";
 import { getUniverseState } from "./universe-store";
-import { applyStateEvent } from "../sync/sync-core";
+import { applyStateEvent } from "./apply-state-event";
 import { getEventsAfter } from "./state.log";
 
 type IncomingHeaders = IncomingMessage["headers"]

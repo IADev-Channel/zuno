@@ -1,6 +1,6 @@
 import type { ZunoSSEOptions, ZunoStateEvent } from "./sync-types";
 import { createHttpTransport } from "./transport";
-import { applyIncomingEvent } from "./sync-core";
+import { applyIncomingEvent } from "./apply-incoming-event";
 
 type SnapshotRecord = { state: unknown; version: number };
 type SnapshotState = Record<string, SnapshotRecord>;

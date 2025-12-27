@@ -83,6 +83,7 @@ export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, h
   req.on("close", () => {
     clearInterval(heartbeat);
     unsubscribe();
+    res.end()
   });
 };
 

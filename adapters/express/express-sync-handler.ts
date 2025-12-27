@@ -9,7 +9,7 @@ import { applyStateEvent } from "../../server/apply-state-event"
  * @param transport The transport to use for publishing events.
  * @returns An Express handler function.
  */
-export function createExpressSyncHandler(transport: ZunoTransport) {
+export function createExpressSyncHandler() {
   return (req: Request, res: Response) => {
     /** The incoming state event to apply. */
     const incoming = req.body as ZunoStateEvent
@@ -25,9 +25,6 @@ export function createExpressSyncHandler(transport: ZunoTransport) {
       })
       return
     }
-
-    /** Publishes the state event to the transport. */
-    transport.publish(result.event)
 
     /** Returns a 200 status code with the result. */
     res.status(200).json({ ok: true })

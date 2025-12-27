@@ -11,7 +11,7 @@
     "server-state",
     "universal-state"
   ],
-  "author": "Ibrahim Aftab",
+  "author": "IADev",
   "license": "MIT",
   "packageManager": "pnpm@10.24.0",
   "dependencies": {

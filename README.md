@@ -367,4 +367,4 @@ Zuno intentionally does **not**:
 
 ## 📜 License
 
-MIT © Ibrahim Aftab
+MIT © IADev

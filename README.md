@@ -2,7 +2,7 @@
 
 **Zuno** is a transport-agnostic, event-driven **universal state replication engine**.
 
-It is not a typical UI state manager.
+It is **not** a typical UI state manager.
 Zuno focuses on **how state exists, synchronizes, and converges** across tabs, runtimes, and (optionally) servers — while keeping developer experience minimal.
 
 ---
@@ -32,12 +32,12 @@ And still scales **from local-only → multi-tab → real-time server sync**.
 
 Zuno is built on four simple concepts:
 
-### 1. Universe
+### 1) Universe
 
 A **Universe** is a collection of independent stores.
 Each store is identified by a `storeKey`.
 
-### 2. Store
+### 2) Store
 
 A store holds a single piece of state and supports:
 
@@ -45,7 +45,7 @@ A store holds a single piece of state and supports:
 * `set()`
 * `subscribe()`
 
-### 3. Event
+### 3) Event
 
 Every mutation is an **event**:
 
@@ -53,9 +53,9 @@ Every mutation is an **event**:
 { storeKey, state, origin?, version?, baseVersion? }
 ```
 
-Events are transport-agnostic.
+Events are **transport-agnostic**.
 
-### 4. Transport
+### 4) Transport
 
 Transports move events between replicas:
 
@@ -78,6 +78,25 @@ Transports move events between replicas:
 
 ---
 
+## ⚠️ Important Notes
+
+### BroadcastChannel scope
+
+**BroadcastChannel only syncs tabs that share the same origin** (scheme + host + port).
+That means:
+
+* ✅ `http://localhost:5173` tab ↔ `http://localhost:5173` tab
+* ❌ `http://localhost:5173` tab ↔ `http://localhost:3000` tab
+
+If your demos are on different ports/hosts, use **server sync (SSE + HTTP)** (or run both under the same origin via a proxy).
+
+### SSE lifecycle
+
+SSE connections end when the page/tab is closed.
+Use snapshot + replay to hydrate late joiners when they reconnect.
+
+---
+
 ## 📦 Installation
 
 ```bash
@@ -88,7 +107,7 @@ pnpm add zuno
 
 ---
 
-## 🟢 Vanilla JS Example
+## ✅ Quickstart (Vanilla)
 
 ```ts
 import { createZuno } from "zuno";
@@ -142,7 +161,7 @@ const zuno = createZuno({
 
 * SSE provides snapshots + authoritative updates
 * HTTP POST sends mutations
-* BroadcastChannel still gives instant local-tab sync
+* BroadcastChannel still gives instant local-tab sync (same-origin only)
 
 ---
 
@@ -159,8 +178,6 @@ export const zuno = createZunoReact({
 ```
 
 > ⚠️ Call this at **module scope**, not inside components.
-
----
 
 ### Using a bound store
 
@@ -197,41 +214,6 @@ Zuno is ideal for:
 
 Zuno is **not** meant to replace all UI-local state.
 Use it where **state needs to exist beyond a single component tree**.
-
----
-
-## 🧊 Project Status
-
-* ✅ Core complete (v0)
-* ✅ BroadcastChannel transport
-* ✅ SSE transport
-* ✅ React adapter
-
-Zuno is currently **frozen for stabilization and documentation**.
-
----
-
-## 🧭 Design Principles
-
-These principles define Zuno’s shape. They are **constraints**, not suggestions.
-
-1. **Core first, adapters second**
-   The core must remain framework-agnostic. Adapters (React, Solid, Vue, etc.) are thin bindings.
-
-2. **Events, not mutations**
-   All state changes are expressed as events. Transports move events; stores apply them.
-
-3. **Snapshot + replay**
-   Late joiners must converge via a snapshot, then continue via events.
-
-4. **Transport-agnostic by default**
-   No logic should assume BroadcastChannel, SSE, HTTP, or any specific runtime.
-
-5. **DX over ceremony**
-   Prefer `store.set(p => p + 1)` over reducers, actions, or providers.
-
-6. **Stop when invariants hold**
-   Once correctness is achieved, do not add features for novelty.
 
 ---
 
@@ -272,8 +254,6 @@ const zuno = createZuno({
 });
 ```
 
----
-
 ### `zuno.store(key, init)`
 
 Creates a bound store.
@@ -289,13 +269,9 @@ Returns:
 * `subscribe(cb)`
 * `raw()` (escape hatch)
 
----
-
 ### `zuno.set(key, next, init?)`
 
 Low-level setter (used internally by bound stores).
-
----
 
 ### `zuno.dispatch(event)`
 
@@ -304,8 +280,6 @@ Advanced API for power users.
 ```ts
 zuno.dispatch({ storeKey: "counter", state: 5 });
 ```
-
----
 
 ### `zuno.stop()`
 
@@ -323,15 +297,13 @@ Convenience wrapper around `createZuno + bindReact`.
 const zuno = createZunoReact({ channelName: "zuno-react" });
 ```
 
----
-
 ### `counter.use(selector?, equality?)`
 
 React hook bound to a store.
 
 ```tsx
 const count = counter.use();
-const doubled = counter.use(c => c * 2);
+const doubled = counter.use((c) => c * 2);
 ```
 
 Uses `useSyncExternalStore` internally.
@@ -362,6 +334,33 @@ Zuno intentionally does **not**:
 * Provide reducers or actions
 * Handle complex CRDT merges
 * Abstract networking concerns beyond transports
+
+---
+
+## 🧩 Adapters Roadmap
+
+Adapters are intentionally thin bindings over the core.
+
+Planned / in-progress:
+
+* ✅ Vanilla JS (core)
+* ✅ React
+* ⏳ Next.js (SSR & hydration adapter layer)
+* ⏳ Solid
+* ⏳ Vue
+* ⏳ Svelte
+* ⏳ Angular
+
+---
+
+## 🧊 Project Status
+
+* ✅ Core complete (v0)
+* ✅ BroadcastChannel transport
+* ✅ SSE transport
+* ✅ React adapter
+
+Zuno is currently **stabilizing (Level 2.5)** → next: **Framework Adapters (Level 3)**.
 
 ---
 

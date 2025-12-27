@@ -62,6 +62,13 @@ export interface Universe {
    */
   clear(): void;
 
+  /**
+   * Restores the state of all stores in the Universe from a provided data snapshot.
+   * This can be used to rehydrate the application's state.
+   * @param snapshot A record containing the state to restore for each store.
+   */
+  hydrateSnapshot(snapshot: ZunoSnapshot): void;
+
 }
 
 /**
@@ -78,3 +85,12 @@ export type IncomingEventContext = {
   /** Optional in-memory snapshot state for BC “hello/snapshot” */
   localState?: Map<string, unknown>;
 };
+
+/**
+ * A snapshot of the universe state.
+ * It is used to rehydrate the application's state.
+ */
+export type ZunoSnapshot = {
+  state: Record<string, { state: unknown; version: number }>
+  lastEventId: number
+}

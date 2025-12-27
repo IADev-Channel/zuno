@@ -11,6 +11,7 @@ app.use(cors())
 const zuno = createZunoExpress()
 
 app.get("/zuno/sse", zuno.sse)
+app.get("/zuno/snapshot", zuno.snapshot)
 app.post("/zuno/sync", zuno.sync)
 
 const PORT = 3000

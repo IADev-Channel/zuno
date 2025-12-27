@@ -35,3 +35,12 @@ export const appendEvent = (event: ZunoStateEvent) => {
 export const getEventsAfter = (lastEventId: number) => {
   return eventLog.filter(event => (event?.eventId ?? 0) > lastEventId)
 }
+
+/**
+ * Returns the last event id in the log.
+ * 
+ * @returns The last event id in the log.
+ */
+export const getLastEventId = () => {
+  return eventLog[eventLog.length - 1]?.eventId ?? 0
+}

@@ -27,8 +27,8 @@ export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, h
    */
   res.flushHeaders?.();
 
-  /** Get the last event id from header `last-event-id` */
-  const raw = req.headers["last-event-id"];
+  /** Get the last event id from header `last-event-id` or query param `lastEventId` */
+  const raw = req.headers["last-event-id"] || new URL(req.url || "", "http://localhost").searchParams.get("lastEventId");
   const lastEventId = Number.parseInt(Array.isArray(raw) ? raw[0] : (raw ?? "0"), 10) || 0;
 
   /**
@@ -86,24 +86,6 @@ export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, h
     res.end()
   });
 };
-
-/**
- * Lists the current state of the Zuno universe.
- *
- * This function serves the entire universe state as a JSON object to any GET request.
- *
- * @param req The incoming HTTP request object.
- * @param res The server response object, used to send the JSON universe state.
- */
-export const listUniverseState = (req: IncomingMessage, res: ServerResponse, headers: IncomingHeaders) => {
-  res.writeHead(200, {
-    "Content-Type": "application/json",
-    ...headers
-  });
-  // Send the current state of the universe as a JSON string
-  res.end(JSON.stringify(getUniverseState()));
-};
-
 
 /**
  * Synchronizes the Zuno universe state by applying an incoming event.

@@ -21,7 +21,14 @@ export const startSSE = (options: ZunoSSEOptions) => {
     options.clientId ?? (crypto?.randomUUID?.() ?? String(Math.random()));
 
 
-  const eventSource = new EventSource(options.url);
+  // const eventSource = new EventSource(options.url);
+  const lastEventId = options.getLastEventId?.() ?? 0;
+  const url =
+    lastEventId > 0
+      ? `${options.url}?lastEventId=${encodeURIComponent(String(lastEventId))}`
+      : options.url;
+  const eventSource = new EventSource(url);
+
   const transport = createTransport(options.syncUrl);
 
   /**
@@ -46,7 +53,7 @@ export const startSSE = (options: ZunoSSEOptions) => {
   /** 
    * Tracks the version of each store to handle conflicts.
    */
-  const versions = new Map<string, number>();
+  const versions = options?.versions ?? new Map<string, number>();
 
   /**
    * Applies an incoming snapshot to the target Zuno universe or store.
@@ -152,7 +159,6 @@ export const startSSE = (options: ZunoSSEOptions) => {
     /** Payload to send to server with event metadata, version and origin */
     const payload: ZunoStateEvent = {
       ...event,
-      baseVersion,
       origin: clientId
     };
 

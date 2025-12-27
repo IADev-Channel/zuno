@@ -67,6 +67,11 @@ export type ZunoSSEOptionsDefault = {
   channelName?: string;
 
   /**
+   * The versions of the stores.
+   */
+  versions?: Map<string, number>,
+
+  /**
    * Callback when SSE connection is opened.
    */
   onOpen?: () => void;
@@ -75,6 +80,16 @@ export type ZunoSSEOptionsDefault = {
    * Callback when SSE connection is closed.
    */
   onClose?: () => void;
+
+  /**
+   * The last event ID received from the server.
+   */
+  getLastEventId?: () => number;
+
+  /**
+   * Callback when an event is received from the server.
+   */
+  onEvent?: (event: ZunoStateEvent) => void;
 
 }
 

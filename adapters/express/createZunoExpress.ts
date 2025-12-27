@@ -1,6 +1,7 @@
 import type { IncomingHttpHeaders } from "http"
 import { createExpressSSEHandler } from "./express-sse-handler"
 import { createExpressSyncHandler } from "./express-sync-handler"
+import { createExpressSnapshotHandler } from "./express-snapshot-handler"
 
 /**
  * Options for creating an Express router for Zuno.
@@ -21,5 +22,6 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
   return {
     sse: createExpressSSEHandler(headers),
     sync: createExpressSyncHandler(),
+    snapshot: createExpressSnapshotHandler(),
   }
 }

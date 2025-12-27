@@ -1,6 +1,7 @@
 import http from "http";
-import { createSSEConnection, listUniverseState, syncUniverseState } from "../server/sse-handler";
+import { createSSEConnection, syncUniverseState } from "../server/sse-handler";
 import { applyStateEvent } from "../server/apply-state-event";
+import { sendSnapshot } from "../server/snapshot-handler";
 
 const server = http.createServer((req, res) => {
   // CORS Headers
@@ -22,9 +23,7 @@ const server = http.createServer((req, res) => {
   }
   // Optional for listing internally
   else if (req.url === "/zuno/listing" && req.method === "GET") {
-    listUniverseState(req, res, {
-      "Access-Control-Allow-Origin": "*"
-    });
+    sendSnapshot(req, res);
   } else if (req.url === "/zuno/sync" && req.method === "POST") {
     syncUniverseState(req, res);
   } else if (req.url?.startsWith("/zuno/counter/") && req.method === "GET") {

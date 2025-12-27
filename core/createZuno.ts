@@ -4,7 +4,7 @@ import { startBroadcastChannel } from "../sync/broadcast-channel";
 import { applyIncomingEvent } from "../sync/apply-incoming-event";
 
 import type { ZunoStateEvent } from "../sync/sync-types";
-import type { Universe } from "./types";
+import type { Universe, ZunoSnapshot } from "./types";
 
 /** Store */
 type ZunoStore<T> = {
@@ -64,6 +64,41 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
   /** SSE ready */
   let sseReady = false;
 
+  /** Last event ID */
+  let lastEventId = 0;
+
+
+  /**
+   * Hydrate snapshot
+   * @param snapshot - The snapshot to hydrate.
+   */
+  function hydrateSnapshot(snapshot: ZunoSnapshot) {
+    const plain: Record<string, unknown> = {}
+    for (const [k, rec] of Object.entries(snapshot.state)) {
+      plain[k] = rec.state
+      versions.set(k, rec.version)
+    }
+    universe.restore(plain)
+    lastEventId = snapshot.lastEventId
+  }
+
+  /**
+   * Get store base version
+   * @param storeKey - The key of the store to get the base version for.
+   */
+  function getStoreBaseVersion(storeKey: string) { return versions.get(storeKey) ?? 0 }
+
+  /**
+   * Get last event ID
+   */
+  function getLastEventId() { return lastEventId }
+
+  /**
+   * Set last event ID
+   * @param id - The new last event ID.
+   */
+  function setLastEventId(id: number) { lastEventId = id }
+
   /** SSE Prefer server sync if provided */
   const sse =
     opts.sseUrl && opts.syncUrl
@@ -73,6 +108,8 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
         syncUrl: opts.syncUrl,
         optimistic: opts.optimistic ?? true,
         clientId,
+        versions,
+        getLastEventId: () => lastEventId,
         onOpen: () => {
           sseReady = true;
         },
@@ -83,8 +120,12 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
       : null;
 
   /** Apply event to target */
-  const apply = (event: ZunoStateEvent) =>
+  const apply = (event: ZunoStateEvent) => {
+    /** Update last event ID */
+    if (typeof event.eventId === "number") lastEventId = Math.max(lastEventId, event.eventId)
+
     applyIncomingEvent(universe, event, { clientId, localState, versions });
+  }
 
 
   /** Broadcast Channel for local tab sync */
@@ -178,7 +219,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
     /** Check if SSE is enabled */
     if (sse && sseReady) {
       /** Payload with origin */
-      const payload: ZunoStateEvent = { ...event, origin: clientId };
+      const payload: ZunoStateEvent = { ...event, origin: clientId, baseVersion: getStoreBaseVersion(event.storeKey) };
 
       /** Dispatch to SSE */
       return await sse.dispatch(payload);
@@ -302,5 +343,12 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
     dispatch,
     /** Stop */
     stop,
+
+    /** Hydrate snapshot */
+    hydrateSnapshot,
+    /** Get last event ID */
+    getLastEventId,
+    /** Set last event ID */
+    setLastEventId,
   };
 };

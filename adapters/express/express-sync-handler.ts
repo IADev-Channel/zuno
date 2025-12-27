@@ -1,12 +1,10 @@
 import type { Request, Response } from "express"
-import type { ZunoStateEvent, ZunoTransport } from "../../sync/sync-types"
+import type { ZunoStateEvent } from "../../sync/sync-types"
 
 import { applyStateEvent } from "../../server/apply-state-event"
 
 /**
  * Creates an Express handler for handling Zuno state events.
- *
- * @param transport The transport to use for publishing events.
  * @returns An Express handler function.
  */
 export function createExpressSyncHandler() {
@@ -27,6 +25,6 @@ export function createExpressSyncHandler() {
     }
 
     /** Returns a 200 status code with the result. */
-    res.status(200).json({ ok: true })
+    res.status(200).json({ ok: true, event: result.event })
   }
 }

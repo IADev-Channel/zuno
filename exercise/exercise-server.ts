@@ -1,6 +1,6 @@
 import http from "http";
 import { createSSEConnection, listUniverseState, syncUniverseState } from "../server/sse-handler";
-import { applyStateEvent } from "../sync/sync-core";
+import { applyStateEvent } from "../server/apply-state-event";
 
 const server = http.createServer((req, res) => {
   // CORS Headers

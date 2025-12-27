@@ -10,7 +10,7 @@ const z = bindReact(createZuno({
     /** Channel name 
      * Used for broadcast channel for multiple tabs sync
      * */
-    channelName: "zuno-react",
+    channelName: "zuno-demo",
     /** SSE URL 
      * Used for server-sent events for server sync
      * */

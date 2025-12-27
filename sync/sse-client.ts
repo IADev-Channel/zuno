@@ -94,12 +94,28 @@ export const startSSE = (options: ZunoSSEOptions) => {
   const onState = (event: MessageEvent) => {
     try {
       const eventState: ZunoStateEvent = JSON.parse(event.data);
-      
 
-      applyIncomingEvent(options.universe as any, eventState, {
-        clientId,
-        versions,
-      });
+      /** 
+       * Apply incoming event to universe or store 
+       */
+      if (options.universe) {
+        applyIncomingEvent(options.universe, eventState, {
+          clientId,
+          versions,
+        });
+      }
+      /**
+       * Apply incoming event to store
+       */
+      else if (options.store) {
+        // Minimal support for single-store subscriptions.
+        if (typeof eventState.version === "number") {
+          const currentVersion = versions.get(eventState.storeKey) ?? 0;
+          if (eventState.version <= currentVersion) return;
+          versions.set(eventState.storeKey, eventState.version);
+        }
+        options.store.set(eventState.state);
+      }
     } catch {
       console.error("Zuno SSE: failed to parse state payload");
     }
@@ -107,6 +123,14 @@ export const startSSE = (options: ZunoSSEOptions) => {
 
   eventSource.addEventListener("snapshot", onSnapshot);
   eventSource.addEventListener("state", onState);
+
+  eventSource.onopen = () => {
+    options.onOpen?.();
+  };
+
+  eventSource.onerror = () => {
+    options.onClose?.();
+  };
 
   /**
    * Unsubscribes from the SSE connection and removes the event listeners.

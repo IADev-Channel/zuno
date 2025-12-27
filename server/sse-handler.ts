@@ -10,13 +10,6 @@ type IncomingHeaders = IncomingMessage["headers"]
 
 /**
  * Creates a Server-Sent Events (SSE) connection for Zuno state updates.
- *
- * This function sets up an SSE connection for clients to receive real-time updates
- * on the Zuno universe state. It sends connection status and then streams
- * any new `ZunoStateEvent`s as they are published.
- *
- * @param req The incoming HTTP request object.
- * @param res The server response object, used to establish and maintain the SSE connection.
  */
 export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, headers: IncomingHeaders) => {
   res.writeHead(200, {
@@ -120,24 +113,51 @@ export const listUniverseState = (req: IncomingMessage, res: ServerResponse, hea
  * @param transport The transport object used to publish the event to all SSE subscribers.
  */
 export const syncUniverseState = (req: IncomingMessage, res: ServerResponse) => {
-
+  const MAX_BODY_BYTES = 512 * 1024; // 512KB safety
   let body = "";
   // Accumulate data chunks from the request body
   req.on("data", (chunk: Buffer) => {
-    body += chunk.toString();
-  });
-
-  // Process the complete request body
-  req.on("end", () => {
-    try {
-      const event: ZunoStateEvent = JSON.parse(body);
-      applyStateEvent(event); // ✅ core sync
-      res.writeHead(200);
-      res.end("ok"); // Acknowledge successful processing
-    } catch (e) {
-      // Handle cases where the request body is not valid JSON
-      res.writeHead(400);
-      res.end("Invalid JSON");
+    body += chunk.toString("utf8");
+    if (body.length > MAX_BODY_BYTES) {
+      res.writeHead(413, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, reason: "PAYLOAD_TOO_LARGE" }));
+      req.destroy();
     }
   });
+
+  req.on("end", () => {
+    try {
+      const incoming: ZunoStateEvent = JSON.parse(body || "{}") as any;
+
+      const result = applyStateEvent(incoming); // ✅ core sync
+
+      if (!result.ok) {
+        if (result.reason === "VERSION_CONFLICT") {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              ok: false,
+              reason: "VERSION_CONFLICT",
+              current: result.current,
+            })
+          );
+        }
+        return;
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, event: result.event }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, reason: "INVALID_JSON" }));
+    }
+  });
+};
+
+/**
+ * Sets the universe state to a specific version.
+ * Backwards-compatible alias of syncUniverseState.
+ */
+export const setUniverseState = (req: IncomingMessage, res: ServerResponse) => {
+  return syncUniverseState(req, res);
 };

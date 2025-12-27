@@ -8,6 +8,9 @@ import { applyIncomingEvent } from "../sync/sync-core";
 /** Local state */
 const localState = new Map<string, unknown>();
 
+/** Local per-store versions (for BC / local ordering) */
+const versions = new Map<string, number>();
+
 /** Store */
 type ZunoStore<T> = {
   get(): T;
@@ -18,6 +21,7 @@ type ZunoStore<T> = {
 /** Universe */
 type ZunoUniverse = {
   getStore<T>(storeKey: string, init: () => T): ZunoStore<T>;
+  snapshot(): Record<string, unknown>;
 };
 
 export type CreateZunoOptions = {
@@ -62,6 +66,9 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
   const clientId =
     opts.clientId ?? (globalThis.crypto?.randomUUID?.() ?? String(Math.random()));
 
+  /** SSE ready */
+  let sseReady = false;
+
   /** SSE Prefer server sync if provided */
   const sse =
     opts.sseUrl && opts.syncUrl
@@ -71,14 +78,21 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
         syncUrl: opts.syncUrl,
         optimistic: opts.optimistic ?? true,
         clientId,
+        onOpen: () => {
+          sseReady = true;
+        },
+        onClose: () => {
+          sseReady = false;
+        },
       } as any)
       : null;
 
   /** Apply event to target */
   const apply = (event: ZunoStateEvent) =>
-    applyIncomingEvent(universe as any, event, { clientId, localState });
+    applyIncomingEvent(universe as any, event, { clientId, localState, versions });
 
-  /** BroadcastChannel */
+
+  /** Broadcast Channel for local tab sync */
   const bc = opts.channelName
     ? startBroadcastChannel({
       /** Channel name for BroadcastChannel */
@@ -93,61 +107,146 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
       },
 
       /** Get snapshot of local state */
-      getSnapshot: () => Object.fromEntries(localState),
+      getSnapshot: () => {
+
+        /** Snapshot */
+        const snap = universe.snapshot();
+
+        /** Snapshot */
+        const out: Record<string, { state: unknown; version: number }> = {};
+
+        /** Iterate local state */
+        for (const [storeKey, state] of Object.entries(snap)) {
+
+          /** Add to snapshot */
+          out[storeKey] = {
+            state,
+            version: versions.get(storeKey) ?? 0,
+          };
+        }
+        return out;
+      },
 
       /** Apply snapshot to target */
       onSnapshot: (snap) => {
-        for (const [storeKey, state] of Object.entries(snap)) {
-          apply({ storeKey, state });
+
+        /** Iterate snapshot with store key and record */
+        for (const [storeKey, rec] of Object.entries(snap)) {
+
+          /** Record */
+          const record = rec as any;
+
+          /** Get the universe store state or the store state */
+          const state = record?.state ?? record;
+
+          /** Get the universe store version or the store version */
+          const version = typeof record?.version === "number" ? record.version : 0;
+
+          /** Set the latest version */
+          // versions.set(storeKey, Math.max(versions.get(storeKey) ?? 0, version));
+
+          /** Apply the event */
+          apply({ storeKey, state, version });
         }
+
       },
     })
     : null;
 
-  /** Post message hello to BroadcastChannel */
+  /** Immediately ask other tabs for snapshot (BC-first) */
   setTimeout(() => bc?.hello(), 0);
 
-  /** Store factory */
+  /** Store factory
+   * @param storeKey - The key of the store to get.
+   * @param init - The initialization function for the store.
+   * @returns The store.
+  */
   const getStore = <T,>(storeKey: string, init: () => T) => {
     return universe.getStore<T>(storeKey, init);
   };
 
-  /** Get store by store key */
+  /** Get store by store key
+   * @param storeKey - The key of the store to get.
+   * @param init - The initialization function for the store.
+   * @returns The state of the store.
+  */
   const get = <T,>(storeKey: string, init?: () => T): T => {
     return universe.getStore<T>(storeKey, init ?? (() => undefined as any)).get();
   };
 
-  /** Dispatch event to universe */
+  /** Dispatch event to universe
+   * @param event - The event to dispatch.
+   * @returns A promise that resolves to the result of the dispatch.
+  */
   const dispatch = async (event: ZunoStateEvent) => {
-    const payload: ZunoStateEvent = { ...event, origin: clientId };
 
-    if (sse) return sse.dispatch(payload);
-    if (bc) {
-      apply(payload);
-      bc.publish(payload);
+    /** Check if SSE is enabled */
+    if (sse && sseReady) {
+      /** Payload with origin */
+      const payload: ZunoStateEvent = { ...event, origin: clientId };
+
+      /** Dispatch to SSE */
+      return await sse.dispatch(payload);
     }
+
+    /** Current version */
+    const current = versions.get(event.storeKey) ?? 0;
+
+    /** Next version */
+    const nextVersion = current + 1;
+
+    /** Apply event with next version */
+    apply({ ...event, version: nextVersion });
+
+    /** Set version */
+    versions.set(event.storeKey, nextVersion);
+
+    /** Check if BroadcastChannel is enabled */
+    if (bc) {
+      /** Publish event */
+      bc.publish({ ...event, version: nextVersion, origin: clientId });
+    }
+
+    /** Return success */
     return { ok: true, status: 200, json: null };
   };
 
-  /** Set store state */
+  /** Set store state
+   * @param storeKey - The key of the store to set.
+   * @param next - The new state to set.
+   * @param init - The initialization function for the store.
+   * @returns A promise that resolves to the result of the dispatch.
+  */
   const set = async <T,>(
     storeKey: string,
     next: T | ((prev: T) => T),
     init?: () => T
   ) => {
+    /** Get store */
     const store = universe.getStore<T>(storeKey, init ?? (() => undefined as any));
+
+    /** Get previous state */
     const prev = store.get();
+
+    /** Get next state */
     const state = typeof next === "function" ? (next as any)(prev) : next;
 
+    /** Dispatch event */
     return dispatch({ storeKey, state });
   };
 
-  /** Subscribe to store */
+  /** Subscribe to store
+   * @param storeKey - The key of the store to subscribe to.
+   * @param init - The initialization function for the store.
+   * @param cb - The callback function to be called when the store state changes.
+   * @returns A function to unsubscribe from the store.
+  */
   const subscribe = <T,>(
     storeKey: string,
     init: () => T,
     cb: (state: T) => void
   ) => {
+    /** Get store */
     const store = universe.getStore<T>(storeKey, init);
     return store.subscribe(cb);
   };
@@ -167,34 +266,46 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
     raw: () => ZunoStore<T>; // access underlying store if needed
   };
 
+  /**
+   * Creates a bound store for a specific key.
+   * @param storeKey The key of the store to create.
+   * @param init The initialization function for the store.
+   * @returns A BoundStore object representing the store.
+   */
   const store = <T,>(storeKey: string, init: () => T): BoundStore<T> => {
     const rawStore = getStore<T>(storeKey, init);
 
     return {
       key: storeKey,
       raw: () => rawStore,
-
       get: () => rawStore.get(),
-
       subscribe: (cb) => rawStore.subscribe(cb),
-
       set: (next) => set<T>(storeKey, next as any, init),
     };
   };
 
   return {
+    /** Universe */
     universe,
+    /** Client ID */
     clientId,
 
-    // DX
+    // ------------ DX ------------ \\
+    /** Get store */
     getStore,
+    /** Create store */
     store,
+    /** Get state */
     get,
+    /** Set state */
     set,
+    /** Subscribe to store */
     subscribe,
 
-    // advanced
+    // ------------ Advanced ------------ \\
+    /** Dispatch event */
     dispatch,
+    /** Stop */
     stop,
   };
 };

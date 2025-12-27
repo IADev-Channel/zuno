@@ -66,6 +66,16 @@ export type ZunoSSEOptionsDefault = {
    */
   channelName?: string;
 
+  /**
+   * Callback when SSE connection is opened.
+   */
+  onOpen?: () => void;
+
+  /**
+   * Callback when SSE connection is closed.
+   */
+  onClose?: () => void;
+
 }
 
 /**

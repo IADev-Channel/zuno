@@ -18,6 +18,8 @@ export type ApplyResult =
  * Core sync handler that applies an event to the universe
  * and broadcasts it to all SSE subscribers.
  * This is independent of HTTP / WebSocket / whatever transport.
+ * @property incoming - The incoming event to apply.
+ * @returns The result of the application.
  */
 export const applyStateEvent = (incoming: ZunoStateEvent): ApplyResult => {
 
@@ -44,11 +46,10 @@ export const applyStateEvent = (incoming: ZunoStateEvent): ApplyResult => {
 
 /**
  * Applies an incoming event to the Universe in a safe, reusable way.
- * - ignores self events (origin === clientId)
- * - ignores older versions if event.version is present
- * - updates universe store state
- * - updates localState (optional)
- */
+ * @property universe - The universe to apply the event to.
+ * @property event - The event to apply.
+ * @property ctx - The context for the event.
+ **/
 export function applyIncomingEvent(
   universe: Universe,
   event: ZunoStateEvent,
@@ -58,10 +59,19 @@ export function applyIncomingEvent(
   /** Prevent echo loops (don’t re-apply your own broadcast) */
   if (event.origin && event.origin === ctx.clientId) return;
 
-  /** If versioned events exist (SSE/server), ignore older ones */
+  /** If versioned events exist (SSE/server/BC), ignore older ones */
   if (ctx.versions && typeof event.version === "number") {
-    const currentVersion = ctx.versions.get(event.storeKey) ?? 0;
-    if (event.version <= currentVersion) return;
+
+    /** Check if the event has been seen */
+    const seen = ctx.versions.has(event.storeKey);
+
+    /** Get the current version */
+    const currentVersion = ctx.versions.get(event.storeKey) ?? -1;
+
+    /** If the event has been seen and the version is less than or equal to the current version, return */
+    if (seen && event.version <= currentVersion) return;
+
+    /** Set the version */
     ctx.versions.set(event.storeKey, event.version);
   }
 

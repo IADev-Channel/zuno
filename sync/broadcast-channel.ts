@@ -1,20 +1,5 @@
-import type { ZunoStateEvent } from "./sync-types";
+import type { BCMsg, ZunoBCOptions, ZunoStateEvent } from "./sync-types";
 
-type BCMsg =
-  | { type: "zuno:hello"; origin: string }
-  | { type: "zuno:snapshot"; origin: string; target: string; snapshot: Record<string, unknown> }
-  | { type: "zuno:event"; origin: string; event: ZunoStateEvent };
-
-/**
- * Options for starting a broadcast channel.
- */
-export type ZunoBCOptions = {
-  channelName: string;           // e.g. "zuno"
-  clientId: string;              // unique per tab
-  onEvent: (event: ZunoStateEvent) => void; // apply into universe/store
-  getSnapshot?: () => Record<string, unknown>;
-  onSnapshot?: (snapshot: Record<string, unknown>) => void;
-};
 
 /**
  * Starts a broadcast channel for real-time state updates.

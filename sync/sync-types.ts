@@ -48,7 +48,7 @@ export type ZunoSSEOptionsDefault = {
   /**
    * Get the snapshot of the universe or store.
    */
-  getSnapshot: (data: Universe | Store<unknown>) => void;
+  getSnapshot?: (data: Universe | Store<unknown>) => void;
 
   /**
    * Whether to enable optimistic updates.
@@ -111,3 +111,56 @@ export interface ZunoTransport {
    */
   subscribe?(handler: (event: ZunoStateEvent) => void): void;
 }
+
+
+/**
+ * A record of a store's state and version.
+ * @property {unknown} state - The state of the store.
+ * @property {number} version - The version of the store.
+ */
+export type ZunoSnapshotRecord = {
+  /**
+   * The state of the store.
+   */
+  state: unknown;
+
+  /**
+   * The version of the store.
+   */
+  version: number
+};
+
+/**
+ * A snapshot of the universe or store.
+ * @property {Record<string, ZunoSnapshotRecord>} state - The state of the store.
+ */
+export type ZunoSnapshotState = Record<string, ZunoSnapshotRecord>;
+
+
+/**
+ * A message sent over the broadcast channel.
+ * @property {"zuno:hello" | "zuno:snapshot" | "zuno:event"} type - The type of the message.
+ * @property {string} origin - The origin of the message.
+ * @property {string} target - The target of the message.
+ * @property {ZunoSnapshotState} snapshot - The snapshot of the universe or store.
+ * @property {ZunoStateEvent} event - The state event.
+ */
+export type BCMsg =
+  | { type: "zuno:hello"; origin: string }
+  | { type: "zuno:snapshot"; origin: string; target: string; snapshot: ZunoSnapshotState }
+  | { type: "zuno:event"; origin: string; event: ZunoStateEvent };
+
+/**
+ * Options for starting a broadcast channel.
+ * @property {string} channelName - The name of the broadcast channel.
+ * @property {string} clientId - The client id for the broadcast channel.
+ * @property {(event: ZunoStateEvent) => void} onEvent - The function to call when a new state event is received.
+ * @property {() => ZunoSnapshotState} getSnapshot - The function to get the snapshot of the universe or store.
+ */
+export type ZunoBCOptions = {
+  channelName: string;           // e.g. "zuno"
+  clientId: string;              // unique per tab
+  onEvent: (event: ZunoStateEvent) => void; // apply into universe/store
+  getSnapshot?: () => ZunoSnapshotState;
+  onSnapshot?: (snapshot: ZunoSnapshotState) => void;
+};

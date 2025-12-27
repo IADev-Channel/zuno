@@ -4,6 +4,7 @@ import { startBroadcastChannel } from "../sync/broadcast-channel";
 import { applyIncomingEvent } from "../sync/apply-incoming-event";
 
 import type { ZunoStateEvent } from "../sync/sync-types";
+import type { Universe } from "./types";
 
 /** Store */
 type ZunoStore<T> = {
@@ -12,15 +13,9 @@ type ZunoStore<T> = {
   subscribe(cb: (state: T) => void): () => void;
 };
 
-/** Universe */
-type ZunoUniverse = {
-  getStore<T>(storeKey: string, init: () => T): ZunoStore<T>;
-  snapshot(): Record<string, unknown>;
-};
-
 export type CreateZunoOptions = {
   /** Universe */
-  universe?: ZunoUniverse;
+  universe?: Universe;
 
   /** Optional transports */
   channelName?: string;
@@ -60,7 +55,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
   const versions = new Map<string, number>();
 
   /** Universe */
-  const universe: ZunoUniverse = (opts.universe ?? (createUniverse() as any)) as any;
+  const universe: Universe = (opts.universe ?? (createUniverse()));
 
   /** Unique client ID */
   const clientId =
@@ -73,7 +68,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
   const sse =
     opts.sseUrl && opts.syncUrl
       ? startSSE({
-        universe: universe as any,
+        universe,
         url: opts.sseUrl,
         syncUrl: opts.syncUrl,
         optimistic: opts.optimistic ?? true,
@@ -84,12 +79,12 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
         onClose: () => {
           sseReady = false;
         },
-      } as any)
+      })
       : null;
 
   /** Apply event to target */
   const apply = (event: ZunoStateEvent) =>
-    applyIncomingEvent(universe as any, event, { clientId, localState, versions });
+    applyIncomingEvent(universe, event, { clientId, localState, versions });
 
 
   /** Broadcast Channel for local tab sync */
@@ -134,7 +129,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
         for (const [storeKey, rec] of Object.entries(snap)) {
 
           /** Record */
-          const record = rec as any;
+          const record = rec;
 
           /** Get the universe store state or the store state */
           const state = record?.state ?? record;
@@ -171,7 +166,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
    * @returns The state of the store.
   */
   const get = <T,>(storeKey: string, init?: () => T): T => {
-    return universe.getStore<T>(storeKey, init ?? (() => undefined as any)).get();
+    return universe.getStore<T>(storeKey, init ?? (() => undefined as T)).get();
   };
 
   /** Dispatch event to universe
@@ -223,13 +218,13 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
     init?: () => T
   ) => {
     /** Get store */
-    const store = universe.getStore<T>(storeKey, init ?? (() => undefined as any));
+    const store = universe.getStore<T>(storeKey, init ?? (() => undefined as T));
 
     /** Get previous state */
     const prev = store.get();
 
     /** Get next state */
-    const state = typeof next === "function" ? (next as any)(prev) : next;
+    const state = typeof next === "function" ? (next as (prev: T) => T)(prev) : next;
 
     /** Dispatch event */
     return dispatch({ storeKey, state });
@@ -280,7 +275,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
       raw: () => rawStore,
       get: () => rawStore.get(),
       subscribe: (cb) => rawStore.subscribe(cb),
-      set: (next) => set<T>(storeKey, next as any, init),
+      set: (next) => set<T>(storeKey, next, init),
     };
   };
 

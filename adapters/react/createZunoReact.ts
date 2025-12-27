@@ -12,10 +12,10 @@ import { bindReact } from "./bindReact";
  * @param opts The options for the Zuno instance.
  * @returns An object with a `useStore` hook for accessing the store.
  */
-export const createZunoReact = (ots: CreateZunoOptions) => {
+export const createZunoReact = (opts: CreateZunoOptions) => {
 
   /** Zuno */
-  const zuno = createZuno(ots)
+  const zuno = createZuno(opts)
 
   /** Return zuno */
   return bindReact(zuno)

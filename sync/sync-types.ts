@@ -109,7 +109,7 @@ export interface ZunoTransport {
    * Subscribes to state events from the transport.
    * @param handler The function to call when a new state event is received.
    */
-  subscribe?(handler: (event: ZunoStateEvent) => void): void;
+  subscribe(handler: (event: ZunoStateEvent) => void): () => void;
 }
 
 

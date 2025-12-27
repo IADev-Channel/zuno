@@ -16,6 +16,7 @@ export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, h
     "Cache-Control": "no-cache, no-transform",
     "Content-Type": "text/event-stream; charset=utf-8",
     Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
     ...headers
   });
 
@@ -26,8 +27,9 @@ export const createSSEConnection = (req: IncomingMessage, res: ServerResponse, h
    */
   res.flushHeaders?.();
 
-  /** Get the last event id from header `last-evend-id` */
-  const lastEventId = Number(req.headers["last-event-id"] ?? 0);
+  /** Get the last event id from header `last-event-id` */
+  const raw = req.headers["last-event-id"];
+  const lastEventId = Number.parseInt(Array.isArray(raw) ? raw[0] : (raw ?? "0"), 10) || 0;
 
   /**
    * If the client has a `last-event-id`, it means it's reconnecting after a disconnect.

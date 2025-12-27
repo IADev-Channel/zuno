@@ -1,5 +1,5 @@
 import type { ZunoSSEOptions, ZunoStateEvent } from "./sync-types";
-import { createHttpTransport } from "./transport";
+import { createTransport } from "./transport";
 import { applyIncomingEvent } from "./apply-incoming-event";
 
 type SnapshotRecord = { state: unknown; version: number };
@@ -22,7 +22,7 @@ export const startSSE = (options: ZunoSSEOptions) => {
 
 
   const eventSource = new EventSource(options.url);
-  const transport = createHttpTransport(options.syncUrl);
+  const transport = createTransport(options.syncUrl);
 
   /**
    * Applies an incoming state event to the target Zuno universe or store.

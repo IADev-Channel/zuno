@@ -5,12 +5,6 @@ import { startBroadcastChannel } from "../sync/broadcast-channel";
 import type { ZunoStateEvent } from "../sync/sync-types";
 import { applyIncomingEvent } from "../sync/sync-core";
 
-/** Local state */
-const localState = new Map<string, unknown>();
-
-/** Local per-store versions (for BC / local ordering) */
-const versions = new Map<string, number>();
-
 /** Store */
 type ZunoStore<T> = {
   get(): T;
@@ -58,6 +52,12 @@ export type CreateZunoOptions = {
  * @returns An object containing methods to interact with the Zuno instance, including `getStore`, `destroy`, and `broadcast`.
  */
 export const createZuno = (opts: CreateZunoOptions = {}) => {
+
+  /** Local state */
+  const localState = new Map<string, unknown>();
+
+  /** Local per-store versions (for BC / local ordering) */
+  const versions = new Map<string, number>();
 
   /** Universe */
   const universe: ZunoUniverse = (opts.universe ?? (createUniverse() as any)) as any;

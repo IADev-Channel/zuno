@@ -53,7 +53,7 @@ export const startSSE = (options: ZunoSSEOptions) => {
   /** 
    * Tracks the version of each store to handle conflicts.
    */
-  const versions = options?.versions ?? new Map<string, number>();
+  const versions = options.versions;
 
   /**
    * Applies an incoming snapshot to the target Zuno universe or store.

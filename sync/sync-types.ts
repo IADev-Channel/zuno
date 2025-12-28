@@ -69,7 +69,7 @@ export type ZunoSSEOptionsDefault = {
   /**
    * The versions of the stores.
    */
-  versions?: Map<string, number>,
+  versions: Map<string, number>,
 
   /**
    * Callback when SSE connection is opened.

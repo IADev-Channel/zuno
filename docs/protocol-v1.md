@@ -4,6 +4,8 @@ This document defines the **language-agnostic protocol** used by Zuno for state 
 
 The goal of this protocol is to allow **multiple languages and frameworks** to interoperate without sharing implementation details.
 
+> Think of the protocol as the contract: any runtime that can emit events and understand versions can join the mesh.
+
 ---
 
 ## Design Goals
@@ -32,7 +34,7 @@ Each replica maintains local state and exchanges **events**.
 
 ## Event Format
 
-All state mutations are represented as events.
+All state mutations are represented as events. An event is the authoritative description of “what happened” to a store.
 
 ```json
 {
@@ -47,14 +49,14 @@ All state mutations are represented as events.
 
 ### Fields
 
-| Field         | Required | Description                       |
-| ------------- | -------- | --------------------------------- |
-| `storeKey`    | ✅        | Unique store identifier           |
-| `state`       | ✅        | JSON-serializable state           |
-| `version`     | ✅        | Authoritative version             |
-| `baseVersion` | ❌        | Version the mutation was based on |
-| `origin`      | ❌        | Replica identifier                |
-| `ts`          | ❌        | Timestamp (ms)                    |
+| Field         | Required | Description                                                    |
+| ------------- | -------- | -------------------------------------------------------------- |
+| `storeKey`    | ✅        | Unique store identifier                                        |
+| `state`       | ✅        | JSON-serializable state                                        |
+| `version`     | ✅        | Authoritative version after applying this event                |
+| `baseVersion` | ❌        | Version the mutation was based on (used for conflict checks)   |
+| `origin`      | ❌        | Replica identifier (helps with loopback suppression/logging)   |
+| `ts`          | ❌        | Timestamp (ms) when emitted (useful for debugging/metrics)     |
 
 ---
 
@@ -88,8 +90,8 @@ Establishes a **Server-Sent Events** stream.
 
 #### Behavior
 
-* On connect, server sends a **snapshot** event
-* Then streams future state events
+* On connect, server sends a **snapshot** event containing all known stores for that namespace/user.
+* Then streams future state events.
 
 #### Headers
 
@@ -125,12 +127,24 @@ Clients send mutations to the server.
 
 #### Responses
 
-* `200 OK` → event accepted and broadcast
-* `409 Conflict` → version mismatch
+* `200 OK` → event accepted and broadcast to subscribers (including the sender unless filtered by `origin`)
+* `409 Conflict` → version mismatch (client should refetch current state and retry)
 
 ```json
 { "current": { "state": 5, "version": 3 } }
 ```
+
+--- 
+
+## Client Flow Overview
+
+1. **Connect** via SSE to receive a snapshot and ongoing events.
+2. **Hydrate** local stores from the snapshot.
+3. **Propose** a change with `POST /zuno/sync`, including the `baseVersion` you observed.
+4. **Apply** the event when the server responds `200 OK`; if `409`, refresh from the returned `current` payload and retry.
+5. **Broadcast** (optional) across same-origin tabs with BroadcastChannel to reduce server load.
+
+This loop keeps replicas converging without assuming a specific UI framework.
 
 ---
 
@@ -148,9 +162,10 @@ Zuno provides **eventual consistency**, not strong consistency.
 
 ## Transport Notes
 
-* BroadcastChannel works **only on same-origin tabs**
-* SSE connections close when tab closes
-* Snapshot + replay must be used for hydration
+* BroadcastChannel works **only on same-origin tabs**.
+* SSE connections close when tab closes; reconnect should rehydrate from a fresh snapshot.
+* Snapshot + replay must be used for hydration so that late subscribers catch up.
+* WebSocket support can mirror the same message shapes; SSE is the minimal baseline.
 
 ---
 

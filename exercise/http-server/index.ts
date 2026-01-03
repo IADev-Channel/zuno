@@ -1,7 +1,7 @@
 import http from "http";
-import { createSSEConnection, syncUniverseState } from "../server/sse-handler";
-import { applyStateEvent } from "../server/apply-state-event";
-import { sendSnapshot } from "../server/snapshot-handler";
+import { createSSEConnection, syncUniverseState } from "@iadev/zuno";
+import { applyStateEvent } from "@iadev/zuno";
+import { sendSnapshot } from "@iadev/zuno";
 
 const server = http.createServer((req, res) => {
   // CORS Headers

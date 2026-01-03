@@ -33,7 +33,6 @@
     "sse",
     "server-sent-events",
     "broadcastchannel",
-    "react",
     "express",
     "distributed-state",
     "event-sourcing",

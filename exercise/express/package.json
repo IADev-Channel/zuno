@@ -7,9 +7,6 @@
     "start": "tsx app.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "packageManager": "bun@1.1.56",
   "dependencies": {
     "@iadev93/zuno-express": "workspace:*",
@@ -21,5 +18,26 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
-  }
+  },
+  "author": "Ibrahim Aftab",
+  "license": "MIT",
+  "homepage": "https://github.com/IADev-Channel/zuno",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IADev-Channel/zuno.git"
+  },
+  "keywords": [
+    "state",
+    "state-management",
+    "sync",
+    "sse",
+    "server-sent-events",
+    "broadcastchannel",
+    "react",
+    "express",
+    "distributed-state",
+    "event-sourcing",
+    "universal-state",
+    "realtime"
+  ]
 }

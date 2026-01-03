@@ -1,7 +1,7 @@
 import type { Request, Response } from "express"
 import type { IncomingHttpHeaders } from "http";
 
-import { createSSEConnection } from "@iadev/zuno/server";
+import { createSSEConnection } from "@iadev93/zuno/server";
 
 /**
  * Creates an SSE handler for express.

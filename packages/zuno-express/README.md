@@ -1,4 +1,4 @@
-# @iadev/zuno-express
+# @iadev93/zuno-express
 
 Express adapter for **Zuno**.
 
@@ -9,7 +9,7 @@ Provides server‑side synchronization endpoints using Server‑Sent Events (SSE
 ## Install
 
 ```bash
-npm install @iadev/zuno-express
+npm install @iadev93/zuno-express
 ```
 
 Peer dependency:
@@ -22,8 +22,8 @@ Peer dependency:
 
 ```ts
 import express from "express";
-import { createZunoExpress } from "@iadev/zuno-express";
-import { createZuno } from "@iadev/zuno";
+import { createZunoExpress } from "@iadev93/zuno-express";
+import { createZuno } from "@iadev93/zuno";
 
 const app = express();
 const zuno = createZuno();

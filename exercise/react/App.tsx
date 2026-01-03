@@ -1,4 +1,4 @@
-import { createZunoReact } from "@iadev/zuno-react"
+import { createZunoReact } from "@iadev93/zuno-react"
 
 /**
  * Zuno React adapter, you can also create separate files for store

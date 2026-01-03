@@ -1,7 +1,7 @@
 import type { Request, Response } from "express"
-import type { ZunoStateEvent } from "@iadev/zuno"
+import type { ZunoStateEvent } from "@iadev93/zuno"
 
-import { applyStateEvent } from "@iadev/zuno/server"
+import { applyStateEvent } from "@iadev93/zuno/server"
 
 /**
  * Creates an Express handler for handling Zuno state events.

@@ -1,4 +1,4 @@
-import { createZuno } from "@iadev/zuno";
+import { createZuno } from "@iadev93/zuno";
 
 /**
  * Initiate Zuno

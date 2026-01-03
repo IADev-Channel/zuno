@@ -10,7 +10,7 @@
   "keywords": [],
   "packageManager": "pnpm@10.8.0",
   "dependencies": {
-    "@iadev/zuno-react": "workspace:*",
+    "@iadev93/zuno-react": "workspace:*",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "vite": "^7.3.0"

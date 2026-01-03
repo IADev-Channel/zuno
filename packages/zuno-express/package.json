@@ -1,5 +1,5 @@
 {
-  "name": "@iadev/zuno-express",
+  "name": "@iadev93/zuno-express",
   "version": "0.0.1",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,13 +13,13 @@
     "build": "tsc -p tsconfig.json"
   },
   "peerDependencies": {
-    "@iadev/zuno": "workspace:*",
+    "@iadev93/zuno": "workspace:*",
     "express": "^5.0.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^20.0.0",
     "typescript": "^5.9.3",
-    "@iadev/zuno": "workspace:*"
+    "@iadev93/zuno": "workspace:*"
   }
 }

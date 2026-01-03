@@ -20,7 +20,7 @@ importers:
 
   exercise/basic-html:
     dependencies:
-      '@iadev/zuno':
+      '@iadev93/zuno':
         specifier: workspace:*
         version: link:../../packages/zuno
     devDependencies:
@@ -30,7 +30,7 @@ importers:
 
   exercise/express:
     dependencies:
-      '@iadev/zuno-express':
+      '@iadev93/zuno-express':
         specifier: workspace:*
         version: link:../../packages/zuno-express
       express:
@@ -55,7 +55,7 @@ importers:
 
   exercise/http-server:
     dependencies:
-      '@iadev/zuno':
+      '@iadev93/zuno':
         specifier: workspace:*
         version: link:../../packages/zuno
       tsx:
@@ -67,7 +67,7 @@ importers:
 
   exercise/react:
     dependencies:
-      '@iadev/zuno-react':
+      '@iadev93/zuno-react':
         specifier: workspace:*
         version: link:../../packages/zuno-react
       react:
@@ -95,7 +95,7 @@ importers:
         specifier: ^5.0.0
         version: 5.2.1
     devDependencies:
-      '@iadev/zuno':
+      '@iadev93/zuno':
         specifier: workspace:*
         version: link:../zuno
       '@types/express':
@@ -114,7 +114,7 @@ importers:
         specifier: '>=18'
         version: 19.2.3
     devDependencies:
-      '@iadev/zuno':
+      '@iadev93/zuno':
         specifier: workspace:*
         version: link:../zuno
       '@types/react':

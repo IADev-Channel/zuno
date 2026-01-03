@@ -1,5 +1,5 @@
 import express from "express"
-import { createZunoExpress } from "@iadev/zuno-express"
+import { createZunoExpress } from "@iadev93/zuno-express"
 import cors from "cors"
 
 const app = express()

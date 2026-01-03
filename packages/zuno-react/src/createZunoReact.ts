@@ -1,4 +1,4 @@
-import { createZuno, CreateZunoOptions } from "@iadev/zuno";
+import { createZuno, CreateZunoOptions } from "@iadev93/zuno";
 import { bindReact } from "./bindReact";
 
 /**

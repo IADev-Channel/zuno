@@ -4,7 +4,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm -w @iadev/zuno run build && npm -w @iadev/zuno-react run build && npm -w @iadev/zuno-express run build"
+    "build": "npm -w @iadev93/zuno run build && npm -w @iadev93/zuno-react run build && npm -w @iadev93/zuno-express run build"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

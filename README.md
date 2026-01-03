@@ -14,9 +14,9 @@ This repository contains three packages:
 
 | Package               | Description                                               |
 | --------------------- | --------------------------------------------------------- |
-| `@iadev/zuno`         | Core state engine, sync primitives, and adapter contracts |
-| `@iadev/zuno-react`   | React adapter using `useSyncExternalStore`                |
-| `@iadev/zuno-express` | Express adapter (SSE + sync endpoints)                    |
+| `@iadev93/zuno`         | Core state engine, sync primitives, and adapter contracts |
+| `@iadev93/zuno-react`   | React adapter using `useSyncExternalStore`                |
+| `@iadev93/zuno-express` | Express adapter (SSE + sync endpoints)                    |
 
 ---
 
@@ -36,14 +36,14 @@ It is a **state synchronization system**.
 ## Installation
 
 ```bash
-npm install @iadev/zuno
+npm install @iadev93/zuno
 ```
 
 Adapters:
 
 ```bash
-npm install @iadev/zuno-react
-npm install @iadev/zuno-express
+npm install @iadev93/zuno-react
+npm install @iadev93/zuno-express
 ```
 
 ---

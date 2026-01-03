@@ -1,4 +1,4 @@
-# @iadev/zuno-react
+# @iadev93/zuno-react
 
 React adapter for **Zuno**.
 
@@ -9,7 +9,7 @@ This package provides idiomatic React bindings using `useSyncExternalStore`.
 ## Install
 
 ```bash
-npm install @iadev/zuno-react
+npm install @iadev93/zuno-react
 ```
 
 Peer dependency:
@@ -21,7 +21,7 @@ Peer dependency:
 ## Usage
 
 ```tsx
-import { createZunoReact } from "@iadev/zuno-react";
+import { createZunoReact } from "@iadev93/zuno-react";
 
 const zuno = createZunoReact();
 

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { type ZunoReadable, type ZunoSubscribableStore, toReadable } from "@iadev/zuno";
+import { type ZunoReadable, type ZunoSubscribableStore, toReadable } from "@iadev93/zuno";
 
 /**
  * Type definition for an equality function.

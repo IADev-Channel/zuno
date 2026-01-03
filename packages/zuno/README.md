@@ -1,4 +1,4 @@
-# @iadev/zuno
+# @iadev93/zuno
 
 **Zuno** is a universal, event-driven state system designed to keep **client, server, and multiple runtimes** in sync with strong consistency guarantees.
 
@@ -19,7 +19,7 @@ This package is the **core** of the Zuno ecosystem:
 ## Install
 
 ```bash
-npm install @iadev/zuno
+npm install @iadev93/zuno
 ```
 
 ---
@@ -27,7 +27,7 @@ npm install @iadev/zuno
 ## Quick Start (Client)
 
 ```ts
-import { createZuno } from "@iadev/zuno";
+import { createZuno } from "@iadev93/zuno";
 
 const zuno = createZuno();
 
@@ -79,7 +79,7 @@ Zuno supports multi-tab / multi-client synchronization.
 ### 1) Same-origin tabs (BroadcastChannel)
 
 ```ts
-import { startBroadcastChannel } from "@iadev/zuno";
+import { startBroadcastChannel } from "@iadev93/zuno";
 
 startBroadcastChannel({
   channelName: "zuno-demo"
@@ -91,7 +91,7 @@ startBroadcastChannel({
 ### 2) Multi-client sync (SSE)
 
 ```ts
-import { startSSE } from "@iadev/zuno";
+import { startSSE } from "@iadev93/zuno";
 
 startSSE({
   url: "/zuno/events",
@@ -123,27 +123,25 @@ type ZunoReadable<T> = {
 Helper:
 
 ```ts
-import { toReadable } from "@iadev/zuno";
+import { toReadable } from "@iadev93/zuno";
 
 const readable = toReadable(store);
 ```
 
-This contract is used by `@iadev/zuno-react` and future adapters (Solid/Vue/Svelte/etc.).
+This contract is used by `@iadev93/zuno-react` and future adapters (Solid/Vue/Svelte/etc.).
 
 ---
 
 ## Server Usage (Optional Helpers)
 
-If you want to host Zuno sync endpoints yourself (without `@iadev/zuno-express`), the core package can expose server helpers.
-
-> ⚠️ Important: Keep server helpers **out of browser bundles**. Prefer importing them from a server-only entry (or use the Express adapter package).
+If you want to host Zuno sync endpoints yourself (without `@iadev93/zuno-express`), the core package provides server-side utilities via the `@iadev93/zuno/server` entry point.
 
 ### Snapshot handler
 
 The snapshot handler returns the current universe/store snapshot for new clients.
 
 ```ts
-import { /* snapshot handler export */ } from "@iadev/zuno";
+import { /* snapshot handler export */ } from "@iadev93/zuno/server";
 ```
 
 ### SSE connection + state publishing
@@ -154,7 +152,7 @@ Zuno’s SSE utilities typically do two jobs:
 * broadcast state events to connected clients
 
 ```ts
-import { createSSEConnection, setUniverseState } from "@iadev/zuno";
+import { createSSEConnection, setUniverseState } from "@iadev93/zuno/server";
 ```
 
 ### Applying incoming events
@@ -162,7 +160,7 @@ import { createSSEConnection, setUniverseState } from "@iadev/zuno";
 Incoming events should be validated and applied using the core apply routine.
 
 ```ts
-import { /* apply-state-event export */ } from "@iadev/zuno";
+import { /* apply-state-event export */ } from "@iadev93/zuno/server";
 ```
 
 ---
@@ -172,7 +170,7 @@ import { /* apply-state-event export */ } from "@iadev/zuno";
 If you’re using Express, use the dedicated adapter:
 
 ```bash
-npm install @iadev/zuno-express
+npm install @iadev93/zuno-express
 ```
 
 It wires SSE + snapshot routes cleanly and keeps your core imports tidy.

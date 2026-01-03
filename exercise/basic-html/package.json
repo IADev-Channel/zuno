@@ -5,7 +5,7 @@
     "start": "vite"
   },
   "dependencies": {
-    "@iadev/zuno": "workspace:*"
+    "@iadev93/zuno": "workspace:*"
   },
   "devDependencies": {
     "vite": "^7.3.0"

@@ -22,13 +22,13 @@
     "jsx": "react-jsx",
     "baseUrl": "../..",
     "paths": {
-      "@iadev/zuno-react": [
+      "@iadev93/zuno-react": [
         "packages/zuno-react/src/index.ts"
       ],
-      "@iadev/zuno": [
+      "@iadev93/zuno": [
         "packages/zuno/src/index.ts"
       ],
-      "@iadev/zuno-express": [
+      "@iadev93/zuno-express": [
         "packages/zuno-express/src/index.ts"
       ]
     }

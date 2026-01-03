@@ -1,5 +1,5 @@
 {
-  "name": "@iadev/zuno-react",
+  "name": "@iadev93/zuno-react",
   "version": "0.0.1",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,12 +13,12 @@
     "build": "tsc -p tsconfig.json"
   },
   "peerDependencies": {
-    "@iadev/zuno": "workspace:*",
+    "@iadev93/zuno": "workspace:*",
     "react": ">=18"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
     "typescript": "^5.9.3",
-    "@iadev/zuno": "workspace:*"
+    "@iadev93/zuno": "workspace:*"
   }
 }

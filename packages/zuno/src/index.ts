@@ -14,5 +14,7 @@ export { toReadable } from "./shared/readable";
 
 // Server
 export * from "./server/snapshot-handler";
-export * from "./server/sse-handler";
+export {
+  createSSEConnection, setUniverseState
+} from "./server/sse-handler";
 export * from "./server/apply-state-event";

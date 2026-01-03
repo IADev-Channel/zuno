@@ -13,7 +13,6 @@ export type { ZunoReadable, ZunoSubscribableStore } from "./shared/readable";
 export { toReadable } from "./shared/readable";
 
 // Server
-export * from "./server/server-transport";
 export * from "./server/snapshot-handler";
 export * from "./server/sse-handler";
 export * from "./server/apply-state-event";

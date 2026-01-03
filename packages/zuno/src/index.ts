@@ -11,10 +11,3 @@ export * from "./sync/transport";
 // Shared adapter contract (public)
 export type { ZunoReadable, ZunoSubscribableStore } from "./shared/readable";
 export { toReadable } from "./shared/readable";
-
-// Server
-export * from "./server/snapshot-handler";
-export {
-  createSSEConnection, setUniverseState
-} from "./server/sse-handler";
-export * from "./server/apply-state-event";

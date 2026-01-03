@@ -1,5 +1,5 @@
 import type { Request, Response } from "express"
-import { sendSnapshot } from "@iadev/zuno"
+import { sendSnapshot } from "@iadev/zuno/server"
 
 /**
  * Creates an Express handler for handling Zuno state events.

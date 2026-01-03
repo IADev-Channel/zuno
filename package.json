@@ -1,33 +1,14 @@
 {
-  "name": "zuno",
-  "version": "0.0.1",
-  "description": "",
-  "main": "index.ts",
-  "scripts": {
-    "start": "tsc index.ts"
-  },
-  "keywords": [
-    "state",
-    "server-state",
-    "universal-state"
+  "private": true,
+  "workspaces": [
+    "packages/*"
   ],
-  "author": "IADev",
-  "license": "MIT",
-  "packageManager": "pnpm@10.24.0",
-  "dependencies": {
-    "typescript": "^5.9.3"
-  },
-  "peerDependencies": {
-    "@types/react": ">=18",
-    "react": ">=18"
+  "scripts": {
+    "build": "npm -w @iadev/zuno run build && npm -w @iadev/zuno-react run build && npm -w @iadev/zuno-express run build"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/node": "^24.10.1",
-    "@types/react-dom": ">=18",
     "cors": "^2.8.5",
-    "express": "^5.2.1",
-    "react-dom": ">=18"
+    "typescript": "^5.9.3"
   }
 }

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { type ZunoReadable, type ZunoSubscribableStore, toReadable } from "../../shared/readable";
 
 /**
  * Type definition for an equality function.
@@ -22,15 +23,6 @@ type Selector<TState, TSelected> = (state: TState) => TSelected;
 const defaultEq: EqualityFn<any> = Object.is;
 
 /**
- * The core interface for a Zuno store.
- * It defines the minimal contract for interacting with a store's state.
- */
-type ZunoStore<T> = {
-  get(): T;
-  subscribe(cb: (state: T) => void): () => void;
-};
-
-/**
  * An extended interface for a Zuno store that includes methods for setting state
  * and a unique key identifier. This represents a store that has been "bound" or registered.
  */
@@ -39,7 +31,7 @@ type BoundStore<T> = {
   get: () => T;
   set: (next: T | ((prev: T) => T)) => Promise<any>;
   subscribe: (cb: (state: T) => void) => () => void;
-  raw: () => ZunoStore<T>;
+  raw: () => ZunoSubscribableStore<T>;
 };
 
 /**
@@ -83,7 +75,7 @@ export const bindReact = (zuno: ZunoCore) => {
    * @returns The selected state from the store.
    */
   const useExternalStore = <TState, TSelected = TState>(
-    store: ZunoStore<TState>,
+    readable: ZunoReadable<TState>,
     selector?: Selector<TState, TSelected>,
     equalityFn: EqualityFn<TSelected> = defaultEq
   ): TSelected => {
@@ -118,7 +110,7 @@ export const bindReact = (zuno: ZunoCore) => {
       /**
        * Get the current state of the store.
        */
-      const next = select(store.get());
+      const next = select(readable.getSnapshot());
 
       /**
        * If the last state has not been set, set it and return the next state.
@@ -147,22 +139,36 @@ export const bindReact = (zuno: ZunoCore) => {
        */
       lastRef.current = next;
       return next;
-    }, [store, select, equalityFn]);
+    }, [readable, select, equalityFn]);
 
     /**
      * Function to subscribe to changes in the store.
      * When the store changes, the component will re-render.
      */
     const subscribe = React.useCallback(
-      (onChange: () => void) => store.subscribe(() => onChange()),
-      [store]
+      (onChange: () => void) => readable.subscribe(onChange),
+      [readable]
     );
+
+    const getServerSnapshot = React.useCallback(() => {
+      const s = readable.getServerSnapshot ? readable.getServerSnapshot() : readable.getSnapshot();
+      return select(s);
+    }, [readable, select]);
+
+    /**
+     * Reset the last state and lastRef when the selector or equalityFn changes.
+     * This ensures that the component re-renders when the selector or equalityFn changes.
+     */
+    React.useEffect(() => {
+      hasLast.current = false;
+      lastRef.current = null;
+    }, [select, equalityFn]);
 
     /**
      * Returns the current state of the store.
      * If the state has changed since the last render, the component will re-render.
      */
-    return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   };
 
   /**
@@ -188,7 +194,11 @@ export const bindReact = (zuno: ZunoCore) => {
         equalityFn: EqualityFn<TSelected> = defaultEq
       ) => {
         // IMPORTANT: call hook only inside components
-        return useExternalStore<T, TSelected>(base.raw(), selector, equalityFn);
+        const readable = React.useMemo(
+          () => toReadable(base.raw() as ZunoSubscribableStore<T>),
+          [storeKey]
+        );
+        return useExternalStore<T, TSelected>(readable, selector, equalityFn);
       },
     };
   };

@@ -13,15 +13,24 @@ type CreateZunoExpressOptions = {
 /**
  * Creates an Express router for Zuno.
  *
- * @param opts
- * @returns An object containing the SSE and sync handlers.
+ * @param opts - Options for creating the Express router.
+ * @returns An object containing the SSE, sync, and snapshot handlers
  */
 export function createZunoExpress(opts?: CreateZunoExpressOptions) {
   const { headers } = opts ?? {}
 
   return {
+    /**
+     * Handles SSE connections.
+     */
     sse: createExpressSSEHandler(headers),
+    /**
+     * Handles sync connections.
+     */
     sync: createExpressSyncHandler(),
+    /**
+     * Handles snapshot connections.
+     */
     snapshot: createExpressSnapshotHandler(),
   }
 }

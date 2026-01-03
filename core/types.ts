@@ -94,3 +94,22 @@ export type ZunoSnapshot = {
   state: Record<string, { state: unknown; version: number }>
   lastEventId: number
 }
+
+/**
+ * A contract for adapters to interact with the store in a read-only manner.
+ * This provides a "native feel" for consumers preventing them from touching the core directly.
+ */
+export type ZunoReadable<T> = {
+  /** Read current value (must be sync) */
+  getSnapshot(): T;
+
+  /**
+   * Subscribe to changes.
+   * Must call `onChange` whenever snapshot may have changed.
+   * Returns unsubscribe.
+   */
+  subscribe(onChange: () => void): () => void;
+
+  /** Optional: for SSR hydration safety in React */
+  getServerSnapshot?: () => T;
+};

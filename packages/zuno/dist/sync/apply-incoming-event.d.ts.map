@@ -1,1 +1,0 @@
-{"version":3,"file":"apply-incoming-event.d.ts","sourceRoot":"","sources":["../../src/sync/apply-incoming-event.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,oBAAoB,EAAE,QAAQ,EAAE,MAAM,eAAe,CAAC;AACpE,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,cAAc,CAAC;AAEnD;;;;;IAKI;AACJ,wBAAgB,kBAAkB,CAChC,QAAQ,EAAE,QAAQ,EAClB,KAAK,EAAE,cAAc,EACrB,GAAG,EAAE,oBAAoB,QA4B1B"}

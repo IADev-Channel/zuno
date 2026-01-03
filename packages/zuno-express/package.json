@@ -1,8 +1,12 @@
 {
   "name": "@iadev93/zuno-express",
-  "version": "0.0.1",
+  "version": "0.0.5",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -21,5 +25,24 @@
     "@types/node": "^20.0.0",
     "typescript": "^5.9.3",
     "@iadev93/zuno": "workspace:*"
-  }
+  },
+  "keywords": [
+    "state",
+    "state-management",
+    "sync",
+    "sse",
+    "server-sent-events",
+    "broadcastchannel",
+    "distributed-state",
+    "event-sourcing",
+    "universal-state",
+    "realtime"
+  ],
+  "homepage": "https://github.com/IADev-Channel/zuno",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IADev-Channel/zuno.git"
+  },
+  "author": "Ibrahim Aftab",
+  "license": "MIT"
 }

@@ -1,0 +1,1 @@
+{"version":3,"file":"express-sse-handler.d.ts","sourceRoot":"","sources":["../src/express-sse-handler.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,OAAO,EAAE,QAAQ,EAAE,MAAM,SAAS,CAAA;AAChD,OAAO,KAAK,EAAE,mBAAmB,EAAE,MAAM,MAAM,CAAC;AAIhD;;;GAGG;AACH,wBAAgB,uBAAuB,CAAC,OAAO,CAAC,EAAE,mBAAmB,IAI3D,KAAK,OAAO,EAAE,KAAK,QAAQ,UACpC"}

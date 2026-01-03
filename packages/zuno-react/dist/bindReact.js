@@ -1,41 +1,5 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.bindReact = void 0;
-const React = __importStar(require("react"));
-const zuno_1 = require("@iadev/zuno");
+import * as React from "react";
+import { toReadable } from "@iadev/zuno";
 /**
  * The default equality function, using `Object.is` for strict equality comparison.
  * This is a common and safe default for comparing primitive values and references.
@@ -46,7 +10,7 @@ const defaultEq = Object.is;
  * @param zuno The Zuno instance to bind.
  * @returns A React hook for accessing the store.
  */
-const bindReact = (zuno) => {
+export const bindReact = (zuno) => {
     /**
      * A custom hook for accessing a Zuno store in a React component.
      * @param store The Zuno store to access.
@@ -149,7 +113,7 @@ const bindReact = (zuno) => {
             ...base,
             use: (selector, equalityFn = defaultEq) => {
                 // IMPORTANT: call hook only inside components
-                const readable = React.useMemo(() => (0, zuno_1.toReadable)(base.raw()), [storeKey]);
+                const readable = React.useMemo(() => toReadable(base.raw()), [storeKey]);
                 return useExternalStore(readable, selector, equalityFn);
             },
         };
@@ -162,4 +126,3 @@ const bindReact = (zuno) => {
         store, // overrides store() with React-enhanced bound store
     };
 };
-exports.bindReact = bindReact;

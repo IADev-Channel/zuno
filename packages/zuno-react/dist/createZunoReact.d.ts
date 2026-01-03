@@ -24,3 +24,4 @@ export declare const createZunoReact: (opts: CreateZunoOptions) => {
     get<T>(storeKey: string, init?: () => T): T;
     stop?: () => void;
 };
+//# sourceMappingURL=createZunoReact.d.ts.map

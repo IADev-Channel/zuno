@@ -4,8 +4,11 @@
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
+    "jsx": "react",
+    "declarationMap": true,
     "emitDeclarationOnly": false,
-    "jsx": "react"
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
   },
   "include": [
     "src/**/*"

@@ -1,12 +1,10 @@
-import { bindReact } from "../../adapters/react/bindReact"
-import { createZunoReact } from "../../adapters/react/createZunoReact"
-import { createZuno } from "../../core/createZuno"
+import { createZunoReact } from "@iadev/zuno-react"
 
 /**
  * Zuno React adapter, you can also create separate files for store
  * and export it to use it in other components or utils functions.
  */
-const z = bindReact(createZuno({
+const z = createZunoReact({
     /** Channel name 
      * Used for broadcast channel for multiple tabs sync
      * */
@@ -23,7 +21,7 @@ const z = bindReact(createZuno({
      * Used for optimistic updates - local updates before server confirmation
      * */
     optimistic: true
-}))
+})
 
 const counter = z.store<number>("counter", () => 0);
 

@@ -6,7 +6,7 @@
   "scripts": {
     "start": "tsx index.ts"
   },
-  "packageManager": "pnpm@10.8.0",
+  "packageManager": "pnpm@10.27.0",
   "dependencies": {
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

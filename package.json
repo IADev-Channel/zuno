@@ -3,28 +3,21 @@
   "workspaces": [
     "packages/*"
   ],
-  "packageManager": "pnpm@9.16.4",
+  "packageManager": "pnpm@10.27.0",
   "scripts": {
     "login": "pnpm login",
-
-    
     "deploy-core": "pnpm --filter @iadev93/zuno publish --access public",
     "deploy-react": "pnpm --filter @iadev93/zuno-react publish --access public",
     "deploy-express": "pnpm --filter @iadev93/zuno-express publish --access public",
-
     "deploy": "pnpm deploy-core && pnpm deploy-react && pnpm deploy-express",
-
     "build-core": "pnpm --filter @iadev93/zuno run build",
     "build-react": "pnpm --filter @iadev93/zuno-react run build",
     "build-express": "pnpm --filter @iadev93/zuno-express run build",
-
     "build": "pnpm build-core && pnpm build-react && pnpm build-express",
-
     "start-html": "pnpm --filter exercise-basic-html run start",
     "start-react": "pnpm --filter exercise-react run start",
     "start-http-server": "pnpm --filter exercise-http-server run start",
     "start-express": "pnpm --filter exercise-express run start",
-
     "start": "pnpm start-html && pnpm start-react && pnpm start-http-server && pnpm start-express"
   },
   "devDependencies": {

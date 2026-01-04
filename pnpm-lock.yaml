@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@iadev93/zuno':
+        specifier: ^0.0.5
+        version: 0.0.5
     devDependencies:
       '@types/cors':
         specifier: ^2.8.19
@@ -285,6 +289,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@iadev93/zuno@0.0.5':
+    resolution: {integrity: sha512-ncmuMLGbt09TI8T60SxW1+jwSLpyWItrVrm32pZl5XIq4tpV9SpnN10GW/6P1dNQm9MB9KCI22UHjO/4NvEihg==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -978,6 +985,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.27.2':
     optional: true
+
+  '@iadev93/zuno@0.0.5': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

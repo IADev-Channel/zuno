@@ -190,6 +190,10 @@ If you export server helpers from core, consider **server-only subpath exports**
 
 ---
 
+If you’re using Zuno in a real project, please open an issue and tell us your use case.
+
+---
+
 ## License
 
 MIT

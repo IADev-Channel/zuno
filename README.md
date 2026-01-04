@@ -33,6 +33,10 @@ It is a **state synchronization system**.
 
 ---
 
+If you’re using Zuno in a real project, please open an issue and tell us your use case.
+
+---
+
 ## Installation
 
 ```bash

@@ -51,6 +51,10 @@ app.listen(3000);
 
 ---
 
+If you’re using Zuno in a real project, please open an issue and tell us your use case.
+
+---
+
 ## License
 
 MIT

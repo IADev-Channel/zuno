@@ -1,6 +1,9 @@
 {
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*",
+    "exercise/*"
+  ],
   "packageManager": "pnpm@10.27.0",
   "scripts": {
     "login": "pnpm login",
@@ -16,10 +19,11 @@
     "start-react": "pnpm --filter exercise-react run start",
     "start-http-server": "pnpm --filter exercise-http-server run start",
     "start-express": "pnpm --filter exercise-express run start",
-    "start": "pnpm start-html && pnpm start-react && pnpm start-http-server && pnpm start-express"
+    "start": "concurrently \"pnpm start-html\" \"pnpm start-react\" \"pnpm start-http-server\" \"pnpm start-express\""
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
+    "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "typescript": "^5.9.3"
   }

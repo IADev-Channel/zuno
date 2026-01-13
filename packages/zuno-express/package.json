@@ -5,7 +5,8 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -27,6 +28,8 @@
     "@iadev93/zuno": "workspace:*"
   },
   "keywords": [
+    "zuno",
+    "express",
     "state",
     "state-management",
     "sync",

@@ -13,6 +13,7 @@ const zuno = createZunoExpress()
 app.get("/zuno/sse", zuno.sse)
 app.get("/zuno/snapshot", zuno.snapshot)
 app.post("/zuno/sync", zuno.sync)
+app.post("/zuno/counter/:value", zuno.sync)
 
 const PORT = 3000
 app.listen(PORT).addListener("listening", () => {

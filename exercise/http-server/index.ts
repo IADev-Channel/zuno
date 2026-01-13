@@ -1,7 +1,5 @@
 import http from "http";
-import { createSSEConnection, syncUniverseState } from "@iadev93/zuno";
-import { applyStateEvent } from "@iadev93/zuno";
-import { sendSnapshot } from "@iadev93/zuno";
+import { createSSEConnection, setUniverseState, applyStateEvent, sendSnapshot } from "@iadev93/zuno/server";
 
 const server = http.createServer((req, res) => {
   // CORS Headers
@@ -25,7 +23,7 @@ const server = http.createServer((req, res) => {
   else if (req.url === "/zuno/listing" && req.method === "GET") {
     sendSnapshot(req, res);
   } else if (req.url === "/zuno/sync" && req.method === "POST") {
-    syncUniverseState(req, res);
+    setUniverseState(req, res);
   } else if (req.url?.startsWith("/zuno/counter/") && req.method === "GET") {
     const counter = req.url.split("/").pop();
     const counterValue = Number(counter);

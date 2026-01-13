@@ -1,0 +1,14 @@
+{
+  "name": "exercise-elysia",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "start": "bun run app.ts"
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.4.1",
+    "@iadev93/zuno": "workspace:*",
+    "@iadev93/zuno-elysia": "workspace:*",
+    "elysia": "^1.2.10"
+  }
+}

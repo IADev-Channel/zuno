@@ -19,10 +19,10 @@ const initiate = () => {
     channelName: "zuno-demo",
 
     /** SSE URL (for server sync - real-time updates) */
-    sseUrl: "http://localhost:3000/zuno/sse",
+    sseUrl: "http://localhost:3002/zuno/sse",
 
     /** Sync URL (for client sync - state updates) */
-    syncUrl: "http://localhost:3000/zuno/sync",
+    syncUrl: "http://localhost:3002/zuno/sync",
 
     /** Optimistic (for optimistic updates - local updates before server confirmation) */
     optimistic: true,

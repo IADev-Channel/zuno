@@ -1,0 +1,29 @@
+{
+  "name": "@iadev93/zuno-elysia",
+  "version": "0.0.1",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@iadev93/zuno": "workspace:*",
+    "elysia": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@iadev93/zuno": "workspace:*",
+    "elysia": "^1.2.10",
+    "typescript": "^5.9.3"
+  },
+  "author": "Ibrahim Aftab",
+  "license": "MIT"
+}

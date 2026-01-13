@@ -1,11 +1,12 @@
 {
   "name": "@iadev93/zuno-react",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -26,6 +27,8 @@
     "@iadev93/zuno": "workspace:*"
   },
   "keywords": [
+    "zuno",
+    "react",
     "state",
     "state-management",
     "sync",

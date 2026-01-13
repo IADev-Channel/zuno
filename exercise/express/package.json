@@ -9,6 +9,7 @@
   },
   "packageManager": "bun@1.1.56",
   "dependencies": {
+    "@iadev93/zuno": "workspace:*",
     "@iadev93/zuno-express": "workspace:*",
     "express": "^5.2.1"
   },

@@ -1,21 +1,32 @@
-import express from "express"
-import { createZunoExpress } from "@iadev93/zuno-express"
-import cors from "cors"
+import express from "express";
+import { createZunoExpress } from "@iadev93/zuno-express";
+import { applyStateEvent } from "@iadev93/zuno/server";
+import cors from "cors";
 
-const app = express()
-app.use(express.json())
-app.use(cors())
+const app = express();
+app.use(express.json());
+app.use(cors());
 
+const zuno = createZunoExpress();
 
+app.get("/zuno/sse", zuno.sse);
+app.get("/zuno/snapshot", zuno.snapshot);
+app.post("/zuno/sync", zuno.sync);
 
-const zuno = createZunoExpress()
+app.get("/zuno/counter/:value", (req, res) => {
+  const counterValue = Number(req.params.value);
 
-app.get("/zuno/sse", zuno.sse)
-app.get("/zuno/snapshot", zuno.snapshot)
-app.post("/zuno/sync", zuno.sync)
-app.post("/zuno/counter/:value", zuno.sync)
+  if (!Number.isFinite(counterValue)) {
+    res.status(400).send("Invalid counter value");
+    return;
+  }
 
-const PORT = 3000
+  const result = applyStateEvent({ storeKey: "counter", state: counterValue });
+
+  res.status(200).json({ ok: true, event: result.ok ? result.event : null });
+});
+
+const PORT = 3000;
 app.listen(PORT).addListener("listening", () => {
-  console.log(`Server started on port ${PORT}`)
-})
+  console.log(`Server started on port ${PORT}`);
+});

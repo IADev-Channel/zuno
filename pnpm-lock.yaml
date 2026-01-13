@@ -48,6 +48,9 @@ importers:
 
   exercise/express:
     dependencies:
+      '@iadev93/zuno':
+        specifier: workspace:*
+        version: link:../../packages/zuno
       '@iadev93/zuno-express':
         specifier: workspace:*
         version: link:../../packages/zuno-express

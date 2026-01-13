@@ -1,18 +1,14 @@
 # @iadev93/zuno
 
-**Zuno** is a universal, event-driven state system designed to keep **client, server, and multiple runtimes** in sync with strong consistency guarantees.
+<p><b>The core state engine for Zuno.</b></p>
 
-Zuno is built around a simple idea:
+Zuno is a universal, event-driven state system designed to keep **client, server, and multiple runtimes** in sync with strong consistency guarantees.
 
-> State is not local — it is **distributed, versioned, and observable**.
-
-This package is the **core** of the Zuno ecosystem:
-
-* State engine (Universe + Stores)
-* Versioned event model
-* Sync primitives (SSE + BroadcastChannel)
-* Adapter contract (`ZunoReadable`) for UI/framework bindings
-* Optional server helpers (snapshot + SSE handlers)
+This package provides the foundation:
+- 🌌 **Universe**: Central coordination for all stores.
+- 📦 **Store**: Versioned, observable state units.
+- 🔄 **Sync Primitives**: SSE and BroadcastChannel transport implementations.
+- 🔌 **Adapter Ready**: Exposes the `ZunoReadable` contract for UI bindings.
 
 ---
 

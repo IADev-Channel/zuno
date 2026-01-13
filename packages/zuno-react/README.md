@@ -1,8 +1,8 @@
 # @iadev93/zuno-react
 
-React adapter for **Zuno**.
+<p><b>Idiomatic React bindings for Zuno.</b></p>
 
-This package provides idiomatic React bindings using `useSyncExternalStore`.
+This package provides deep integration with React using `useSyncExternalStore` for performance and consistency.
 
 ---
 

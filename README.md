@@ -1,75 +1,100 @@
-# Zuno
-
-**Zuno** is a universal, event‑driven state system designed to keep **client, server, and multiple runtimes** in sync with strong consistency guarantees.
-
-Zuno is built around a simple idea:
-
-> State is not local — it is *distributed, versioned, and observable*.
-
----
-
-## Monorepo Packages
-
-This repository contains three packages:
-
-| Package               | Description                                               |
-| --------------------- | --------------------------------------------------------- |
-| `@iadev93/zuno`         | Core state engine, sync primitives, and adapter contracts |
-| `@iadev93/zuno-react`   | React adapter using `useSyncExternalStore`                |
-| `@iadev93/zuno-express` | Express adapter (SSE + sync endpoints)                    |
+<div align="center">
+  <img src="https://raw.githubusercontent.com/IADev-Channel/zuno/main/assets/zuno-logo.png" alt="Zuno Logo" width="120" />
+  <h1>Zuno</h1>
+  <p><b>Universal, event-driven state synchronization with strong consistency.</b></p>
+  <p>Client, server, and multiple runtimes — perfectly in sync.</p>
+</div>
 
 ---
 
-## Why Zuno?
+**Zuno** is a distributed state engine built on a simple premise:
+> "State is not local — it is distributed, versioned, and observable."
 
-* Deterministic state updates (versioned events)
-* Cross‑tab, cross‑client synchronization
-* SSE‑based transport (no WebSocket lock‑in)
-* Framework‑agnostic core
-* Thin, explicit adapters (React / Express today)
+It ensures that every mutation across your ecosystem (tabs, background workers, node servers, even different runtimes like Bun or Elysia) is deterministic and consistent.
 
-Zuno is **not** Redux, Zustand, or TanStack Query.
-It is a **state synchronization system**.
+## 🚀 Key Features
 
----
-
-If you’re using Zuno in a real project, please open an issue and tell us your use case.
+- ⛓️ **Deterministic Ordering**: Versioned events prevent stale overwrites and race conditions.
+- 🔄 **Multi-Runtime Sync**: Seamlessly sync state between Browser Tabs, Node.js, Express, and Elysia.
+- 📡 **Lightweight Transport**: Uses SSE (Server-Sent Events) and BroadcastChannel for low-latency, proxy-friendly updates. No WebSocket complexity or lock-in.
+- ⚛️ **React Ready**: First-class support for React with deep `useSyncExternalStore` integration.
+- 🔌 **Thin Adapters**: Transparent, lightweight adapters for your favorite frameworks.
 
 ---
 
-## Installation
+## 📦 Monorepo Packages
 
-```bash
-npm install @iadev93/zuno
+| Package | Purpose | Docs |
+| :--- | :--- | :--- |
+| **[`@iadev93/zuno`](./packages/zuno)** | Core state engine & sync primitives | [README](./packages/zuno/README.md) |
+| **[`@iadev93/zuno-react`](./packages/zuno-react)** | React hooks & state bindings | [README](./packages/zuno-react/README.md) |
+| **[`@iadev93/zuno-express`](./packages/zuno-express)** | Server adapter for Express | [README](./packages/zuno-express/README.md) |
+| **[`@iadev93/zuno-elysia`](./packages/zuno-elysia)** | Server adapter for Elysia (Bun) | [README](./packages/zuno-elysia/README.md) |
+
+---
+
+## 🏎️ Quick Start
+
+### 1. Define your store (Client)
+```typescript
+import { createZuno } from "@iadev93/zuno";
+
+const zuno = createZuno();
+export const counter = zuno.store("counter", () => 0);
+
+// Use it anywhere!
+await counter.set(v => v + 1);
 ```
 
-Adapters:
+### 2. Connect to React
+```tsx
+import { createZunoReact } from "@iadev93/zuno-react";
 
-```bash
-npm install @iadev93/zuno-react
-npm install @iadev93/zuno-express
+// Use the React-enhanced instance
+const zuno = createZunoReact();
+const counter = zuno.store("counter", () => 0);
+
+function Counter() {
+  const value = counter.use();
+  return <button onClick={() => counter.set(v => v + 1)}>{value}</button>;
+}
+```
+
+### 3. Sync with Server (Express)
+```typescript
+import express from "express";
+import { createZunoExpress } from "@iadev93/zuno-express";
+
+const app = express();
+const zuno = createZunoExpress();
+
+app.get("/zuno/sse", zuno.sse);
+app.post("/zuno/sync", zuno.sync);
+app.get("/zuno/snapshot", zuno.snapshot);
+
+app.listen(3000);
 ```
 
 ---
 
-## Development
+## 📖 Deep Dive
+
+- [**Why Zuno?**](./docs/why-zuno.md) — The philosophy and "The Mental Shift".
+- [**Wire Protocol v1**](./docs/protocol-v1.md) — Language-agnostic synchronization specs.
+
+---
+
+## 🛠️ Development
+
+This is a monorepo powered by **pnpm**.
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 ---
 
-## Status
+## 📄 License
 
-* Core: ✅ Stable
-* React Adapter: ✅ Stable
-* Express Adapter: ✅ Stable
-* DevTools: 🚧 Planned
-
----
-
-## License
-
-MIT
+MIT © [Ibrahim Aftab](https://github.com/ibrahimaftab)

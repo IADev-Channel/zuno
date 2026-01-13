@@ -1,8 +1,10 @@
 # @iadev93/zuno-elysia
 
-Elysia adapter for [Zuno](https://github.com/iadev93/zuno), providing seamless state synchronization for ElysiaJS applications.
+<p><b>Elysia adapter for Zuno.</b></p>
 
-## Installation
+Provides seamless state synchronization for ElysiaJS (Bun) applications using native async generators.
+
+---
 
 ```bash
 pnpm add @iadev93/zuno-elysia

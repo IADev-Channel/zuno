@@ -51,6 +51,7 @@ UI frameworks become **consumers of events**, not owners of state. They subscrib
 * a universal state replication engine
 * framework-agnostic — React, Vue, Svelte, vanilla, workers
 * transport-agnostic — SSE, BroadcastChannel, HTTP, WebSocket
+* first-class server adapters — Express, Elysia (Bun), Node.js
 * deterministic and predictable — mutations either apply or reject
 
 ### Zuno is NOT

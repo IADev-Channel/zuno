@@ -1,8 +1,8 @@
 # @iadev93/zuno-express
 
-Express adapter for **Zuno**.
+<p><b>Express adapter for Zuno.</b></p>
 
-Provides server‑side synchronization endpoints using Server‑Sent Events (SSE).
+Provides server-side synchronization endpoints using Server-Sent Events (SSE) for Express applications.
 
 ---
 
@@ -13,7 +13,6 @@ npm install @iadev93/zuno-express
 ```
 
 Peer dependency:
-
 * `express >= 4`
 
 ---
@@ -23,23 +22,36 @@ Peer dependency:
 ```ts
 import express from "express";
 import { createZunoExpress } from "@iadev93/zuno-express";
-import { createZuno } from "@iadev93/zuno";
 
 const app = express();
-const zuno = createZuno();
+app.use(express.json());
 
-createZunoExpress(app, { zuno });
+const zuno = createZunoExpress();
+
+// Unified handlers
+app.get("/zuno/sse", zuno.sse);
+app.post("/zuno/sync", zuno.sync);
+app.get("/zuno/snapshot", zuno.snapshot);
 
 app.listen(3000);
 ```
 
 ---
 
-## What It Provides
+## API
 
-* SSE endpoint for state sync
-* Snapshot delivery
-* Version‑safe event ingestion
+### `createZunoExpress(opts?)`
+
+Returns an object containing the following Express handlers:
+
+#### `sse` (GET)
+Handles persistent SSE connections, heartbeats, and initial synchronization.
+
+#### `sync` (POST)
+Validates and applies incoming state events.
+
+#### `snapshot` (GET)
+Returns the current full state of the universe.
 
 ---
 

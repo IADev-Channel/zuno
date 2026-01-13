@@ -104,10 +104,19 @@ Connection: keep-alive
 #### SSE Message
 
 ```text
-event: zuno
-data: { "storeKey": "counter", "state": 6, "version": 4 }
+id: 5
+event: state
+data: { "storeKey": "counter", "state": 6, "version": 4, "eventId": 5 }
 
 ```
+
+### Last Event ID & Reconnection
+
+To handle network interruptions, Zuno supports the standard SSE `Last-Event-ID` mechanism.
+
+1. **Client**: Sends `Last-Event-ID` header or `lastEventId` query parameter on reconnect.
+2. **Server**: Checks for missed events after that ID and replays them before resuming the live stream.
+3. **Fallback**: If no ID is provided, the server sends a full **snapshot** to re-synchronize the client.
 
 ---
 

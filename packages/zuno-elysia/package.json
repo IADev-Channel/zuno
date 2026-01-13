@@ -1,10 +1,12 @@
 {
   "name": "@iadev93/zuno-elysia",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -25,5 +27,24 @@
     "typescript": "^5.9.3"
   },
   "author": "Ibrahim Aftab",
-  "license": "MIT"
+  "license": "MIT",
+  "homepage": "https://github.com/IADev-Channel/zuno",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IADev-Channel/zuno.git"
+  },
+  "keywords": [
+    "zuno",
+    "elysia",
+    "state",
+    "state-management",
+    "sync",
+    "sse",
+    "server-sent-events",
+    "broadcastchannel",
+    "distributed-state",
+    "event-sourcing",
+    "universal-state",
+    "realtime"
+  ]
 }

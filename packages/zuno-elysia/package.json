@@ -15,7 +15,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "dev": "tsup --watch"
   },
   "peerDependencies": {
     "@iadev93/zuno": "workspace:*",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@iadev93/zuno": "workspace:*",
     "elysia": "^1.2.10",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
   "author": "Ibrahim Aftab",

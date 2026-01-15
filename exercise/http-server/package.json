@@ -8,8 +8,11 @@
   },
   "packageManager": "pnpm@10.27.0",
   "dependencies": {
+    "@iadev93/zuno": "workspace:*",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "@iadev93/zuno": "workspace:*"
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
   }
 }

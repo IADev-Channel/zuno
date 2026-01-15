@@ -8,6 +8,7 @@
     "@iadev93/zuno": "workspace:*"
   },
   "devDependencies": {
+    "tsup": "^8.5.1",
     "vite": "^7.3.0"
   }
 }

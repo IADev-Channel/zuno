@@ -15,16 +15,18 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "dev": "tsup --watch"
   },
   "peerDependencies": {
     "@iadev93/zuno": "workspace:*",
     "react": ">=18"
   },
   "devDependencies": {
+    "@iadev93/zuno": "workspace:*",
     "@types/react": "^18.0.0",
-    "typescript": "^5.9.3",
-    "@iadev93/zuno": "workspace:*"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "zuno",

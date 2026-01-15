@@ -1,20 +1,21 @@
-import type { IncomingMessage, ServerResponse } from "http"
-import { getUniverseState } from "./universe-store"
-import { getLastEventId } from "./state.log"
+import type { IncomingMessage, ServerResponse } from "http";
+import { getUniverseState, getLastEventId } from "./core";
 
 /**
- * Sends a snapshot of the universe state to the client.
- *
- * @param _req The incoming HTTP request object.
- * @param res The server response object, used to send the JSON universe state.
+ * Sends a snapshot of the current universe state to the response.
+ * Compatible with both Express and raw Node.js http.
  */
 export function sendSnapshot(_req: IncomingMessage, res: ServerResponse) {
-  const body = {
+  const snapshot = {
     state: getUniverseState(),
-    version: getUniverseState().version ?? 0,
     lastEventId: getLastEventId(),
+  };
+
+  // Check for Express-like .json() method
+  if ("json" in res && typeof (res as any).json === "function") {
+    (res as any).json(snapshot);
+  } else {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(snapshot));
   }
-  res.statusCode = 200
-  res.setHeader("Content-Type", "application/json")
-  res.end(JSON.stringify(body))
 }

@@ -15,17 +15,19 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "dev": "tsup --watch"
   },
   "peerDependencies": {
     "@iadev93/zuno": "workspace:*",
     "express": "^5.0.0"
   },
   "devDependencies": {
+    "@iadev93/zuno": "workspace:*",
     "@types/express": "^5.0.0",
     "@types/node": "^20.0.0",
-    "typescript": "^5.9.3",
-    "@iadev93/zuno": "workspace:*"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "zuno",

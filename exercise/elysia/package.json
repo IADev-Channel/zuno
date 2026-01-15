@@ -10,5 +10,8 @@
     "@iadev93/zuno": "workspace:*",
     "@iadev93/zuno-elysia": "workspace:*",
     "elysia": "^1.2.10"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
   }
 }

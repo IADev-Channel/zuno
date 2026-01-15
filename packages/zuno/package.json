@@ -22,7 +22,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsup",
+    "dev": "tsup --watch"
   },
   "keywords": [
     "state",
@@ -40,5 +41,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/IADev-Channel/zuno.git"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
   }
 }

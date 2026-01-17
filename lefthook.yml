@@ -1,0 +1,19 @@
+# lefthook.yml
+pre-commit:
+  parallel: true
+  commands:
+    biome-check:
+      glob: "*.{js,ts,jsx,tsx,json,css}"
+      run: pnpm biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files} && git update-index --again
+    
+    test:
+      glob: "*.{ts,tsx}"
+      # Run only related tests? Or full suite?
+      # For now, run full suite to be safe, but it might be slow.
+      # User said "runs biome and vitest".
+      run: pnpm vitest run
+
+# post-merge:
+#   commands:
+#     packages:
+#       run: pnpm install

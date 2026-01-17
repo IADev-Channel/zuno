@@ -1,5 +1,11 @@
+import {
+	type CreateZunoOptions,
+	createZuno,
+	toReadable,
+	type ZunoReadable,
+	type ZunoSubscribableStore,
+} from "@iadev93/zuno";
 import * as React from "react";
-import { type ZunoReadable, type ZunoSubscribableStore, toReadable, createZuno, type CreateZunoOptions } from "@iadev93/zuno";
 
 /**
  * Type definition for an equality function.
@@ -27,11 +33,11 @@ const defaultEq: EqualityFn<any> = Object.is;
  * and a unique key identifier. This represents a store that has been "bound" or registered.
  */
 export type BoundStore<T> = {
-  key: string;
-  get: () => T;
-  set: (next: T | ((prev: T) => T)) => Promise<any>;
-  subscribe: (cb: (state: T) => void) => () => void;
-  raw: () => ZunoSubscribableStore<T>;
+	key: string;
+	get: () => T;
+	set: (next: T | ((prev: T) => T)) => Promise<any>;
+	subscribe: (cb: (state: T) => void) => () => void;
+	raw: () => ZunoSubscribableStore<T>;
 };
 
 /**
@@ -39,24 +45,28 @@ export type BoundStore<T> = {
  * retrieve, and update stores.
  */
 export type ZunoCore = {
-  store<T>(storeKey: string, init: () => T): BoundStore<T>;
-  set<T>(storeKey: string, next: T | ((prev: T) => T), init?: () => T): Promise<any>;
-  get<T>(storeKey: string, init?: () => T): T;
-  stop?: () => void;
+	store<T>(storeKey: string, init: () => T): BoundStore<T>;
+	set<T>(
+		storeKey: string,
+		next: T | ((prev: T) => T),
+		init?: () => T,
+	): Promise<any>;
+	get<T>(storeKey: string, init?: () => T): T;
+	stop?: () => void;
 };
 
 /**
  * An extended interface for a Zuno store that includes React-specific features.
  */
 export type ReactBoundStore<T> = BoundStore<T> & {
-  /**
-   * React hook for this store.
-   * Optional selector + equality for derived values and avoiding rerenders.
-   */
-  use: <TSelected = T>(
-    selector?: Selector<T, TSelected>,
-    equalityFn?: EqualityFn<TSelected>
-  ) => TSelected;
+	/**
+	 * React hook for this store.
+	 * Optional selector + equality for derived values and avoiding rerenders.
+	 */
+	use: <TSelected = T>(
+		selector?: Selector<T, TSelected>,
+		equalityFn?: EqualityFn<TSelected>,
+	) => TSelected;
 };
 
 /**
@@ -65,92 +75,104 @@ export type ReactBoundStore<T> = BoundStore<T> & {
  * @returns A React-enhanced Zuno instance.
  */
 export const bindReact = (zuno: ZunoCore) => {
-  /**
-   * A custom hook for accessing a Zuno store in a React component.
-   */
-  const useExternalStore = <TState, TSelected = TState>(
-    readable: ZunoReadable<TState>,
-    selector?: Selector<TState, TSelected>,
-    equalityFn: EqualityFn<TSelected> = defaultEq
-  ): TSelected => {
-    const select = React.useMemo(() => {
-      return (selector ??
-        ((s: TState) => s as unknown as TSelected)) as Selector<TState, TSelected>;
-    }, [selector]);
+	/**
+	 * A custom hook for accessing a Zuno store in a React component.
+	 */
+	const useExternalStore = <TState, TSelected = TState>(
+		readable: ZunoReadable<TState>,
+		selector?: Selector<TState, TSelected>,
+		equalityFn: EqualityFn<TSelected> = defaultEq,
+	): TSelected => {
+		const select = React.useMemo(() => {
+			return (selector ??
+				((s: TState) => s as unknown as TSelected)) as Selector<
+				TState,
+				TSelected
+			>;
+		}, [selector]);
 
-    const lastRef = React.useRef<TSelected | null>(null);
-    const hasLast = React.useRef(false);
+		const lastRef = React.useRef<TSelected | null>(null);
+		const hasLast = React.useRef(false);
 
-    const getSnapshot = React.useCallback(() => {
-      const next = select(readable.getSnapshot());
+		const getSnapshot = React.useCallback(() => {
+			const next = select(readable.getSnapshot());
 
-      if (!hasLast.current) {
-        hasLast.current = true;
-        lastRef.current = next;
-        return next;
-      }
+			if (!hasLast.current) {
+				hasLast.current = true;
+				lastRef.current = next;
+				return next;
+			}
 
-      const prev = lastRef.current as TSelected;
-      if (equalityFn(prev, next)) return prev;
+			const prev = lastRef.current as TSelected;
+			if (equalityFn(prev, next)) return prev;
 
-      lastRef.current = next;
-      return next;
-    }, [readable, select, equalityFn]);
+			lastRef.current = next;
+			return next;
+			// biome-ignore lint/correctness/useExhaustiveDependencies: select and equalityFn are local/stable
+		}, [readable, select, equalityFn]);
 
-    const subscribe = React.useCallback(
-      (onChange: () => void) => readable.subscribe(onChange),
-      [readable]
-    );
+		const subscribe = React.useCallback(
+			(onChange: () => void) => readable.subscribe(onChange),
+			[readable],
+		);
 
-    const getServerSnapshot = React.useCallback(() => {
-      const s = readable.getServerSnapshot ? readable.getServerSnapshot() : readable.getSnapshot();
-      return select(s);
-    }, [readable, select]);
+		// biome-ignore lint/correctness/useExhaustiveDependencies: select is local/stable
+		const getServerSnapshot = React.useCallback(() => {
+			const s = readable.getServerSnapshot
+				? readable.getServerSnapshot()
+				: readable.getSnapshot();
+			return select(s);
+		}, [readable, select]);
 
-    React.useEffect(() => {
-      hasLast.current = false;
-      lastRef.current = null;
-    }, [select, equalityFn]);
+		// biome-ignore lint/correctness/useExhaustiveDependencies: select and equalityFn are local/stable
+		React.useEffect(() => {
+			hasLast.current = false;
+			lastRef.current = null;
+		}, [select, equalityFn]);
 
-    return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  };
+		return React.useSyncExternalStore(
+			subscribe,
+			getSnapshot,
+			getServerSnapshot,
+		);
+	};
 
-  /**
-   * Creates a React-enhanced store.
-   */
-  const store = <T,>(storeKey: string, init: () => T): ReactBoundStore<T> => {
-    const base = zuno.store<T>(storeKey, init);
+	/**
+	 * Creates a React-enhanced store.
+	 */
+	const store = <T>(storeKey: string, init: () => T): ReactBoundStore<T> => {
+		const base = zuno.store<T>(storeKey, init);
 
-    return {
-      ...base,
-      use: <TSelected = T>(
-        selector?: Selector<T, TSelected>,
-        equalityFn: EqualityFn<TSelected> = defaultEq
-      ) => {
-        const readable = React.useMemo(
-          () => toReadable(base.raw() as ZunoSubscribableStore<T>),
-          [storeKey]
-        );
-        return useExternalStore<T, TSelected>(readable, selector, equalityFn);
-      },
-    };
-  };
+		return {
+			...base,
+			use: <TSelected = T>(
+				selector?: Selector<T, TSelected>,
+				equalityFn: EqualityFn<TSelected> = defaultEq,
+			) => {
+				const readable = React.useMemo(
+					() => toReadable(base.raw() as ZunoSubscribableStore<T>),
+					[],
+				);
+				return useExternalStore<T, TSelected>(readable, selector, equalityFn);
+			},
+		};
+	};
 
-  return {
-    ...zuno,
-    store,
-  };
+	return {
+		...zuno,
+		store,
+	};
 };
 
 /**
  * Creates a Zuno instance and returns a React-enhanced instance.
- * 
+ *
  * @param opts The options for the Zuno instance.
  * @returns An object with a `store` method that returns stores with a `use` hook.
  */
 export const createZunoReact = (opts: CreateZunoOptions) => {
-  const zuno = createZuno(opts);
-  return bindReact(zuno);
+	const zuno = createZuno(opts);
+	return bindReact(zuno);
 };
 
 // Convenience re-export

@@ -1,18 +1,18 @@
 {
-  "name": "exercise-http-server",
-  "version": "0.0.1",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "tsx index.ts"
-  },
-  "packageManager": "pnpm@10.27.0",
-  "dependencies": {
-    "@iadev93/zuno": "workspace:*",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
-  },
-  "devDependencies": {
-    "tsup": "^8.5.1"
-  }
+	"name": "exercise-http-server",
+	"version": "0.0.1",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"start": "tsx index.ts"
+	},
+	"packageManager": "pnpm@10.27.0",
+	"dependencies": {
+		"@iadev93/zuno": "workspace:*",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3"
+	},
+	"devDependencies": {
+		"tsup": "^8.5.1"
+	}
 }

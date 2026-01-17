@@ -1,53 +1,53 @@
 {
-  "name": "@iadev93/zuno-express",
-  "version": "0.0.9",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
-  },
-  "peerDependencies": {
-    "@iadev93/zuno": "workspace:*",
-    "express": "^5.0.0"
-  },
-  "devDependencies": {
-    "@iadev93/zuno": "workspace:*",
-    "@types/express": "^5.0.0",
-    "@types/node": "^20.0.0",
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
-  },
-  "keywords": [
-    "zuno",
-    "express",
-    "state",
-    "state-management",
-    "sync",
-    "sse",
-    "server-sent-events",
-    "broadcastchannel",
-    "distributed-state",
-    "event-sourcing",
-    "universal-state",
-    "realtime"
-  ],
-  "homepage": "https://github.com/IADev-Channel/zuno",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/IADev-Channel/zuno.git"
-  },
-  "author": "Ibrahim Aftab",
-  "license": "MIT"
+	"name": "@iadev93/zuno-express",
+	"version": "0.0.9",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch"
+	},
+	"peerDependencies": {
+		"@iadev93/zuno": "workspace:*",
+		"express": "^5.0.0"
+	},
+	"devDependencies": {
+		"@iadev93/zuno": "workspace:*",
+		"@types/express": "^5.0.0",
+		"@types/node": "^20.0.0",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3"
+	},
+	"keywords": [
+		"zuno",
+		"express",
+		"state",
+		"state-management",
+		"sync",
+		"sse",
+		"server-sent-events",
+		"broadcastchannel",
+		"distributed-state",
+		"event-sourcing",
+		"universal-state",
+		"realtime"
+	],
+	"homepage": "https://github.com/IADev-Channel/zuno",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IADev-Channel/zuno.git"
+	},
+	"author": "Ibrahim Aftab",
+	"license": "MIT"
 }

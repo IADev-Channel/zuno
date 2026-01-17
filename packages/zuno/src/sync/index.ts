@@ -3,393 +3,454 @@ import type { Universe } from "../core";
 // --- Types ---
 
 export type ConflictResolver<T = unknown> = (
-  localState: T,
-  serverState: T,
-  storeKey: string
+	localState: T,
+	serverState: T,
+	storeKey: string,
 ) => T;
 
 /**
  * Authoritative state event.
  */
 export type ZunoStateEvent = {
-  storeKey: string;
-  state: unknown; // Was 'any', now strictly 'unknown'
-  version?: number;
-  baseVersion?: number;
-  origin?: string;
-  ts?: number;
-  eventId?: number;
+	storeKey: string;
+	state: unknown; // Was 'any', now strictly 'unknown'
+	version?: number;
+	baseVersion?: number;
+	origin?: string;
+	ts?: number;
+	eventId?: number;
 };
 
 /**
  * Generic transport status.
  */
 export type TransportStatus = {
-  ok: boolean;
-  status: number;
-  json: any;
-  reason?: string;
+	ok: boolean;
+	status: number;
+	json: any;
+	reason?: string;
 };
 
 /**
  * Client transport interface.
  */
 export interface ZunoTransport {
-  dispatch(event: ZunoStateEvent): Promise<TransportStatus>;
-  unsubscribe?(): void;
+	dispatch(event: ZunoStateEvent): Promise<TransportStatus>;
+	unsubscribe?(): void;
 }
 
 /**
  * Apply incoming event to the universe and local bookkeeping.
  */
 export function applyIncomingEvent(
-  universe: Universe,
-  event: ZunoStateEvent,
-  context: {
-    clientId: string;
-    localState: Map<string, unknown>;
-    versions: Map<string, number>;
-  }
+	universe: Universe,
+	event: ZunoStateEvent,
+	context: {
+		clientId: string;
+		localState: Map<string, unknown>;
+		versions: Map<string, number>;
+	},
 ) {
-  const { clientId, versions } = context;
+	const { clientId, versions } = context;
 
-  // 1. Loopback suppression
-  if (event.origin === clientId) return;
+	// 1. Loopback suppression
+	if (event.origin === clientId) return;
 
-  // 2. Version check (if provided by transport)
-  if (typeof event.version === "number") {
-    const current = versions.get(event.storeKey) ?? 0;
-    if (event.origin !== "conflict-resolution" && event.version <= current) return; // Stale check
+	// 2. Version check (if provided by transport)
+	if (typeof event.version === "number") {
+		const current = versions.get(event.storeKey) ?? 0;
+		if (event.origin !== "conflict-resolution" && event.version <= current)
+			return; // Stale check
 
-    versions.set(event.storeKey, event.version);
-  }
+		versions.set(event.storeKey, event.version);
+	}
 
-  // 3. Apply to universe
-  universe.getStore(event.storeKey, () => event.state).set(event.state);
+	// 3. Apply to universe
+	universe.getStore(event.storeKey, () => event.state).set(event.state);
 }
 
 // --- SSE Client ---
 
 export type SSEOptions = {
-  universe: Universe;
-  url: string;
-  syncUrl: string;
-  optimistic: boolean;
-  clientId: string;
-  versions: Map<string, number>;
-  getLastEventId: () => number;
-  onOpen?: () => void;
-  onClose?: () => void;
-  onEvent?: (event: ZunoStateEvent) => void;
-  resolveConflict?: ConflictResolver;
+	universe: Universe;
+	url: string;
+	syncUrl: string;
+	optimistic: boolean;
+	clientId: string;
+	versions: Map<string, number>;
+	getLastEventId: () => number;
+	onOpen?: () => void;
+	onClose?: () => void;
+	onEvent?: (event: ZunoStateEvent) => void;
+	resolveConflict?: ConflictResolver;
 };
 
 export function startSSE(opts: SSEOptions): ZunoTransport {
-  const { url, syncUrl, universe, clientId, versions, getLastEventId, onEvent, resolveConflict } = opts;
-  let es: EventSource | null = null;
-  let retryCount = 0;
+	const {
+		url,
+		syncUrl,
+		universe,
+		clientId,
+		versions,
+		getLastEventId,
+		onEvent,
+		resolveConflict,
+	} = opts;
+	let es: EventSource | null = null;
+	let retryCount = 0;
 
-  // Helper to apply state changes
-  const applyState = (event: ZunoStateEvent) => {
-    if (onEvent) {
-      onEvent(event);
-    } else {
-      // Fallback default implementation
-      if (typeof event.version === "number") {
-        const current = versions.get(event.storeKey) ?? 0;
-        if (event.version <= current) return;
-        versions.set(event.storeKey, event.version);
-      }
-      universe.getStore(event.storeKey, () => event.state).set(event.state);
-    }
-  };
+	// Helper to apply state changes
+	const applyState = (event: ZunoStateEvent) => {
+		if (onEvent) {
+			onEvent(event);
+		} else {
+			// Fallback default implementation
+			if (typeof event.version === "number") {
+				const current = versions.get(event.storeKey) ?? 0;
+				if (event.version <= current) return;
+				versions.set(event.storeKey, event.version);
+			}
+			universe.getStore(event.storeKey, () => event.state).set(event.state);
+		}
+	};
 
-  // --- Offline Support ---
-  const queue: ZunoStateEvent[] = [];
-  let isFlushing = false;
+	// --- Offline Support ---
+	const queue: ZunoStateEvent[] = [];
+	let isFlushing = false;
 
-  async function flushQueue() {
-    if (isFlushing || queue.length === 0) return;
-    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+	async function flushQueue() {
+		if (isFlushing || queue.length === 0) return;
+		if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
-    isFlushing = true;
+		isFlushing = true;
 
-    // --- Coalesce / Deduplicate Logic ---
-    // 1. Map index of first occurrence of each storeKey
-    const keyIndex = new Map<string, number>();
-    // 2. Reduced queue construction
-    const reducedQueue: ZunoStateEvent[] = [];
+		// --- Coalesce / Deduplicate Logic ---
+		// 1. Map index of first occurrence of each storeKey
+		const keyIndex = new Map<string, number>();
+		// 2. Reduced queue construction
+		const reducedQueue: ZunoStateEvent[] = [];
 
-    for (const event of queue) {
-      if (keyIndex.has(event.storeKey)) {
-        // We've seen this key before. We want to update the existing entry in reducedQueue.
-        const idx = keyIndex.get(event.storeKey)!;
-        const prev = reducedQueue[idx];
-        // Merge: keep original baseVersion (from the start of the chain) but use NEW state.
-        // Note: We also likely want to keep the original 'ts' if strictly ordering, 
-        // but state is what matters.
-        // The 'version' in the event is the *optimistic* version. 
-        // We can keep the *latest* optimistic version (e.g. v10) in the event, 
-        // but server will likely only verify baseVersion.
-        reducedQueue[idx] = { ...event, baseVersion: prev.baseVersion };
-      } else {
-        keyIndex.set(event.storeKey, reducedQueue.length);
-        reducedQueue.push(event);
-      }
-    }
+		for (const event of queue) {
+			if (keyIndex.has(event.storeKey)) {
+				// We've seen this key before. We want to update the existing entry in reducedQueue.
+				const idx = keyIndex.get(event.storeKey)!;
+				const prev = reducedQueue[idx];
+				// Merge: keep original baseVersion (from the start of the chain) but use NEW state.
+				// Note: We also likely want to keep the original 'ts' if strictly ordering,
+				// but state is what matters.
+				// The 'version' in the event is the *optimistic* version.
+				// We can keep the *latest* optimistic version (e.g. v10) in the event,
+				// but server will likely only verify baseVersion.
+				reducedQueue[idx] = { ...event, baseVersion: prev.baseVersion };
+			} else {
+				keyIndex.set(event.storeKey, reducedQueue.length);
+				reducedQueue.push(event);
+			}
+		}
 
-    // Replace original queue with reduced one.
-    // We modify 'queue' in place or reset it.
-    // Since 'queue' is const binding to array, we can't reassign variable, 
-    // but we can clear and push.
-    queue.length = 0;
-    queue.push(...reducedQueue);
+		// Replace original queue with reduced one.
+		// We modify 'queue' in place or reset it.
+		// Since 'queue' is const binding to array, we can't reassign variable,
+		// but we can clear and push.
+		queue.length = 0;
+		queue.push(...reducedQueue);
 
-    try {
-      while (queue.length > 0) {
-        const event = queue[0];
-        try {
-          const res = await fetch(syncUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(event),
-          });
+		try {
+			while (queue.length > 0) {
+				const event = queue[0];
+				try {
+					const res = await fetch(syncUrl, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(event),
+					});
 
-          if (!res.ok && res.status !== 409) {
-            // Keep in queue for retry if it's a transient server error?
-            // For now we dequeue on non-network errors to avoid blocking.
-            if (res.status >= 400 && res.status < 500) {
-              queue.shift();
-              continue;
-            }
-            // For 500, we might want to retry? Let's treat it as network-ish for now.
-            // But to be safe and not block forever:
-            queue.shift();
-            continue;
-          }
+					if (!res.ok && res.status !== 409) {
+						// Keep in queue for retry if it's a transient server error?
+						// For now we dequeue on non-network errors to avoid blocking.
+						if (res.status >= 400 && res.status < 500) {
+							queue.shift();
+							continue;
+						}
+						// For 500, we might want to retry? Let's treat it as network-ish for now.
+						// But to be safe and not block forever:
+						queue.shift();
+						continue;
+					}
 
-          if (res.status === 409) {
-            const data = await res.json();
-            if (data.current) {
-              const { state: serverState, version: serverVersion } = data.current;
+					if (res.status === 409) {
+						const data = await res.json();
+						if (data.current) {
+							const { state: serverState, version: serverVersion } =
+								data.current;
 
-              let nextState = serverState;
-              if (resolveConflict) {
-                const localState = universe.getStore(event.storeKey, () => null).get();
-                nextState = resolveConflict(localState, serverState, event.storeKey);
-              }
+							let nextState = serverState;
+							if (resolveConflict) {
+								const localState = universe
+									.getStore(event.storeKey, () => null)
+									.get();
+								nextState = resolveConflict(
+									localState,
+									serverState,
+									event.storeKey,
+								);
+							}
 
-              // versions.set(event.storeKey, serverVersion); // REMOVE THIS
+							// versions.set(event.storeKey, serverVersion); // REMOVE THIS
 
-              // 2. Apply resolved state locally
-              applyState({ storeKey: event.storeKey, state: nextState, version: serverVersion, origin: "conflict-resolution" });
+							// 2. Apply resolved state locally
+							applyState({
+								storeKey: event.storeKey,
+								state: nextState,
+								version: serverVersion,
+								origin: "conflict-resolution",
+							});
 
-              // 3. If resolved state differs from server, auto-sync back
-              if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {
-                queue.unshift({ ...event, state: nextState, baseVersion: serverVersion });
-                continue;
-              }
-            }
-            queue.shift();
-          } else if (res.ok) {
-            const json = await res.json();
-            if (json.event && typeof json.event.version === "number") {
-              // Just update version map
-              versions.set(event.storeKey, json.event.version);
-            }
-            queue.shift();
-          } else {
-            queue.shift();
-          }
+							// 3. If resolved state differs from server, auto-sync back
+							if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {
+								queue.unshift({
+									...event,
+									state: nextState,
+									baseVersion: serverVersion,
+								});
+								continue;
+							}
+						}
+						queue.shift();
+					} else if (res.ok) {
+						const json = await res.json();
+						if (json.event && typeof json.event.version === "number") {
+							// Just update version map
+							versions.set(event.storeKey, json.event.version);
+						}
+						queue.shift();
+					} else {
+						queue.shift();
+					}
+				} catch (err) {
+					console.error("[Zuno] Flush failed, retrying later", err);
+					break; // Network error, stop flushing
+				}
+			}
+		} finally {
+			isFlushing = false;
+		}
+	}
+	function connect() {
+		const lastId = getLastEventId();
+		const connectUrl = new URL(url, globalThis.location?.href);
+		if (lastId > 0) connectUrl.searchParams.set("lastEventId", String(lastId));
 
-        } catch (err) {
-          console.error("[Zuno] Flush failed, retrying later", err);
-          break; // Network error, stop flushing
-        }
-      }
-    } finally {
-      isFlushing = false;
-    }
-  }
-  function connect() {
-    const lastId = getLastEventId();
-    const connectUrl = new URL(url, globalThis.location?.href);
-    if (lastId > 0) connectUrl.searchParams.set("lastEventId", String(lastId));
+		es = new EventSource(connectUrl.toString());
 
-    es = new EventSource(connectUrl.toString());
+		es.addEventListener("snapshot", (e: any) => {
+			try {
+				const snap = JSON.parse(e.data);
+				for (const [key, rec] of Object.entries(snap)) {
+					const r = rec as { state: any; version: number };
+					applyState({
+						storeKey: key,
+						state: r.state,
+						version: r.version,
+						origin: "server",
+					});
+				}
+			} catch (err) {
+				console.error("[Zuno] Failed to parse snapshot", err);
+			}
+		});
 
-    es.addEventListener("snapshot", (e: any) => {
-      try {
-        const snap = JSON.parse(e.data);
-        for (const [key, rec] of Object.entries(snap)) {
-          const r = rec as { state: any; version: number };
-          applyState({ storeKey: key, state: r.state, version: r.version, origin: "server" });
-        }
-      } catch (err) {
-        console.error("[Zuno] Failed to parse snapshot", err);
-      }
-    });
+		es.addEventListener("state", (e: any) => {
+			try {
+				const event = JSON.parse(e.data) as ZunoStateEvent;
+				// Loopback suppression logic is now handled by caller (middleware/core) if onEvent is provided,
+				// OR we should keep it here?
+				// If we dispatch to middleware, the middleware might log it.
+				// But if it's our own event, we shouldn't re-apply it if we already did optimally?
+				// Actually, startSSE optimistic logic does it.
+				// If we receive an echo, we might want to update version but not state if it matches?
+				// Let's pass it to applyState.
 
-    es.addEventListener("state", (e: any) => {
-      try {
-        const event = JSON.parse(e.data) as ZunoStateEvent;
-        // Loopback suppression logic is now handled by caller (middleware/core) if onEvent is provided,
-        // OR we should keep it here? 
-        // If we dispatch to middleware, the middleware might log it.
-        // But if it's our own event, we shouldn't re-apply it if we already did optimally?
-        // Actually, startSSE optimistic logic does it.
-        // If we receive an echo, we might want to update version but not state if it matches?
-        // Let's pass it to applyState.
+				if (event.origin === clientId) return;
 
-        if (event.origin === clientId) return;
+				applyState(event);
+			} catch (err) {
+				console.error("[Zuno] Failed to parse SSE event", err);
+			}
+		});
 
-        applyState(event);
-      } catch (err) {
-        console.error("[Zuno] Failed to parse SSE event", err);
-      }
-    });
+		es.onopen = () => {
+			retryCount = 0;
+			opts.onOpen?.();
+			flushQueue();
+		};
 
-    es.onopen = () => {
-      retryCount = 0;
-      opts.onOpen?.();
-      flushQueue();
-    };
+		es.onerror = () => {
+			es?.close();
+			opts.onClose?.();
+			const delay = Math.min(1000 * 2 ** retryCount, 30000);
+			retryCount++;
+			setTimeout(connect, delay);
+		};
+	}
 
-    es.onerror = () => {
-      es?.close();
-      opts.onClose?.();
-      const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-      retryCount++;
-      setTimeout(connect, delay);
-    };
-  }
+	if (typeof window !== "undefined") {
+		window.addEventListener("online", flushQueue);
+	}
 
-  if (typeof window !== "undefined") {
-    window.addEventListener("online", flushQueue);
-  }
+	connect();
 
-  connect();
+	const dispatchFn = async (
+		event: ZunoStateEvent,
+	): Promise<TransportStatus> => {
+		try {
+			if (opts.optimistic) {
+				// Manually apply optimistic update (local origin)
+				// We can call applyState here OR let middleware do it if we pass it through middleware?
+				// If we pass through middleware, the middleware calls dispatch.
+				// This IS the dispatch.
+				// So we should apply it here.
+				// BUT if we want middleware to run on *incoming*, we are separating the two flows.
+				// For outgoing, we apply locally.
+				// Note: if user logs, they see the action.
+				// We don't need to call applyState for outgoing if startSSE is responsible for transport only?
+				// BUT startSSE manages local versions map.
 
-  const dispatchFn = async (event: ZunoStateEvent): Promise<TransportStatus> => {
-    try {
-      if (opts.optimistic) {
-        // Manually apply optimistic update (local origin)
-        // We can call applyState here OR let middleware do it if we pass it through middleware?
-        // If we pass through middleware, the middleware calls dispatch.
-        // This IS the dispatch.
-        // So we should apply it here.
-        // BUT if we want middleware to run on *incoming*, we are separating the two flows.
-        // For outgoing, we apply locally. 
-        // Note: if user logs, they see the action. 
-        // We don't need to call applyState for outgoing if startSSE is responsible for transport only?
-        // BUT startSSE manages local versions map.
+				universe.getStore(event.storeKey, () => event.state).set(event.state);
+			}
 
-        universe.getStore(event.storeKey, () => event.state).set(event.state);
-      }
+			// Check online status first
+			if (typeof navigator !== "undefined" && !navigator.onLine) {
+				queue.push(event);
+				// Optimistically increment version so next event uses correct baseVersion
+				const currentV = versions.get(event.storeKey) ?? 0;
+				versions.set(event.storeKey, currentV + 1);
+				return { ok: false, status: 0, json: null, reason: "OFFLINE_QUEUED" };
+			}
 
-      // Check online status first
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        queue.push(event);
-        // Optimistically increment version so next event uses correct baseVersion
-        const currentV = versions.get(event.storeKey) ?? 0;
-        versions.set(event.storeKey, currentV + 1);
-        return { ok: false, status: 0, json: null, reason: "OFFLINE_QUEUED" };
-      }
+			const res = await fetch(syncUrl, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(event),
+			});
 
-      const res = await fetch(syncUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(event),
-      });
+			if (res.status === 409) {
+				const data = await res.json();
+				if (data.current) {
+					const { state: serverState, version: serverVersion } = data.current;
 
-      if (res.status === 409) {
-        const data = await res.json();
-        if (data.current) {
-          const { state: serverState, version: serverVersion } = data.current;
+					let nextState = serverState;
+					if (resolveConflict) {
+						const localState = universe
+							.getStore(event.storeKey, () => null)
+							.get();
+						nextState = resolveConflict(
+							localState,
+							serverState,
+							event.storeKey,
+						);
+					}
 
-          let nextState = serverState;
-          if (resolveConflict) {
-            const localState = universe.getStore(event.storeKey, () => null).get();
-            nextState = resolveConflict(localState, serverState, event.storeKey);
-          }
+					// versions.set(event.storeKey, serverVersion); // REMOVE THIS: applyState handles it
+					applyState({
+						storeKey: event.storeKey,
+						state: nextState,
+						version: serverVersion,
+						origin: "conflict-resolution",
+					});
 
-          // versions.set(event.storeKey, serverVersion); // REMOVE THIS: applyState handles it
-          applyState({ storeKey: event.storeKey, state: nextState, version: serverVersion, origin: "conflict-resolution" });
+					if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {
+						// Return special status to indicate a merge happened and we should retry?
+						// Or just fire new fetch?
+						// Let's fire new fetch recursively by calling dispatch (but careful about infinite loop if 409 happens again).
+						// Or easier:
 
-          if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {
-            // Return special status to indicate a merge happened and we should retry?
-            // Or just fire new fetch?
-            // Let's fire new fetch recursively by calling dispatch (but careful about infinite loop if 409 happens again).
-            // Or easier:
+						return await dispatchFn({
+							...event,
+							state: nextState,
+							baseVersion: serverVersion,
+						});
+					}
+				}
+				return { ok: false, status: 409, json: data, reason: "CONFLICT" };
+			}
 
-            return await dispatchFn({ ...event, state: nextState, baseVersion: serverVersion });
-          }
-        }
-        return { ok: false, status: 409, json: data, reason: "CONFLICT" };
-      }
+			if (!res.ok)
+				return { ok: false, status: res.status, json: await res.json() };
 
-      if (!res.ok) return { ok: false, status: res.status, json: await res.json() };
+			const json = await res.json();
+			if (json.event) {
+				const { state, version } = json.event;
+				if (typeof version === "number") {
+					versions.set(event.storeKey, version);
+				}
+			}
 
-      const json = await res.json();
-      if (json.event) {
-        const { state, version } = json.event;
-        if (typeof version === "number") {
-          versions.set(event.storeKey, version);
-        }
-      }
+			return { ok: true, status: 200, json };
+		} catch (err) {
+			// Network failure catch
+			console.warn("[Zuno] Dispatch failed, queuing", err);
+			queue.push(event);
+			// Optimistically increment version here too, assuming the previous one is "pending"
+			// and subsequent edits should build on top of it.
+			const currentV = versions.get(event.storeKey) ?? 0;
+			versions.set(event.storeKey, currentV + 1);
 
-      return { ok: true, status: 200, json };
-    } catch (err) {
-      // Network failure catch
-      console.warn("[Zuno] Dispatch failed, queuing", err);
-      queue.push(event);
-      // Optimistically increment version here too, assuming the previous one is "pending"
-      // and subsequent edits should build on top of it.
-      const currentV = versions.get(event.storeKey) ?? 0;
-      versions.set(event.storeKey, currentV + 1);
+			setTimeout(flushQueue, 1000);
+			return {
+				ok: false,
+				status: 500,
+				json: err,
+				reason: "NETWORK_ERROR_QUEUED",
+			};
+		}
+	};
 
-      setTimeout(flushQueue, 1000);
-      return { ok: false, status: 500, json: err, reason: "NETWORK_ERROR_QUEUED" };
-    }
-  };
-
-  return {
-    dispatch: dispatchFn,
-    unsubscribe: () => {
-      es?.close();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("online", flushQueue);
-      }
-    },
-  };
+	return {
+		dispatch: dispatchFn,
+		unsubscribe: () => {
+			es?.close();
+			if (typeof window !== "undefined") {
+				window.removeEventListener("online", flushQueue);
+			}
+		},
+	};
 }
 
 // --- BroadcastChannel ---
 
 export type BCOptions = {
-  channelName: string;
-  clientId: string;
-  onEvent: (event: ZunoStateEvent) => void;
-  getSnapshot: () => Record<string, { state: unknown; version: number }>;
-  onSnapshot: (snap: Record<string, { state: unknown; version: number }>) => void;
+	channelName: string;
+	clientId: string;
+	onEvent: (event: ZunoStateEvent) => void;
+	getSnapshot: () => Record<string, { state: unknown; version: number }>;
+	onSnapshot: (
+		snap: Record<string, { state: unknown; version: number }>,
+	) => void;
 };
 
 export function startBroadcastChannel(opts: BCOptions) {
-  const { channelName, clientId, onEvent, getSnapshot, onSnapshot } = opts;
-  const channel = new BroadcastChannel(channelName);
+	const { channelName, clientId, onEvent, getSnapshot, onSnapshot } = opts;
+	const channel = new BroadcastChannel(channelName);
 
-  channel.onmessage = (e) => {
-    const msg = e.data;
-    if (msg.origin === clientId) return;
+	channel.onmessage = (e) => {
+		const msg = e.data;
+		if (msg.origin === clientId) return;
 
-    if (msg.type === "event") onEvent(msg.event);
-    if (msg.type === "hello") channel.postMessage({ type: "snapshot", snapshot: getSnapshot(), origin: clientId });
-    if (msg.type === "snapshot") onSnapshot(msg.snapshot);
-  };
+		if (msg.type === "event") onEvent(msg.event);
+		if (msg.type === "hello")
+			channel.postMessage({
+				type: "snapshot",
+				snapshot: getSnapshot(),
+				origin: clientId,
+			});
+		if (msg.type === "snapshot") onSnapshot(msg.snapshot);
+	};
 
-  return {
-    publish: (event: ZunoStateEvent) => channel.postMessage({ type: "event", event, origin: clientId }),
-    hello: () => channel.postMessage({ type: "hello", origin: clientId }),
-    stop: () => channel.close(),
-  };
+	return {
+		publish: (event: ZunoStateEvent) =>
+			channel.postMessage({ type: "event", event, origin: clientId }),
+		hello: () => channel.postMessage({ type: "hello", origin: clientId }),
+		stop: () => channel.close(),
+	};
 }

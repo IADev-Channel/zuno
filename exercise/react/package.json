@@ -1,42 +1,42 @@
 {
-  "name": "exercise-react",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "vite",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "packageManager": "pnpm@10.27.0",
-  "dependencies": {
-    "@iadev93/zuno-react": "workspace:*",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "vite": "^7.3.0"
-  },
-  "devDependencies": {
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "tsup": "^8.5.1"
-  },
-  "author": "Ibrahim Aftab",
-  "license": "MIT",
-  "homepage": "https://github.com/IADev-Channel/zuno",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/IADev-Channel/zuno.git"
-  },
-  "keywords": [
-    "state",
-    "state-management",
-    "sync",
-    "sse",
-    "server-sent-events",
-    "broadcastchannel",
-    "react",
-    "distributed-state",
-    "event-sourcing",
-    "universal-state",
-    "realtime"
-  ]
+	"name": "exercise-react",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"start": "vite",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"packageManager": "pnpm@10.27.0",
+	"dependencies": {
+		"@iadev93/zuno-react": "workspace:*",
+		"react": "^19.2.3",
+		"react-dom": "^19.2.3",
+		"vite": "^7.3.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.7",
+		"@types/react-dom": "^19.2.3",
+		"tsup": "^8.5.1"
+	},
+	"author": "Ibrahim Aftab",
+	"license": "MIT",
+	"homepage": "https://github.com/IADev-Channel/zuno",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IADev-Channel/zuno.git"
+	},
+	"keywords": [
+		"state",
+		"state-management",
+		"sync",
+		"sse",
+		"server-sent-events",
+		"broadcastchannel",
+		"react",
+		"distributed-state",
+		"event-sourcing",
+		"universal-state",
+		"realtime"
+	]
 }

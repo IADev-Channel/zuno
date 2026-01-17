@@ -1,48 +1,48 @@
 {
-  "name": "@iadev93/zuno",
-  "version": "0.0.7",
-  "author": "Ibrahim Aftab",
-  "license": "MIT",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "default": "./dist/server/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
-  },
-  "keywords": [
-    "state",
-    "state-management",
-    "sync",
-    "sse",
-    "server-sent-events",
-    "broadcastchannel",
-    "distributed-state",
-    "event-sourcing",
-    "universal-state",
-    "realtime"
-  ],
-  "homepage": "https://github.com/IADev-Channel/zuno",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/IADev-Channel/zuno.git"
-  },
-  "devDependencies": {
-    "tsup": "^8.5.1"
-  }
+	"name": "@iadev93/zuno",
+	"version": "0.0.7",
+	"author": "Ibrahim Aftab",
+	"license": "MIT",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./server": {
+			"types": "./dist/server/index.d.ts",
+			"default": "./dist/server/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch"
+	},
+	"keywords": [
+		"state",
+		"state-management",
+		"sync",
+		"sse",
+		"server-sent-events",
+		"broadcastchannel",
+		"distributed-state",
+		"event-sourcing",
+		"universal-state",
+		"realtime"
+	],
+	"homepage": "https://github.com/IADev-Channel/zuno",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IADev-Channel/zuno.git"
+	},
+	"devDependencies": {
+		"tsup": "^8.5.1"
+	}
 }

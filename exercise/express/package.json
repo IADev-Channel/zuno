@@ -1,44 +1,44 @@
 {
-  "name": "exercise-express",
-  "version": "0.0.1",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "tsx app.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "packageManager": "bun@1.1.56",
-  "dependencies": {
-    "@iadev93/zuno": "workspace:*",
-    "@iadev93/zuno-express": "workspace:*",
-    "express": "^5.2.1"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^20.0.0",
-    "ts-node": "^10.9.2",
-    "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
-  },
-  "author": "Ibrahim Aftab",
-  "license": "MIT",
-  "homepage": "https://github.com/IADev-Channel/zuno",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/IADev-Channel/zuno.git"
-  },
-  "keywords": [
-    "state",
-    "state-management",
-    "sync",
-    "sse",
-    "server-sent-events",
-    "broadcastchannel",
-    "express",
-    "distributed-state",
-    "event-sourcing",
-    "universal-state",
-    "realtime"
-  ]
+	"name": "exercise-express",
+	"version": "0.0.1",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"start": "tsx app.ts",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"packageManager": "bun@1.1.56",
+	"dependencies": {
+		"@iadev93/zuno": "workspace:*",
+		"@iadev93/zuno-express": "workspace:*",
+		"express": "^5.2.1"
+	},
+	"devDependencies": {
+		"@types/express": "^5.0.6",
+		"@types/node": "^20.0.0",
+		"ts-node": "^10.9.2",
+		"tsup": "^8.5.1",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3"
+	},
+	"author": "Ibrahim Aftab",
+	"license": "MIT",
+	"homepage": "https://github.com/IADev-Channel/zuno",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IADev-Channel/zuno.git"
+	},
+	"keywords": [
+		"state",
+		"state-management",
+		"sync",
+		"sse",
+		"server-sent-events",
+		"broadcastchannel",
+		"express",
+		"distributed-state",
+		"event-sourcing",
+		"universal-state",
+		"realtime"
+	]
 }

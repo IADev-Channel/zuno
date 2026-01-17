@@ -1,14 +1,14 @@
 {
-  "name": "exercise-basic-html",
-  "version": "0.0.1",
-  "scripts": {
-    "start": "vite"
-  },
-  "dependencies": {
-    "@iadev93/zuno": "workspace:*"
-  },
-  "devDependencies": {
-    "tsup": "^8.5.1",
-    "vite": "^7.3.0"
-  }
+	"name": "exercise-basic-html",
+	"version": "0.0.1",
+	"scripts": {
+		"start": "vite"
+	},
+	"dependencies": {
+		"@iadev93/zuno": "workspace:*"
+	},
+	"devDependencies": {
+		"tsup": "^8.5.1",
+		"vite": "^7.3.0"
+	}
 }

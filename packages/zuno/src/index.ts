@@ -1,38 +1,33 @@
+export type {
+	BoundStore,
+	CreateZunoOptions,
+	Dispatch,
+	Middleware,
+	MiddlewareAPI,
+	Store,
+	Universe,
+	ZunoSnapshot,
+} from "./core";
 export * from "./core";
-
 export {
-  createZuno,
-  createUniverse,
-  createStore
+	createStore,
+	createUniverse,
+	createZuno,
 } from "./core";
-
-export type {
-  CreateZunoOptions,
-  Universe,
-  Store,
-  BoundStore,
-  ZunoSnapshot,
-  Middleware,
-  MiddlewareAPI,
-  Dispatch
-} from "./core";
-
-export {
-  startSSE,
-  startBroadcastChannel,
-  applyIncomingEvent
-} from "./sync";
-
-export type {
-  ZunoStateEvent,
-  TransportStatus,
-  ZunoTransport,
-  ConflictResolver
-} from "./sync";
-
 /**
  * Shared adapter contract (public)
  * Helps others build UI bindings like @iadev93/zuno-react.
  */
 export type { ZunoReadable, ZunoSubscribableStore } from "./shared/readable";
 export { toReadable } from "./shared/readable";
+export type {
+	ConflictResolver,
+	TransportStatus,
+	ZunoStateEvent,
+	ZunoTransport,
+} from "./sync";
+export {
+	applyIncomingEvent,
+	startBroadcastChannel,
+	startSSE,
+} from "./sync";

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/IADev-Channel/zuno/main/assets/zuno-logo.png" alt="Zuno Logo" width="120" />
+  <img src="./zuno.png" alt="Zuno Logo" width="120" />
   <h1>Zuno</h1>
   <p><b>Universal, event-driven state synchronization with strong consistency.</b></p>
   <p>Client, server, and multiple runtimes — perfectly in sync.</p>

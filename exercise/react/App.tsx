@@ -22,7 +22,11 @@ const z = createZunoReact({
      * Used for optimistic updates - local updates before server confirmation
      * */
     optimistic: true,
-    middleware: [loggerMiddleware]
+    middleware: [loggerMiddleware],
+    resolveConflict: (local, server, key) => {
+        console.warn(`[Zuno Conflict] Key: ${key}`, { local, server });
+        return server; // Server Wins strategy
+    }
 })
 
 const counter = z.store<number>("counter", () => 0);

@@ -1,5 +1,6 @@
 import { startSSE, startBroadcastChannel, applyIncomingEvent } from "../sync";
-import type { ZunoStateEvent, TransportStatus } from "../sync";
+import type { ZunoStateEvent, TransportStatus, ConflictResolver } from "../sync";
+
 
 // --- Types ---
 
@@ -64,6 +65,8 @@ export type CreateZunoOptions = {
   clientId?: string;
   /** Middleware chain. */
   middleware?: Middleware[];
+  /** Optional function to resolve 409 conflicts. */
+  resolveConflict?: ConflictResolver;
 };
 
 /**
@@ -194,6 +197,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
       onOpen: () => { sseReady = true; },
       onClose: () => { sseReady = false; },
       onEvent: (e) => dispatch(e), // Route incoming SSE events through middleware
+      resolveConflict: opts.resolveConflict,
     })
     : null;
 

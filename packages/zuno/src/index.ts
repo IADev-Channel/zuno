@@ -26,7 +26,8 @@ export {
 export type {
   ZunoStateEvent,
   TransportStatus,
-  ZunoTransport
+  ZunoTransport,
+  ConflictResolver
 } from "./sync";
 
 /**

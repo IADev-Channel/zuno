@@ -47,6 +47,7 @@ describe("Zuno Sync", () => {
 	});
 
 	it("should dispatch event via fetch", async () => {
+		// biome-ignore lint/suspicious/noExplicitAny: mock
 		(global.fetch as any).mockResolvedValueOnce({
 			ok: true,
 			status: 200,
@@ -102,12 +103,14 @@ describe("Zuno Sync", () => {
 		const localState = { count: 5 };
 		const mergedState = { count: 105 }; // Simple merge logic
 
+		// biome-ignore lint/suspicious/noExplicitAny: mock
 		(global.fetch as any).mockResolvedValueOnce({
 			status: 409,
 			json: async () => ({ current: { state: serverState, version: 20 } }),
 		});
 
 		// Mock the SECOND fetch which is the auto-sync after resolution
+		// biome-ignore lint/suspicious/noExplicitAny: mock
 		(global.fetch as any).mockResolvedValueOnce({
 			ok: true,
 			status: 200,
@@ -143,6 +146,7 @@ describe("Zuno Sync", () => {
 		expect(global.fetch).toHaveBeenCalledTimes(2);
 
 		const secondCallBody = JSON.parse(
+			// biome-ignore lint/suspicious/noExplicitAny: access mock calls
 			(global.fetch as unknown as any).mock.calls[1][1].body,
 		);
 		expect(secondCallBody.state).toEqual(mergedState);
@@ -150,6 +154,7 @@ describe("Zuno Sync", () => {
 	});
 
 	// Mock BroadcastChannel with shared listeners
+	// biome-ignore lint/suspicious/noExplicitAny: mock channel data
 	const listeners = new Map<string, Set<(e: any) => void>>();
 
 	class SharedMockBC {
@@ -158,15 +163,18 @@ describe("Zuno Sync", () => {
 		constructor(name: string) {
 			this.name = name;
 			if (!listeners.has(name)) listeners.set(name, new Set());
-			listeners.get(name)!.add(this.handleMessage);
+			listeners.get(name)?.add(this.handleMessage);
 		}
 
+		// biome-ignore lint/suspicious/noExplicitAny: mock
 		onmessage: ((e: any) => void) | null = null;
 
+		// biome-ignore lint/suspicious/noExplicitAny: mock
 		handleMessage = (e: any) => {
 			this.onmessage?.(e);
 		};
 
+		// biome-ignore lint/suspicious/noExplicitAny: mock
 		postMessage(msg: any) {
 			const channelListeners = listeners.get(this.name);
 			channelListeners?.forEach((l) => {

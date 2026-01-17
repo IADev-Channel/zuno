@@ -60,14 +60,20 @@ describe("Zuno Core", () => {
 
 	describe("Middleware", () => {
 		it("should intercept actions", async () => {
+			// biome-ignore lint/suspicious/noExplicitAny: convenient for test logs
 			const logs: any[] = [];
 			const loggerMiddleware =
-				(api: any) => (next: any) => async (event: any) => {
-					logs.push({ type: "before", event });
-					const res = await next(event);
-					logs.push({ type: "after", res });
-					return res;
-				};
+				// biome-ignore lint/suspicious/noExplicitAny: generic middleware test
+					(_api: any) =>
+					// biome-ignore lint/suspicious/noExplicitAny: generic middleware test
+					(next: any) =>
+					// biome-ignore lint/suspicious/noExplicitAny: generic middleware test
+					async (event: any) => {
+						logs.push({ type: "before", event });
+						const res = await next(event);
+						logs.push({ type: "after", res });
+						return res;
+					};
 
 			const { createZuno } = await import("../core");
 			const zuno = createZuno({
@@ -85,13 +91,18 @@ describe("Zuno Core", () => {
 
 		it("should modify state in middleware", async () => {
 			const modifierMiddleware =
-				(api: any) => (next: any) => async (event: any) => {
-					// Intercept and change state!
-					if (event.storeKey === "mod") {
-						return next({ ...event, state: event.state * 2 });
-					}
-					return next(event);
-				};
+				// biome-ignore lint/suspicious/noExplicitAny: generic middleware test
+					(_api: any) =>
+					// biome-ignore lint/suspicious/noExplicitAny: generic middleware test
+					(next: any) =>
+					// biome-ignore lint/suspicious/noExplicitAny: generic middleware test
+					async (event: any) => {
+						// Intercept and change state!
+						if (event.storeKey === "mod") {
+							return next({ ...event, state: event.state * 2 });
+						}
+						return next(event);
+					};
 
 			const { createZuno } = await import("../core");
 			const zuno = createZuno({

@@ -55,4 +55,70 @@ describe('Zuno Core', () => {
       expect(universe.getStore('b', () => 0).get()).toBe(30);
     });
   });
+
+  describe('Middleware', () => {
+    it('should intercept actions', async () => {
+      const logs: any[] = [];
+      const loggerMiddleware = (api: any) => (next: any) => async (event: any) => {
+        logs.push({ type: 'before', event });
+        const res = await next(event);
+        logs.push({ type: 'after', res });
+        return res;
+      };
+
+      const { createZuno } = await import('../core');
+      const zuno = createZuno({
+        middleware: [loggerMiddleware],
+        optimistic: true // Ensure local apply happens
+      });
+
+      const store = zuno.store('test', () => 0);
+      await store.set(1);
+
+      expect(logs).toHaveLength(2);
+      expect(logs[0].type).toBe('before');
+      expect(logs[1].type).toBe('after');
+    });
+
+    it('should modify state in middleware', async () => {
+      const modifierMiddleware = (api: any) => (next: any) => async (event: any) => {
+        // Intercept and change state!
+        if (event.storeKey === 'mod') {
+          return next({ ...event, state: event.state * 2 });
+        }
+        return next(event);
+      };
+
+      const { createZuno } = await import('../core');
+      const zuno = createZuno({
+        middleware: [modifierMiddleware],
+        optimistic: true
+      });
+
+      const store = zuno.store('mod', () => 1);
+      await store.set(10); // Should become 20
+
+      expect(store.get()).toBe(20);
+    });
+  });
+
+  describe('Event IDs', () => {
+    it('should track lastEventId', async () => {
+      const { createZuno } = await import('../core');
+      const zuno = createZuno();
+
+      // Simulate applying an event with an ID (e.g. from server)
+      // We can use the exposed `dispatch` but that's for outgoing.
+      // Incoming events are typically handled via `applyIncomingEvent` internally or callbacks.
+      // BUT `createZuno` exposes `hydrateSnapshot` which sets lastEventId.
+
+      zuno.hydrateSnapshot({
+        state: {},
+        lastEventId: 100
+      });
+
+      expect(zuno.getLastEventId()).toBe(100);
+    });
+  });
 });
+

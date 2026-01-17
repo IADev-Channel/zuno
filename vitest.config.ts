@@ -2,8 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    environment: 'node',
+    environment: 'happy-dom',
     globals: true,
-    include: ['packages/**/*.test.ts'],
+    include: ['packages/**/*.test.ts', 'packages/**/*.test.tsx'],
   },
 });

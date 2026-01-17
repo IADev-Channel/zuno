@@ -134,4 +134,77 @@ describe('Zuno Sync', () => {
     expect(secondCallBody.state).toEqual(mergedState);
     expect(secondCallBody.baseVersion).toBe(20);
   });
+
+
+  // Mock BroadcastChannel with shared listeners
+  const listeners = new Map<string, Set<(e: any) => void>>();
+
+  class SharedMockBC {
+    name: string;
+
+    constructor(name: string) {
+      this.name = name;
+      if (!listeners.has(name)) listeners.set(name, new Set());
+      listeners.get(name)!.add(this.handleMessage);
+    }
+
+    onmessage: ((e: any) => void) | null = null;
+
+    handleMessage = (e: any) => {
+      this.onmessage?.(e);
+    }
+
+    postMessage(msg: any) {
+      const channelListeners = listeners.get(this.name);
+      channelListeners?.forEach(l => {
+        // Don't send to self? BC usually doesn't.
+        // But here we rely on 'origin' check in application code loopback suppression.
+        l({ data: msg });
+      });
+    }
+
+    close() {
+      listeners.get(this.name)?.delete(this.handleMessage);
+    }
+  }
+  global.BroadcastChannel = SharedMockBC as any;
+
+  it('should publish to BroadcastChannel', async () => {
+    const { startBroadcastChannel } = await import('../sync');
+    const onEvent = vi.fn();
+    const bc = startBroadcastChannel({
+      channelName: 'test-channel',
+      clientId: 'client-A',
+      onEvent,
+      getSnapshot: () => ({}),
+      onSnapshot: () => { },
+    });
+
+    bc.publish({ storeKey: 'key', state: 1 });
+
+    // Should NOT call onEvent because origin matches
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('should receive from BroadcastChannel (Simulated Other Client)', async () => {
+    const { startBroadcastChannel } = await import('../sync');
+    const onEvent = vi.fn();
+    // Client A
+    const bc = startBroadcastChannel({
+      channelName: 'shared-channel',
+      clientId: 'client-A',
+      onEvent,
+      getSnapshot: () => ({}),
+      onSnapshot: () => { },
+    });
+
+    // Simulate Client B publishing
+    const otherBC = new SharedMockBC('shared-channel');
+    otherBC.postMessage({ type: 'event', event: { storeKey: 'key', state: 99, origin: 'client-B' } });
+
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({
+      storeKey: 'key',
+      state: 99
+    }));
+  });
 });

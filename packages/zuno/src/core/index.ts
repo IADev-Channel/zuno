@@ -168,48 +168,55 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 
   const sse = opts.sseUrl && opts.syncUrl
     ? startSSE({
-        universe,
-        url: opts.sseUrl,
-        syncUrl: opts.syncUrl,
-        optimistic: opts.optimistic ?? true,
-        clientId,
-        versions,
-        getLastEventId: () => lastEventId,
-        onOpen: () => { sseReady = true; },
-        onClose: () => { sseReady = false; },
-      })
+      universe,
+      url: opts.sseUrl,
+      syncUrl: opts.syncUrl,
+      optimistic: opts.optimistic ?? true,
+      clientId,
+      versions,
+      getLastEventId: () => lastEventId,
+      onOpen: () => { sseReady = true; },
+      onClose: () => { sseReady = false; },
+    })
     : null;
 
   const bc = opts.channelName
     ? startBroadcastChannel({
-        channelName: opts.channelName,
-        clientId,
-        onEvent: apply,
-        getSnapshot: () => {
-          const snap = universe.snapshot();
-          const out: Record<string, { state: unknown; version: number }> = {};
-          for (const [storeKey, state] of Object.entries(snap)) {
-            out[storeKey] = { state, version: versions.get(storeKey) ?? 0 };
-          }
-          return out;
-        },
-        onSnapshot: (snap) => {
-          for (const [storeKey, rec] of Object.entries(snap)) {
-            apply({ storeKey, state: rec.state, version: rec.version });
-          }
-        },
-      })
+      channelName: opts.channelName,
+      clientId,
+      onEvent: apply,
+      getSnapshot: () => {
+        const snap = universe.snapshot();
+        const out: Record<string, { state: unknown; version: number }> = {};
+        for (const [storeKey, state] of Object.entries(snap)) {
+          out[storeKey] = { state, version: versions.get(storeKey) ?? 0 };
+        }
+        return out;
+      },
+      onSnapshot: (snap) => {
+        for (const [storeKey, rec] of Object.entries(snap)) {
+          apply({ storeKey, state: rec.state, version: rec.version });
+        }
+      },
+    })
     : null;
 
   setTimeout(() => bc?.hello(), 0);
 
   const dispatch = async (event: ZunoStateEvent) => {
-    if (sse && sseReady) {
-      return await sse.dispatch({
+    if (sse) {
+      const res = await sse.dispatch({
         ...event,
         origin: clientId,
         baseVersion: versions.get(event.storeKey) ?? 0,
       });
+
+      if ((res.reason === "OFFLINE_QUEUED" || res.reason === "NETWORK_ERROR_QUEUED") && bc) {
+        const v = versions.get(event.storeKey) ?? 0;
+        bc.publish({ ...event, version: v, origin: clientId });
+      }
+
+      return res;
     }
 
     const nextVersion = (versions.get(event.storeKey) ?? 0) + 1;

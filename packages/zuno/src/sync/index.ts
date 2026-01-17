@@ -80,6 +80,97 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
   let es: EventSource | null = null;
   let retryCount = 0;
 
+  // --- Offline Support ---
+  const queue: ZunoStateEvent[] = [];
+  let isFlushing = false;
+
+  async function flushQueue() {
+    if (isFlushing || queue.length === 0) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    isFlushing = true;
+
+    // --- Coalesce / Deduplicate Logic ---
+    // 1. Map index of first occurrence of each storeKey
+    const keyIndex = new Map<string, number>();
+    // 2. Reduced queue construction
+    const reducedQueue: ZunoStateEvent[] = [];
+
+    for (const event of queue) {
+      if (keyIndex.has(event.storeKey)) {
+        // We've seen this key before. We want to update the existing entry in reducedQueue.
+        const idx = keyIndex.get(event.storeKey)!;
+        const prev = reducedQueue[idx];
+        // Merge: keep original baseVersion (from the start of the chain) but use NEW state.
+        // Note: We also likely want to keep the original 'ts' if strictly ordering, 
+        // but state is what matters.
+        // The 'version' in the event is the *optimistic* version. 
+        // We can keep the *latest* optimistic version (e.g. v10) in the event, 
+        // but server will likely only verify baseVersion.
+        reducedQueue[idx] = { ...event, baseVersion: prev.baseVersion };
+      } else {
+        keyIndex.set(event.storeKey, reducedQueue.length);
+        reducedQueue.push(event);
+      }
+    }
+
+    // Replace original queue with reduced one.
+    // We modify 'queue' in place or reset it.
+    // Since 'queue' is const binding to array, we can't reassign variable, 
+    // but we can clear and push.
+    queue.length = 0;
+    queue.push(...reducedQueue);
+
+    try {
+      while (queue.length > 0) {
+        const event = queue[0];
+        try {
+          const res = await fetch(syncUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(event),
+          });
+
+          if (!res.ok && res.status !== 409) {
+            // Keep in queue for retry if it's a transient server error?
+            // For now we dequeue on non-network errors to avoid blocking.
+            if (res.status >= 400 && res.status < 500) {
+              queue.shift();
+              continue;
+            }
+            // For 500, we might want to retry? Let's treat it as network-ish for now.
+            // But to be safe and not block forever:
+            queue.shift();
+            continue;
+          }
+
+          if (res.status === 409) {
+            const data = await res.json();
+            if (data.current) {
+              const { state, version } = data.current;
+              versions.set(event.storeKey, version);
+              universe.getStore(event.storeKey, () => state).set(state);
+            }
+            queue.shift();
+          } else if (res.ok) {
+            const json = await res.json();
+            if (json.event && typeof json.event.version === "number") {
+              versions.set(event.storeKey, json.event.version);
+            }
+            queue.shift();
+          } else {
+            queue.shift();
+          }
+
+        } catch (err) {
+          console.error("[Zuno] Flush failed, retrying later", err);
+          break; // Network error, stop flushing
+        }
+      }
+    } finally {
+      isFlushing = false;
+    }
+  }
   function connect() {
     const lastId = getLastEventId();
     const connectUrl = new URL(url, globalThis.location?.href);
@@ -120,6 +211,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
     es.onopen = () => {
       retryCount = 0;
       opts.onOpen?.();
+      flushQueue();
     };
 
     es.onerror = () => {
@@ -131,6 +223,10 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
     };
   }
 
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", flushQueue);
+  }
+
   connect();
 
   return {
@@ -138,6 +234,15 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
       try {
         if (opts.optimistic) {
           universe.getStore(event.storeKey, () => event.state).set(event.state);
+        }
+
+        // Check online status first
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          queue.push(event);
+          // Optimistically increment version so next event uses correct baseVersion
+          const currentV = versions.get(event.storeKey) ?? 0;
+          versions.set(event.storeKey, currentV + 1);
+          return { ok: false, status: 0, json: null, reason: "OFFLINE_QUEUED" };
         }
 
         const res = await fetch(syncUrl, {
@@ -168,11 +273,23 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
         return { ok: true, status: 200, json };
       } catch (err) {
-        return { ok: false, status: 500, json: err, reason: "NETWORK_ERROR" };
+        // Network failure catch
+        console.warn("[Zuno] Dispatch failed, queuing", err);
+        queue.push(event);
+        // Optimistically increment version here too, assuming the previous one is "pending"
+        // and subsequent edits should build on top of it.
+        const currentV = versions.get(event.storeKey) ?? 0;
+        versions.set(event.storeKey, currentV + 1);
+
+        setTimeout(flushQueue, 1000);
+        return { ok: false, status: 500, json: err, reason: "NETWORK_ERROR_QUEUED" };
       }
     },
     unsubscribe: () => {
       es?.close();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", flushQueue);
+      }
     },
   };
 }

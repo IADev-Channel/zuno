@@ -1,5 +1,5 @@
 import { startSSE, startBroadcastChannel, applyIncomingEvent } from "../sync";
-import type { ZunoStateEvent } from "../sync";
+import type { ZunoStateEvent, TransportStatus } from "../sync";
 
 // --- Types ---
 
@@ -32,6 +32,20 @@ export interface Universe {
   hydrateSnapshot(snapshot: ZunoSnapshot): void;
 }
 
+// --- Middleware Types ---
+
+export type Dispatch = (event: ZunoStateEvent) => Promise<TransportStatus>;
+
+export type MiddlewareAPI = {
+  universe: Universe;
+  clientId: string;
+  versions: Map<string, number>;
+};
+
+export type Middleware = (
+  api: MiddlewareAPI
+) => (next: Dispatch) => Dispatch;
+
 /**
  * Options for creating a Zuno instance.
  */
@@ -48,6 +62,8 @@ export type CreateZunoOptions = {
   optimistic?: boolean;
   /** Unique client identifier (default: random UUID). */
   clientId?: string;
+  /** Middleware chain. */
+  middleware?: Middleware[];
 };
 
 /**
@@ -177,6 +193,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
       getLastEventId: () => lastEventId,
       onOpen: () => { sseReady = true; },
       onClose: () => { sseReady = false; },
+      onEvent: (e) => dispatch(e), // Route incoming SSE events through middleware
     })
     : null;
 
@@ -184,7 +201,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
     ? startBroadcastChannel({
       channelName: opts.channelName,
       clientId,
-      onEvent: apply,
+      onEvent: (e) => dispatch(e), // Route incoming BC events through middleware
       getSnapshot: () => {
         const snap = universe.snapshot();
         const out: Record<string, { state: unknown; version: number }> = {};
@@ -203,7 +220,16 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 
   setTimeout(() => bc?.hello(), 0);
 
-  const dispatch = async (event: ZunoStateEvent) => {
+  const coreDispatch = async (event: ZunoStateEvent): Promise<TransportStatus> => {
+    // 1. Incoming Event (from Server or other Tab via BC)
+    if (event.origin && event.origin !== clientId) {
+      apply(event);
+      // Incoming events don't need to be re-broadcasted to network or BC typically,
+      // unless acting as a relay (not current design).
+      return { ok: true, status: 200, json: null };
+    }
+
+    // 2. Outgoing Event (Local Action)
     if (sse) {
       const res = await sse.dispatch({
         ...event,
@@ -229,6 +255,19 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 
     return { ok: true, status: 200, json: null };
   };
+
+  // --- Middleware Composition ---
+  let dispatch: Dispatch = coreDispatch;
+
+  if (opts.middleware && opts.middleware.length > 0) {
+    const middlewareAPI: MiddlewareAPI = {
+      universe,
+      clientId,
+      versions,
+    };
+    const chain = opts.middleware.map((middleware) => middleware(middlewareAPI));
+    dispatch = chain.reduceRight((next, middleware) => middleware(next), coreDispatch);
+  }
 
   const store = <T,>(storeKey: string, init: () => T): BoundStore<T> => {
     const rawStore = universe.getStore<T>(storeKey, init);

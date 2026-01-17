@@ -1,29 +1,32 @@
 export * from "./core";
 
-export { 
-  createZuno, 
-  createUniverse, 
-  createStore 
+export {
+  createZuno,
+  createUniverse,
+  createStore
 } from "./core";
 
-export type { 
-  CreateZunoOptions, 
-  Universe, 
-  Store, 
-  BoundStore, 
-  ZunoSnapshot 
+export type {
+  CreateZunoOptions,
+  Universe,
+  Store,
+  BoundStore,
+  ZunoSnapshot,
+  Middleware,
+  MiddlewareAPI,
+  Dispatch
 } from "./core";
 
-export { 
-  startSSE, 
-  startBroadcastChannel, 
-  applyIncomingEvent 
+export {
+  startSSE,
+  startBroadcastChannel,
+  applyIncomingEvent
 } from "./sync";
 
-export type { 
-  ZunoStateEvent, 
-  TransportStatus, 
-  ZunoTransport 
+export type {
+  ZunoStateEvent,
+  TransportStatus,
+  ZunoTransport
 } from "./sync";
 
 /**

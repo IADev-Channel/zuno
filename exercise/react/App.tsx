@@ -1,4 +1,5 @@
 import { createZunoReact } from "@iadev93/zuno-react"
+import { loggerMiddleware } from "./logger";
 
 /**
  * Zuno React adapter, you can also create separate files for store
@@ -20,7 +21,8 @@ const z = createZunoReact({
     /** Optimistic 
      * Used for optimistic updates - local updates before server confirmation
      * */
-    optimistic: true
+    optimistic: true,
+    middleware: [loggerMiddleware]
 })
 
 const counter = z.store<number>("counter", () => 0);

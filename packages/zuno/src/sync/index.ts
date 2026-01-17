@@ -73,12 +73,28 @@ export type SSEOptions = {
   getLastEventId: () => number;
   onOpen?: () => void;
   onClose?: () => void;
+  onEvent?: (event: ZunoStateEvent) => void;
 };
 
 export function startSSE(opts: SSEOptions): ZunoTransport {
-  const { url, syncUrl, universe, clientId, versions, getLastEventId } = opts;
+  const { url, syncUrl, universe, clientId, versions, getLastEventId, onEvent } = opts;
   let es: EventSource | null = null;
   let retryCount = 0;
+
+  // Helper to apply state changes
+  const applyState = (event: ZunoStateEvent) => {
+    if (onEvent) {
+      onEvent(event);
+    } else {
+      // Fallback default implementation
+      if (typeof event.version === "number") {
+        const current = versions.get(event.storeKey) ?? 0;
+        if (event.version <= current) return;
+        versions.set(event.storeKey, event.version);
+      }
+      universe.getStore(event.storeKey, () => event.state).set(event.state);
+    }
+  };
 
   // --- Offline Support ---
   const queue: ZunoStateEvent[] = [];
@@ -148,13 +164,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
             const data = await res.json();
             if (data.current) {
               const { state, version } = data.current;
-              versions.set(event.storeKey, version);
-              universe.getStore(event.storeKey, () => state).set(state);
+              applyState({ storeKey: event.storeKey, state, version, origin: "server" });
             }
             queue.shift();
           } else if (res.ok) {
             const json = await res.json();
             if (json.event && typeof json.event.version === "number") {
+              // Just update version map
               versions.set(event.storeKey, json.event.version);
             }
             queue.shift();
@@ -183,8 +199,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
         const snap = JSON.parse(e.data);
         for (const [key, rec] of Object.entries(snap)) {
           const r = rec as { state: any; version: number };
-          versions.set(key, Math.max(versions.get(key) ?? 0, r.version));
-          universe.getStore(key, () => r.state).set(r.state);
+          applyState({ storeKey: key, state: r.state, version: r.version, origin: "server" });
         }
       } catch (err) {
         console.error("[Zuno] Failed to parse snapshot", err);
@@ -194,15 +209,17 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
     es.addEventListener("state", (e: any) => {
       try {
         const event = JSON.parse(e.data) as ZunoStateEvent;
+        // Loopback suppression logic is now handled by caller (middleware/core) if onEvent is provided,
+        // OR we should keep it here? 
+        // If we dispatch to middleware, the middleware might log it.
+        // But if it's our own event, we shouldn't re-apply it if we already did optimally?
+        // Actually, startSSE optimistic logic does it.
+        // If we receive an echo, we might want to update version but not state if it matches?
+        // Let's pass it to applyState.
+
         if (event.origin === clientId) return;
 
-        if (typeof event.version === "number") {
-          const current = versions.get(event.storeKey) ?? 0;
-          if (event.version <= current) return;
-          versions.set(event.storeKey, event.version);
-        }
-
-        universe.getStore(event.storeKey, () => event.state).set(event.state);
+        applyState(event);
       } catch (err) {
         console.error("[Zuno] Failed to parse SSE event", err);
       }
@@ -233,6 +250,17 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
     dispatch: async (event) => {
       try {
         if (opts.optimistic) {
+          // Manually apply optimistic update (local origin)
+          // We can call applyState here OR let middleware do it if we pass it through middleware?
+          // If we pass through middleware, the middleware calls dispatch.
+          // This IS the dispatch.
+          // So we should apply it here.
+          // BUT if we want middleware to run on *incoming*, we are separating the two flows.
+          // For outgoing, we apply locally. 
+          // Note: if user logs, they see the action. 
+          // We don't need to call applyState for outgoing if startSSE is responsible for transport only?
+          // BUT startSSE manages local versions map.
+
           universe.getStore(event.storeKey, () => event.state).set(event.state);
         }
 

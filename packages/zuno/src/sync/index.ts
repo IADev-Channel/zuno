@@ -2,18 +2,18 @@ import type { Universe } from "../core";
 
 // --- Types ---
 
-export type ConflictResolver = (
-  localState: any,
-  serverState: any,
+export type ConflictResolver<T = unknown> = (
+  localState: T,
+  serverState: T,
   storeKey: string
-) => any;
+) => T;
 
 /**
  * Authoritative state event.
  */
 export type ZunoStateEvent = {
   storeKey: string;
-  state: any;
+  state: unknown; // Was 'any', now strictly 'unknown'
   version?: number;
   baseVersion?: number;
   origin?: string;

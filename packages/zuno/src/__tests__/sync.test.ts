@@ -35,14 +35,18 @@ describe('Zuno Sync', () => {
     vi.clearAllMocks();
     universe.clear();
     versions.clear();
-    // Reset global fetch mock
-    global.fetch = vi.fn();
+    // Reset global fetch mock with a safe default
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({})
+    });
     // Mock navigator online
     Object.defineProperty(navigator, 'onLine', { writable: true, value: true });
   });
 
   it('should dispatch event via fetch', async () => {
-    (global.fetch as any).mockResolvedValue({
+    (global.fetch as any).mockResolvedValueOnce({
       ok: true,
       status: 200,
       json: async () => ({ event: { version: 1 } }),

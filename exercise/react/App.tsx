@@ -25,6 +25,7 @@ const z = createZunoReact({
     middleware: [loggerMiddleware],
     resolveConflict: (local, server, key) => {
         console.warn(`[Zuno Conflict] Key: ${key}`, { local, server });
+        // return local; // local Wins strategy
         return server; // Server Wins strategy
     }
 })

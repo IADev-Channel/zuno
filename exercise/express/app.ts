@@ -26,7 +26,7 @@ app.get("/zuno/counter/:value", (req, res) => {
   res.status(200).json({ ok: true, event: result.ok ? result.event : null });
 });
 
-const PORT = 3000;
+const PORT = 3003;
 app.listen(PORT).addListener("listening", () => {
   console.log(`Server started on port ${PORT}`);
 });

@@ -136,6 +136,10 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
   return {
     dispatch: async (event) => {
       try {
+        if (opts.optimistic) {
+          universe.getStore(event.storeKey, () => event.state).set(event.state);
+        }
+
         const res = await fetch(syncUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -154,7 +158,15 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
         if (!res.ok) return { ok: false, status: res.status, json: await res.json() };
 
-        return { ok: true, status: 200, json: await res.json() };
+        const json = await res.json();
+        if (json.event) {
+          const { state, version } = json.event;
+          if (typeof version === "number") {
+            versions.set(event.storeKey, version);
+          }
+        }
+
+        return { ok: true, status: 200, json };
       } catch (err) {
         return { ok: false, status: 500, json: err, reason: "NETWORK_ERROR" };
       }

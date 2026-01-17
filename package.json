@@ -6,7 +6,6 @@
   ],
   "packageManager": "pnpm@10.28.0",
   "scripts": {
-    "login": "pnpm login",
     "deploy-core": "pnpm --filter @iadev93/zuno publish --access public",
     "deploy-react": "pnpm --filter @iadev93/zuno-react publish --access public",
     "deploy-express": "pnpm --filter @iadev93/zuno-express publish --access public",
@@ -22,7 +21,10 @@
     "start-http-server": "pnpm --filter exercise-http-server run start",
     "start-express": "pnpm --filter exercise-express run start",
     "start-elysia": "pnpm --filter exercise-elysia run start",
-    "start": "concurrently \"pnpm start-html\" \"pnpm start-react\" \"pnpm start-http-server\" \"pnpm start-express\" \"pnpm start-elysia\""
+    "start": "concurrently \"pnpm start-html\" \"pnpm start-react\" \"pnpm start-http-server\" \"pnpm start-express\" \"pnpm start-elysia\"",
+    "clean:node_modules": "pnpm -r exec rm -rf node_modules",
+    "clean:dist": "pnpm -r exec rm -rf dist",
+    "clean": "pnpm clean:node_modules && pnpm clean:dist"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

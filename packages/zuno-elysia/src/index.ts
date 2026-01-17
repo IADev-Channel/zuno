@@ -6,7 +6,7 @@ import {
   getUniverseState,
   subscribeToStateEvents,
 } from "@iadev93/zuno/server";
-import { sse as elysiaSSE } from "elysia"
+import { sse } from "elysia";
 
 /**
  * Creates a Zuno Elysia instance.
@@ -18,6 +18,7 @@ import { sse as elysiaSSE } from "elysia"
  *   - sync: A function that handles sync POST requests for Elysia.
  *     @property {Object} body - Elysia request body.
  *     @property {Object} set - Elysia response object.
+ *   - snapshot: A function that handles snapshot GET requests for Elysia.
  *   - snapshot: A function that handles snapshot GET requests for Elysia.
  */
 export function createZunoElysia() {
@@ -34,8 +35,7 @@ export function createZunoElysia() {
       set.headers["Cache-Control"] = "no-cache";
       set.headers["Connection"] = "keep-alive";
 
-      yield elysiaSSE(": connected\n");
-      yield elysiaSSE(":" + " ".repeat(2048) + "\n\n"); // Padding to bypass browser buffering
+      yield sse({ data: ": connected" });
 
       // Get last event id
       const rawLastEventId = headers["last-event-id"] || query?.lastEventId;
@@ -44,20 +44,31 @@ export function createZunoElysia() {
       if (lastEventId > 0) {
         const missed = getEventsAfter(lastEventId);
         for (const event of missed) {
-          yield elysiaSSE(`id: ${event.eventId}\nevent: state\ndata: ${JSON.stringify(event)}\n\n`);
+          yield sse({
+            id: String(event.eventId),
+            event: "state",
+            data: JSON.stringify(event)
+          });
         }
       } else {
         const snapshot = getUniverseState();
-        yield elysiaSSE(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`);
+        yield sse({
+          event: "snapshot",
+          data: JSON.stringify(snapshot)
+        });
       }
 
       // Buffer queue for events
-      const queue: string[] = [];
+      const queue: any[] = [];
       let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
 
       // Subscribe to events
       const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
-        queue.push(`id: ${event.eventId}\nevent: state\ndata: ${JSON.stringify(event)}\n\n`);
+        queue.push(sse({
+          id: String(event.eventId),
+          event: "state",
+          data: JSON.stringify(event)
+        }));
         if (resolve) {
           resolve();
           resolve = null;
@@ -66,7 +77,7 @@ export function createZunoElysia() {
 
       // Heartbeat interval
       const heartbeat = setInterval(() => {
-        queue.push(`: ping ${Date.now()}\n\n`);
+        queue.push(sse({ data: `: ping ${Date.now()}` }));
         if (resolve) {
           resolve();
           resolve = null;

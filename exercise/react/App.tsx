@@ -12,11 +12,11 @@ const z = createZunoReact({
     /** SSE URL 
      * Used for server-sent events for server sync
      * */
-    sseUrl: "http://localhost:3000/zuno/sse",
+    sseUrl: "http://localhost:3002/zuno/sse",
     /** Sync URL 
      * Used for real-time updates for client sync
      * */
-    syncUrl: "http://localhost:3000/zuno/sync",
+    syncUrl: "http://localhost:3002/zuno/sync",
     /** Optimistic 
      * Used for optimistic updates - local updates before server confirmation
      * */

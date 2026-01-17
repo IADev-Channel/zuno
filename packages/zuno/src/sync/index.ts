@@ -59,7 +59,8 @@ export function applyIncomingEvent(
   // 2. Version check (if provided by transport)
   if (typeof event.version === "number") {
     const current = versions.get(event.storeKey) ?? 0;
-    if (event.version <= current) return; // Stale
+    if (event.origin !== "conflict-resolution" && event.version <= current) return; // Stale check
+
     versions.set(event.storeKey, event.version);
   }
 
@@ -178,8 +179,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
                 nextState = resolveConflict(localState, serverState, event.storeKey);
               }
 
-              // 1. Update version map to match server
-              versions.set(event.storeKey, serverVersion);
+              // versions.set(event.storeKey, serverVersion); // REMOVE THIS
 
               // 2. Apply resolved state locally
               applyState({ storeKey: event.storeKey, state: nextState, version: serverVersion, origin: "conflict-resolution" });
@@ -313,7 +313,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
             nextState = resolveConflict(localState, serverState, event.storeKey);
           }
 
-          versions.set(event.storeKey, serverVersion);
+          // versions.set(event.storeKey, serverVersion); // REMOVE THIS: applyState handles it
           applyState({ storeKey: event.storeKey, state: nextState, version: serverVersion, origin: "conflict-resolution" });
 
           if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {

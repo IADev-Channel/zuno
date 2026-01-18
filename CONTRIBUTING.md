@@ -50,4 +50,4 @@ pnpm format  # Automatically fix issues
 
 ## Code of Conduct
 
-Be kind, respect others, and follow standard professional ethics.
+Please read and follow our [Code of Conduct](./CODE_OF_CONDUCT.md) to ensure a welcoming environment for everyone.

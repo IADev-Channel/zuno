@@ -82,6 +82,7 @@ app.listen(3000);
 - [**Why Zuno?**](./docs/why-zuno.md) — The philosophy and "The Mental Shift".
 - [**Architecture**](./ARCHITECTURE.md) — How Zuno works under the hood.
 - [**Contributing**](./CONTRIBUTING.md) — How to help build Zuno.
+- [**Code of Conduct**](./CODE_OF_CONDUCT.md) — Our community standards.
 - [**Wire Protocol v1**](./docs/protocol-v1.md) — Language-agnostic synchronization specs.
 
 ---

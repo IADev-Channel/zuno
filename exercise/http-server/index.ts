@@ -1,10 +1,10 @@
+import http from "node:http";
 import {
 	applyStateEvent,
 	createSSEConnection,
 	sendSnapshot,
 	setUniverseState,
 } from "@iadev93/zuno/server";
-import http from "http";
 
 const server = http.createServer((req, res) => {
 	// CORS Headers

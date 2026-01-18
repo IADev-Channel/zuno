@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from "http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ZunoStateEvent } from "../sync";
 import { applyStateEvent } from "./apply-state-event";
 import {

@@ -1,3 +1,4 @@
+import type { IncomingHttpHeaders } from "node:http";
 import type { ZunoStateEvent } from "@iadev93/zuno";
 import {
 	applyStateEvent,
@@ -5,7 +6,6 @@ import {
 	sendSnapshot,
 } from "@iadev93/zuno/server";
 import type { Request, Response } from "express";
-import type { IncomingHttpHeaders } from "http";
 
 /**
  * Options for creating an Express router for Zuno.

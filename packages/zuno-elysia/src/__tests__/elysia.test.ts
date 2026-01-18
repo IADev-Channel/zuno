@@ -1,4 +1,3 @@
-import { createZuno } from "@iadev93/zuno";
 import { describe, expect, it } from "vitest";
 import { createZunoElysia } from "../index";
 

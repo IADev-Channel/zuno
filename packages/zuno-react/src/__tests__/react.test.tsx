@@ -1,4 +1,3 @@
-import { createStore } from "@iadev93/zuno";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { createZunoReact } from "../index";

@@ -30,10 +30,11 @@ export function createZunoElysia() {
 		 * @param {Object} param.headers - Elysia request headers.
 		 * @param {Object} param.query - Elysia request query parameters.
 		 */
+		// biome-ignore lint/suspicious/noExplicitAny: Elysia request object
 		sse: async function* ({ set, headers, query }: any) {
 			set.headers["Content-Type"] = "text/event-stream";
 			set.headers["Cache-Control"] = "no-cache";
-			set.headers["Connection"] = "keep-alive";
+			set.headers.Connection = "keep-alive";
 
 			yield sse({ data: ": connected" });
 
@@ -58,7 +59,7 @@ export function createZunoElysia() {
 				});
 			}
 
-			// Buffer queue for events
+			// biome-ignore lint/suspicious/noExplicitAny: queue of any SSE events
 			const queue: any[] = [];
 			let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
 
@@ -95,6 +96,7 @@ export function createZunoElysia() {
 					}
 
 					while (queue.length > 0) {
+						// biome-ignore lint/style/noNonNullAssertion: queue is checked for length > 0
 						yield queue.shift()!;
 					}
 				}
@@ -113,6 +115,7 @@ export function createZunoElysia() {
 		 *   - ok: A boolean indicating whether the sync was successful.
 		 *   - event: The event that was applied to the universe.
 		 */
+		// biome-ignore lint/suspicious/noExplicitAny: Elysia request body
 		sync: ({ body, set }: any) => {
 			const incoming = body as ZunoStateEvent;
 			const result = applyStateEvent(incoming);
@@ -139,6 +142,7 @@ export function createZunoElysia() {
 		snapshot: () => {
 			return {
 				state: getUniverseState(),
+				// biome-ignore lint/suspicious/noExplicitAny: helper cast
 				version: (getUniverseState() as any).version ?? 0,
 				lastEventId: getLastEventId(),
 			};

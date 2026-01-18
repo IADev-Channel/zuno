@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createUniverse } from "../core";
 import { startSSE, type ZunoStateEvent } from "../sync";
 
@@ -84,6 +84,7 @@ describe("Zuno Sync", () => {
 	it("should resolve conflict (Server Wins default helper)", async () => {
 		// Simulate 409 Conflict
 		const serverState = 100;
+		// biome-ignore lint/suspicious/noExplicitAny: mock fetch
 		(global.fetch as any).mockResolvedValueOnce({
 			status: 409,
 			json: async () => ({ current: { state: serverState, version: 10 } }),
@@ -188,6 +189,7 @@ describe("Zuno Sync", () => {
 			listeners.get(this.name)?.delete(this.handleMessage);
 		}
 	}
+	// biome-ignore lint/suspicious/noExplicitAny: mock global BroadcastChannel
 	global.BroadcastChannel = SharedMockBC as any;
 
 	it("should publish to BroadcastChannel", async () => {
@@ -211,7 +213,7 @@ describe("Zuno Sync", () => {
 		const { startBroadcastChannel } = await import("../sync");
 		const onEvent = vi.fn();
 		// Client A
-		const bc = startBroadcastChannel({
+		const _bc = startBroadcastChannel({
 			channelName: "shared-channel",
 			clientId: "client-A",
 			onEvent,

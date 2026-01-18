@@ -27,6 +27,7 @@ export type ZunoStateEvent = {
 export type TransportStatus = {
 	ok: boolean;
 	status: number;
+	// biome-ignore lint/suspicious/noExplicitAny: generic JSON response
 	json: any;
 	reason?: string;
 };
@@ -133,6 +134,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		for (const event of queue) {
 			if (keyIndex.has(event.storeKey)) {
 				// We've seen this key before. We want to update the existing entry in reducedQueue.
+				// biome-ignore lint/style/noNonNullAssertion: key exists per has check
 				const idx = keyIndex.get(event.storeKey)!;
 				const prev = reducedQueue[idx];
 				// Merge: keep original baseVersion (from the start of the chain) but use NEW state.
@@ -243,10 +245,12 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 		es = new EventSource(connectUrl.toString());
 
+		// biome-ignore lint/suspicious/noExplicitAny: EventSource data is string, rec is parsed JSON
 		es.addEventListener("snapshot", (e: any) => {
 			try {
 				const snap = JSON.parse(e.data);
 				for (const [key, rec] of Object.entries(snap)) {
+					// biome-ignore lint/suspicious/noExplicitAny: rec state can be anything
 					const r = rec as { state: any; version: number };
 					applyState({
 						storeKey: key,
@@ -260,6 +264,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			}
 		});
 
+		// biome-ignore lint/suspicious/noExplicitAny: EventSource event data
 		es.addEventListener("state", (e: any) => {
 			try {
 				const event = JSON.parse(e.data) as ZunoStateEvent;
@@ -380,7 +385,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 			const json = await res.json();
 			if (json.event) {
-				const { state, version } = json.event;
+				const { version } = json.event;
 				if (typeof version === "number") {
 					versions.set(event.storeKey, version);
 				}

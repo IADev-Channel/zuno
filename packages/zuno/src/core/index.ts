@@ -77,7 +77,7 @@ export type CreateZunoOptions = {
 export type BoundStore<T> = {
 	key: string;
 	get: () => T;
-	set: (next: T | ((prev: T) => T)) => Promise<any>;
+	set: (next: T | ((prev: T) => T)) => Promise<unknown>;
 	subscribe: (cb: (state: T) => void) => () => void;
 	raw: () => Store<T>;
 };
@@ -115,6 +115,7 @@ export const createStore = <T>(initial: T): Store<T> => {
  * Creates a ZUNO Universe to manage multiple stores.
  */
 export const createUniverse = (): Universe => {
+	// biome-ignore lint/suspicious/noExplicitAny: internal registry of heterogeneous stores
 	const stores = new Map<string, Store<any>>();
 
 	const universe: Universe = {
@@ -122,6 +123,7 @@ export const createUniverse = (): Universe => {
 			if (!stores.has(key)) {
 				stores.set(key, createStore(init()));
 			}
+			// biome-ignore lint/style/noNonNullAssertion: key is guaranteed to exist by set/has check above
 			return stores.get(key)! as Store<T>;
 		},
 		snapshot(): Record<string, unknown> {
@@ -135,8 +137,10 @@ export const createUniverse = (): Universe => {
 			for (const [key, value] of Object.entries(data)) {
 				const existing = stores.get(key);
 				if (existing) {
+					// biome-ignore lint/suspicious/noExplicitAny: external data needs to be cast to store type
 					existing.set(value as any);
 				} else {
+					// biome-ignore lint/suspicious/noExplicitAny: external data needs to be cast to store type
 					stores.set(key, createStore(value as any));
 				}
 			}
@@ -170,7 +174,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 	const universe = opts.universe ?? createUniverse();
 	const clientId =
 		opts.clientId ?? globalThis.crypto?.randomUUID?.() ?? String(Math.random());
-	let sseReady = false;
+	let _sseReady = false;
 	let lastEventId = 0;
 
 	function hydrateSnapshot(snapshot: ZunoSnapshot) {
@@ -201,10 +205,10 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 					versions,
 					getLastEventId: () => lastEventId,
 					onOpen: () => {
-						sseReady = true;
+						_sseReady = true;
 					},
 					onClose: () => {
-						sseReady = false;
+						_sseReady = false;
 					},
 					onEvent: (e) => dispatch(e), // Route incoming SSE events through middleware
 					resolveConflict: opts.resolveConflict,
@@ -316,9 +320,19 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		store,
 		getStore: universe.getStore.bind(universe),
 		get: <T>(key: string, init?: () => T) =>
-			universe.getStore<T>(key, init ?? (() => undefined as any)).get(),
+			universe
+				.getStore<T>(
+					key,
+					// biome-ignore lint/suspicious/noExplicitAny: default init for convenience
+					init ?? (() => undefined as any),
+				)
+				.get(),
 		set: async <T>(key: string, next: T | ((prev: T) => T), init?: () => T) => {
-			const s = universe.getStore<T>(key, init ?? (() => undefined as any));
+			const s = universe.getStore<T>(
+				key,
+				// biome-ignore lint/suspicious/noExplicitAny: default init for convenience
+				init ?? (() => undefined as any),
+			);
 			const state =
 				typeof next === "function" ? (next as (prev: T) => T)(s.get()) : next;
 			return dispatch({ storeKey: key, state });

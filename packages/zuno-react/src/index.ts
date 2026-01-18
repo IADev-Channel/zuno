@@ -26,7 +26,7 @@ export type Selector<TState, TSelected> = (state: TState) => TSelected;
  * The default equality function, using `Object.is` for strict equality comparison.
  * This is a common and safe default for comparing primitive values and references.
  */
-const defaultEq: EqualityFn<any> = Object.is;
+const defaultEq: EqualityFn<unknown> = Object.is;
 
 /**
  * An extended interface for a Zuno store that includes methods for setting state
@@ -35,7 +35,7 @@ const defaultEq: EqualityFn<any> = Object.is;
 export type BoundStore<T> = {
 	key: string;
 	get: () => T;
-	set: (next: T | ((prev: T) => T)) => Promise<any>;
+	set: (next: T | ((prev: T) => T)) => Promise<unknown>;
 	subscribe: (cb: (state: T) => void) => () => void;
 	raw: () => ZunoSubscribableStore<T>;
 };
@@ -50,7 +50,7 @@ export type ZunoCore = {
 		storeKey: string,
 		next: T | ((prev: T) => T),
 		init?: () => T,
-	): Promise<any>;
+	): Promise<unknown>;
 	get<T>(storeKey: string, init?: () => T): T;
 	stop?: () => void;
 };
@@ -108,7 +108,6 @@ export const bindReact = (zuno: ZunoCore) => {
 
 			lastRef.current = next;
 			return next;
-			// biome-ignore lint/correctness/useExhaustiveDependencies: select and equalityFn are local/stable
 		}, [readable, select, equalityFn]);
 
 		const subscribe = React.useCallback(
@@ -116,7 +115,6 @@ export const bindReact = (zuno: ZunoCore) => {
 			[readable],
 		);
 
-		// biome-ignore lint/correctness/useExhaustiveDependencies: select is local/stable
 		const getServerSnapshot = React.useCallback(() => {
 			const s = readable.getServerSnapshot
 				? readable.getServerSnapshot()
@@ -124,11 +122,10 @@ export const bindReact = (zuno: ZunoCore) => {
 			return select(s);
 		}, [readable, select]);
 
-		// biome-ignore lint/correctness/useExhaustiveDependencies: select and equalityFn are local/stable
 		React.useEffect(() => {
 			hasLast.current = false;
 			lastRef.current = null;
-		}, [select, equalityFn]);
+		}, []);
 
 		return React.useSyncExternalStore(
 			subscribe,

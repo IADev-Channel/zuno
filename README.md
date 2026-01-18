@@ -81,6 +81,7 @@ app.listen(3000);
 
 - [**Why Zuno?**](./docs/why-zuno.md) — The philosophy and "The Mental Shift".
 - [**Architecture**](./ARCHITECTURE.md) — How Zuno works under the hood.
+- [**Changelog**](./CHANGELOG.md) — Project history and release notes.
 - [**Conflict Resolution**](./docs/conflict-resolution.md) — Strategies for merging state.
 - [**Protocol Truth Table**](./docs/protocol-truth-table.md) — Offline/Sync behavior matrix.
 - [**Contributing**](./CONTRIBUTING.md) — How to help build Zuno.

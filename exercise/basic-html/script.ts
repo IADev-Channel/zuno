@@ -26,6 +26,25 @@ const initiate = () => {
 
 		/** Optimistic (for optimistic updates - local updates before server confirmation) */
 		optimistic: true,
+
+		/** Middleware (for intercepting and logging events) */
+		middleware: [
+			(_api) => (next) => async (event) => {
+				console.log(`[Zuno] Dispatching ${event.storeKey}:`, event.state);
+				const res = await next(event);
+				console.log(`[Zuno] Result for ${event.storeKey}:`, res);
+				return res;
+			},
+		],
+
+		/** Conflict resolver (Highest number wins strategy) */
+		resolveConflict: (local, server, key) => {
+			console.warn(`[Zuno] Conflict detected on ${key}!`);
+			if (typeof local === "number" && typeof server === "number") {
+				return Math.max(local, server);
+			}
+			return server; // Fallback to server state
+		},
 	});
 
 	/** Counter store */

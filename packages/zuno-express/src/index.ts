@@ -17,28 +17,26 @@ export type CreateZunoExpressOptions = {
 
 /**
  * Creates a Zuno Express instance.
- * @param {CreateZunoExpressOptions} [opts] - Options for creating the Express router.
- * @returns {Object} An object with the following properties:
- *   - sse: An Express handler function that handles SSE connections.
- *   - sync: An Express handler function that handles sync POST requests.
- *   - snapshot: An Express handler function that handles snapshot GET requests.
+ * Returns both granular handlers and a convenience `mount` helper.
  */
 export function createZunoExpress(opts?: CreateZunoExpressOptions) {
-	const { headers } = opts ?? {};
+	const { headers = {} } = opts ?? {};
 
-	return {
+	/**
+	 * Granular handlers for maximum control.
+	 * You can mount these manually to any route or wrap them in custom middleware.
+	 */
+	const handlers = {
 		/**
-		 * Handles SSE connections for Express.
-		 * @param {Request} req - Express request object.
-		 * @param {Response} res - Express response object.
+		 * SSE connection handler.
+		 * Usage: app.get('/custom/sse', zuno.sse);
 		 */
 		sse: (req: Request, res: Response) =>
-			createSSEConnection(req, res, headers ?? {}),
+			createSSEConnection(req, res, headers),
 
 		/**
-		 * Handles sync POST requests for Express.
-		 * @param {Request} req - Express request object.
-		 * @param {Response} res - Express response object.
+		 * Sync POST handler.
+		 * Usage: app.post('/custom/sync', zuno.sync);
 		 */
 		sync: (req: Request, res: Response) => {
 			const incoming = req.body as ZunoStateEvent;
@@ -46,6 +44,7 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 
 			if (!result.ok) {
 				res.status(409).json({
+					ok: false,
 					reason: result.reason,
 					current: result.current,
 				});
@@ -56,10 +55,36 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 		},
 
 		/**
-		 * Handles snapshot GET requests for Express.
-		 * @param {Request} req - Express request object.
-		 * @param {Response} res - Express response object.
+		 * Snapshot GET handler.
+		 * Usage: app.get('/custom/snapshot', zuno.snapshot);
 		 */
 		snapshot: (req: Request, res: Response) => sendSnapshot(req, res),
 	};
+
+	return {
+		...handlers,
+		/**
+		 * Optional convenience method to mount all Zuno handlers at once.
+		 * @param app The Express App or Router to mount the handlers on.
+		 * @param basePath The base path for the Zuno routes (defaults to "/zuno").
+		 */
+		mount: (app: { get: Function; post: Function }, basePath = "/zuno") => {
+			app.get(`${basePath}/sse`, handlers.sse);
+			app.get(`${basePath}/snapshot`, handlers.snapshot);
+			app.post(`${basePath}/sync`, handlers.sync);
+		},
+	};
+}
+
+/**
+ * A standalone helper to mount Zuno handlers on an Express app/router.
+ */
+export function mountZuno(
+	app: { get: Function; post: Function },
+	opts?: CreateZunoExpressOptions & { basePath?: string },
+) {
+	const { basePath = "/zuno", ...rest } = opts ?? {};
+	const zuno = createZunoExpress(rest);
+	zuno.mount(app, basePath);
+	return zuno;
 }

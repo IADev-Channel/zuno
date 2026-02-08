@@ -21,14 +21,21 @@ export type ZunoSnapshot = {
 export interface Store<T> {
 	get(): T;
 	set(next: T | ((prev: T) => T)): void;
+	apply(intent: unknown): void;
 	subscribe(listener: (state: T) => void): () => void;
+	equals(val1: unknown, val2: unknown): boolean;
 }
 
 /**
  * A Universe manages many stores.
  */
 export interface Universe {
-	getStore<T>(key: string, init: () => T): Store<T>;
+	getStore<T>(
+		key: string,
+		init: () => T,
+		reducer?: (prev: T, intent: unknown) => T,
+		equals?: (v1: unknown, v2: unknown) => boolean,
+	): Store<T>;
 	snapshot(): Record<string, unknown>;
 	restore(data: Record<string, unknown>): void;
 	delete(key: string): void;
@@ -62,6 +69,8 @@ export type CreateZunoOptions = {
 	syncUrl?: string;
 	/** Apply updates locally before server confirmation (default: true). */
 	optimistic?: boolean;
+	/** Batch multiple updates in the same microtask (default: false). */
+	batchSync?: boolean;
 	/** Unique client identifier (default: random UUID). */
 	clientId?: string;
 	/** Middleware chain. */
@@ -79,6 +88,7 @@ export type BoundStore<T> = {
 	get: () => T;
 	set: (next: T | ((prev: T) => T)) => Promise<unknown>;
 	subscribe: (cb: (state: T) => void) => () => void;
+	equals: (v1: unknown, v2: unknown) => boolean;
 	raw: () => Store<T>;
 };
 
@@ -87,20 +97,49 @@ export type BoundStore<T> = {
 /**
  * Creates a raw ZUNO state management store.
  */
-export const createStore = <T>(initial: T): Store<T> => {
+export const createStore = <T>(
+	initial: T,
+	reducer?: (prev: T, intent: unknown) => T,
+	equals: (v1: unknown, v2: unknown) => boolean = Object.is,
+): Store<T> => {
 	let state = initial;
 	const listeners = new Set<(state: T) => void>();
 
+	const notify = () => {
+		listeners.forEach((l) => {
+			l(state);
+		});
+	};
+
 	return {
 		get: () => state,
+		equals,
 		set: (next) => {
 			const value =
 				typeof next === "function" ? (next as (prev: T) => T)(state) : next;
-			if (Object.is(value, state)) return;
+			if (equals(value, state)) return;
 			state = value;
-			listeners.forEach((l) => {
-				l(state);
-			});
+			notify();
+		},
+		apply: (intent) => {
+			const i = intent as { type: string; payload?: any };
+			if (i.type === "SET") {
+				const value = i.payload;
+				if (equals(value, state)) return;
+				state = value;
+				notify();
+				return;
+			}
+			if (!reducer) {
+				console.warn(
+					`[Zuno] apply() called for intent "${i.type}" on a store without a reducer. Intent ignored.`,
+				);
+				return;
+			}
+			const nextState = reducer(state, i);
+			if (equals(nextState, state)) return;
+			state = nextState;
+			notify();
 		},
 		subscribe: (listener) => {
 			listeners.add(listener);
@@ -117,20 +156,36 @@ export const createStore = <T>(initial: T): Store<T> => {
 export const createUniverse = (): Universe => {
 	// biome-ignore lint/suspicious/noExplicitAny: internal registry of heterogeneous stores
 	const stores = new Map<string, Store<any>>();
+	let cachedSnapshot: Record<string, any> | null = null;
 
 	const universe: Universe = {
-		getStore<T>(key: string, init: () => T): Store<T> {
-			if (!stores.has(key)) {
-				stores.set(key, createStore(init()));
+		getStore<T>(
+			key: string,
+			init: () => T,
+			reducer?: (prev: T, intent: unknown) => T,
+			equals?: (v1: unknown, v2: unknown) => boolean,
+		): Store<T> {
+			let s = stores.get(key);
+			if (!s) {
+				s = createStore(init(), reducer, equals);
+				stores.set(key, s);
+				// Invalidate cache when new store is added
+				cachedSnapshot = null;
+				// Subscribing to invalidate cache on changes
+				s.subscribe(() => {
+					cachedSnapshot = null;
+				});
 			}
-			// biome-ignore lint/style/noNonNullAssertion: key is guaranteed to exist by set/has check above
-			return stores.get(key)! as Store<T>;
+			return s as Store<T>;
 		},
 		snapshot(): Record<string, unknown> {
+			if (cachedSnapshot) return cachedSnapshot;
+
 			const out: Record<string, unknown> = {};
 			for (const [key, store] of stores.entries()) {
 				out[key] = store.get();
 			}
+			cachedSnapshot = out;
 			return out;
 		},
 		restore(data: Record<string, unknown>): void {
@@ -236,45 +291,101 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 			})
 		: null;
 
-	setTimeout(() => bc?.hello(), 0);
+	setTimeout(() => bc?.hello(), 100);
+
+	// --- Sync Batching ---
+	const pendingSyncs = new Map<string, ZunoStateEvent>();
+	let batchPromise: Promise<void> | null = null;
+
+	const flushBatch = async () => {
+		const syncs = Array.from(pendingSyncs.values());
+		pendingSyncs.clear();
+		batchPromise = null;
+
+		for (const event of syncs) {
+			if (sse) {
+				sse.dispatch(event).catch((err) => {
+					console.error("[Zuno] Batch sync failed", err);
+				});
+			}
+		}
+	};
 
 	const coreDispatch = async (
 		event: ZunoStateEvent,
 	): Promise<TransportStatus> => {
-		// 1. Incoming Event (from Server or other Tab via BC)
-		if (event.origin && event.origin !== clientId) {
+		// 1. Incoming/Reflected Event Logic (events WITH origin)
+		if (event.origin) {
+			// Always call apply to let applyIncomingEvent handle version checks and application
 			apply(event);
-			// Incoming events don't need to be re-broadcasted to network or BC typically,
-			// unless acting as a relay (not current design).
-			return { ok: true, status: 200, json: null };
+
+			// If it's from another client, we are done
+			if (event.origin !== clientId) {
+				return { ok: true, status: 200, json: null };
+			}
+			// If it's a reflected local event, we still need to broadcast it (fall through)
 		}
 
-		// 2. Outgoing Event (Local Action)
-		if (sse) {
-			const res = await sse.dispatch({
-				...event,
-				origin: clientId,
-				baseVersion: versions.get(event.storeKey) ?? 0,
-			});
+		// 2. Outgoing Event Logic (events WITHOUT origin)
+		if (!event.origin) {
+			event.origin = clientId;
 
-			if (
-				(res.reason === "OFFLINE_QUEUED" ||
-					res.reason === "NETWORK_ERROR_QUEUED") &&
-				bc
-			) {
-				const v = versions.get(event.storeKey) ?? 0;
-				bc.publish({ ...event, version: v, origin: clientId });
+			// Resolve state if needed (e.g. from mutate)
+			const store = universe.getStore(event.storeKey, () => undefined);
+
+			if (event.state === undefined && event.intent) {
+				// We need the state to send to server.
+				// If optimistic, we apply it. If not, we only compute if it's a simple SET.
+				if (opts.optimistic !== false) {
+					store.apply(event.intent);
+					event.state = store.get();
+				} else {
+					const i = event.intent as { type: string; payload?: any };
+					if (i.type === "SET") {
+						event.state = i.payload;
+					}
+					// For other intents with optimistic: false, we might send undefined state
+					// and rely on the server to compute it authoritativeley.
+				}
+			} else if (event.state !== undefined) {
+				if (opts.optimistic !== false) {
+					// biome-ignore lint/suspicious/noExplicitAny: generic dispatch layer
+					store.set(event.state as any);
+				}
 			}
 
-			return res;
+			// Local bookkeeping and versioning
+			if (opts.optimistic !== false) {
+				const current = versions.get(event.storeKey) ?? 0;
+				const nextVersion = current + 1;
+				versions.set(event.storeKey, nextVersion);
+				event.version = nextVersion;
+			}
+
+			// BROADCAST IMMEDIATELY to local tabs via BC
+			// This ensures instant sync across tabs even if SSE is slow or down.
+			if (bc) {
+				bc.publish(event);
+			}
 		}
 
-		const nextVersion = (versions.get(event.storeKey) ?? 0) + 1;
-		apply({ ...event, version: nextVersion });
-		versions.set(event.storeKey, nextVersion);
+		// 3. Remote Sync (SSE/HTTP) with Optional Batching
+		if (sse) {
+			if (opts.batchSync) {
+				// Coalesce outgoing syncs for the same storeKey within the same microtask
+				pendingSyncs.set(event.storeKey, event);
 
-		if (bc) {
-			bc.publish({ ...event, version: nextVersion, origin: clientId });
+				if (!batchPromise) {
+					batchPromise = Promise.resolve().then(flushBatch);
+				}
+
+				// Note: Batched dispatch currently returns a "fake" OK immediately
+				// to avoid blocking the UI. Error handling is handled via console.error in flushBatch.
+				// Real conflict resolution still happens via SSE's internal queue/retry.
+				return { ok: true, status: 202, json: { batched: true } };
+			}
+
+			return await sse.dispatch(event);
 		}
 
 		return { ok: true, status: 200, json: null };
@@ -298,18 +409,28 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		);
 	}
 
-	const store = <T>(storeKey: string, init: () => T): BoundStore<T> => {
-		const rawStore = universe.getStore<T>(storeKey, init);
+	const store = <T>(
+		storeKey: string,
+		init: () => T,
+		reducer?: (prev: T, intent: unknown) => T,
+		equals?: (v1: unknown, v2: unknown) => boolean,
+	): BoundStore<T> => {
+		const rawStore = universe.getStore<T>(storeKey, init, reducer, equals);
 		return {
 			key: storeKey,
 			raw: () => rawStore,
 			get: () => rawStore.get(),
 			subscribe: (cb) => rawStore.subscribe(cb),
+			equals: (v1, v2) => rawStore.equals(v1, v2),
 			set: (next) => {
 				const prev = rawStore.get();
 				const state =
 					typeof next === "function" ? (next as (prev: T) => T)(prev) : next;
-				return dispatch({ storeKey, state });
+				return dispatch({
+					storeKey,
+					state,
+					intent: { type: "SET", payload: state },
+				});
 			},
 		};
 	};
@@ -335,7 +456,24 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 			);
 			const state =
 				typeof next === "function" ? (next as (prev: T) => T)(s.get()) : next;
-			return dispatch({ storeKey: key, state });
+
+			// Don't set origin or version here, let coreDispatch handle it
+			return dispatch({
+				storeKey: key,
+				state,
+				intent: { type: "SET", payload: state },
+			});
+		},
+		mutate: async (
+			key: string,
+			intent: { type: string; payload?: unknown },
+		) => {
+			return dispatch({
+				storeKey: key,
+				// coreDispatch will calculate state from intent
+				state: undefined as any,
+				intent,
+			});
 		},
 		subscribe: <T>(key: string, init: () => T, cb: (state: T) => void) =>
 			universe.getStore<T>(key, init).subscribe(cb),

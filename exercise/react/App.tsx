@@ -30,7 +30,18 @@ const z = createZunoReact({
 	},
 });
 
-const counter = z.store<number>("counter", () => 0);
+const counterReducer = (state: number, intent: any) => {
+	switch (intent.type) {
+		case "INCREMENT":
+			return state + (intent.payload ?? 1);
+		case "DECREMENT":
+			return state - (intent.payload ?? 1);
+		default:
+			return state;
+	}
+};
+
+const counter = z.store<number>("counter", () => 0, counterReducer);
 
 /** App component */
 const App = () => {
@@ -41,10 +52,11 @@ const App = () => {
 
 	/** Handle counter */
 	const handleCounter = (n: number) => {
-		/** Set counter
-		 * Used for setting counter state
-		 * */
-		counter.set((prev: number) => prev + n);
+		/** Mutate with intent */
+		z.mutate("counter", {
+			type: n > 0 ? "INCREMENT" : "DECREMENT",
+			payload: Math.abs(n),
+		});
 	};
 
 	/** Return JSX */

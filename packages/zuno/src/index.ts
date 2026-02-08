@@ -26,8 +26,11 @@ export type {
 	ZunoStateEvent,
 	ZunoTransport,
 } from "./sync";
+export * from "./sync";
 export {
 	applyIncomingEvent,
 	startBroadcastChannel,
 	startSSE,
 } from "./sync";
+
+export { shallowEqual } from "./utils";

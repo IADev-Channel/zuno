@@ -1,5 +1,5 @@
 import { applyStateEvent } from "@iadev93/zuno/server";
-import { createZunoExpress } from "@iadev93/zuno-express";
+import { createZunoExpress /*, mountZuno*/ } from "@iadev93/zuno-express";
 import cors from "cors";
 import express from "express";
 
@@ -7,11 +7,16 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// --- Zuno Setup ---
 const zuno = createZunoExpress();
 
+// Option 1: Granular control (Good for custom paths or middleware)
 app.get("/zuno/sse", zuno.sse);
 app.get("/zuno/snapshot", zuno.snapshot);
 app.post("/zuno/sync", zuno.sync);
+
+// Option 2: Shortcut helper
+// zuno.mount(app);
 
 app.get("/zuno/counter/:value", (req, res) => {
 	const counterValue = Number(req.params.value);

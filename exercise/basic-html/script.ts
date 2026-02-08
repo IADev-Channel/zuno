@@ -30,8 +30,16 @@ const initiate = () => {
 		/** Middleware (for intercepting and logging events) */
 		middleware: [
 			(_api) => (next) => async (event) => {
-				console.log(`[Zuno] Dispatching ${event.storeKey}:`, event.state);
+				if (event.intent) {
+					const hasPayload =
+						event.intent.payload !== undefined && event.intent.payload !== null;
+					const payloadStr = hasPayload
+						? ` ${JSON.stringify(event.intent.payload)}`
+						: "";
+					console.log(`[Zuno] Intent: ${event.intent.type}${payloadStr}`);
+				}
 				const res = await next(event);
+				console.log(`[Zuno] Dispatching ${event.storeKey}:`, event.state);
 				console.log(`[Zuno] Result for ${event.storeKey}:`, res);
 				return res;
 			},
@@ -47,8 +55,20 @@ const initiate = () => {
 		},
 	});
 
-	/** Counter store */
-	const counter = zuno.store<number>("counter", () => 0);
+	/** Counter reducer */
+	const counterReducer = (state: number, intent: any) => {
+		switch (intent.type) {
+			case "INCREMENT":
+				return state + 1;
+			case "DECREMENT":
+				return state - 1;
+			default:
+				return state;
+		}
+	};
+
+	/** Counter store with reducer */
+	const counter = zuno.store<number>("counter", () => 0, counterReducer);
 
 	/** Set counter element */
 	counterEl.textContent = String(counter.get());
@@ -60,12 +80,12 @@ const initiate = () => {
 
 	/** Increment button click handler */
 	inc.addEventListener("click", () => {
-		counter.set((prev: number) => prev + 1);
+		zuno.mutate("counter", { type: "INCREMENT" });
 	});
 
 	/** Decrement button click handler */
 	dec.addEventListener("click", () => {
-		counter.set((prev: number) => prev - 1);
+		zuno.mutate("counter", { type: "DECREMENT" });
 	});
 };
 

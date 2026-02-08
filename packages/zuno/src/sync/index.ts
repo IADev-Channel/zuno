@@ -14,6 +14,7 @@ export type ConflictResolver<T = unknown> = (
 export type ZunoStateEvent = {
 	storeKey: string;
 	state: unknown; // Was 'any', now strictly 'unknown'
+	intent?: { type: string; payload?: unknown };
 	version?: number;
 	baseVersion?: number;
 	origin?: string;
@@ -54,20 +55,54 @@ export function applyIncomingEvent(
 ) {
 	const { clientId, versions } = context;
 
-	// 1. Loopback suppression
-	if (event.origin === clientId) return;
+	// 1. Determine if this event is Authoritative (from Server) or Optimistic (from Peer/Local)
+	const isAuthoritative =
+		event.origin === "server" || event.origin === "conflict-resolution";
+	const current = versions.get(event.storeKey) ?? 0;
 
-	// 2. Version check (if provided by transport)
+	// 2. Version check
 	if (typeof event.version === "number") {
-		const current = versions.get(event.storeKey) ?? 0;
-		if (event.origin !== "conflict-resolution" && event.version <= current)
-			return; // Stale check
+		// If it's not authoritative, we strictly enforce incrementing versions
+		if (!isAuthoritative && event.version <= current) {
+			return;
+		}
 
+		// Update version tracker
 		versions.set(event.storeKey, event.version);
+	} else if (event.origin === clientId) {
+		// Suppress versionless loopback
+		return;
 	}
 
 	// 3. Apply to universe
-	universe.getStore(event.storeKey, () => event.state).set(event.state);
+	const store = universe.getStore(event.storeKey, () => event.state);
+
+	// If we have an intent, try to apply it first for side effects (but only if it's forward progress or authoritative)
+	if (event.intent) {
+		// If it's a version match/stale authoritative event, we might want to SKIP the intent
+		// to avoid double-application (since we likely already did it optimistically).
+		// However, snapping state (below) is always safe.
+		if (
+			typeof event.version === "number" &&
+			event.version <= current &&
+			isAuthoritative
+		) {
+			// Skip intent, but snap state anyway below.
+		} else {
+			store.apply(event.intent);
+		}
+	}
+
+	// 4. Authoritative State Snap
+	// ALWAYS apply the state if provided and it's authoritative or has a higher version.
+	if (event.state !== undefined) {
+		if (
+			isAuthoritative ||
+			(typeof event.version === "number" && event.version > current)
+		) {
+			store.set(event.state);
+		}
+	}
 }
 
 // --- SSE Client ---
@@ -111,7 +146,12 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 				if (event.version <= current) return;
 				versions.set(event.storeKey, event.version);
 			}
-			universe.getStore(event.storeKey, () => event.state).set(event.state);
+			const store = universe.getStore(event.storeKey, () => event.state);
+			if (event.intent) {
+				store.apply(event.intent);
+			} else {
+				store.set(event.state);
+			}
 		}
 	};
 
@@ -268,13 +308,11 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		es.addEventListener("state", (e: any) => {
 			try {
 				const event = JSON.parse(e.data) as ZunoStateEvent;
-				// Loopback suppression logic is now handled by caller (middleware/core) if onEvent is provided,
-				// OR we should keep it here?
-				// If we dispatch to middleware, the middleware might log it.
-				// But if it's our own event, we shouldn't re-apply it if we already did optimally?
-				// Actually, startSSE optimistic logic does it.
-				// If we receive an echo, we might want to update version but not state if it matches?
-				// Let's pass it to applyState.
+				// If server didn't provide an origin (e.g. manual server-side trigger),
+				// we treat it as authoritative "server" origin.
+				if (!event.origin) {
+					event.origin = "server";
+				}
 
 				if (event.origin === clientId) return;
 
@@ -309,27 +347,18 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		event: ZunoStateEvent,
 	): Promise<TransportStatus> => {
 		try {
-			if (opts.optimistic) {
-				// Manually apply optimistic update (local origin)
-				// We can call applyState here OR let middleware do it if we pass it through middleware?
-				// If we pass through middleware, the middleware calls dispatch.
-				// This IS the dispatch.
-				// So we should apply it here.
-				// BUT if we want middleware to run on *incoming*, we are separating the two flows.
-				// For outgoing, we apply locally.
-				// Note: if user logs, they see the action.
-				// We don't need to call applyState for outgoing if startSSE is responsible for transport only?
-				// BUT startSSE manages local versions map.
+			// Removed local application here. Local application is handled by coreDispatch
+			// to avoid double-update when intents are used.
 
-				universe.getStore(event.storeKey, () => event.state).set(event.state);
+			// 1. Optimistic Local Apply
+			// This is needed for direct transport usage (like in tests)
+			if (opts.optimistic !== false && !event.origin) {
+				applyState(event);
 			}
 
 			// Check online status first
 			if (typeof navigator !== "undefined" && !navigator.onLine) {
 				queue.push(event);
-				// Optimistically increment version so next event uses correct baseVersion
-				const currentV = versions.get(event.storeKey) ?? 0;
-				versions.set(event.storeKey, currentV + 1);
 				return { ok: false, status: 0, json: null, reason: "OFFLINE_QUEUED" };
 			}
 
@@ -356,7 +385,6 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 						);
 					}
 
-					// versions.set(event.storeKey, serverVersion); // REMOVE THIS: applyState handles it
 					applyState({
 						storeKey: event.storeKey,
 						state: nextState,
@@ -365,11 +393,6 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 					});
 
 					if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {
-						// Return special status to indicate a merge happened and we should retry?
-						// Or just fire new fetch?
-						// Let's fire new fetch recursively by calling dispatch (but careful about infinite loop if 409 happens again).
-						// Or easier:
-
 						return await dispatchFn({
 							...event,
 							state: nextState,
@@ -394,14 +417,10 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			return { ok: true, status: 200, json };
 		} catch (err) {
 			// Network failure catch
-			console.warn("[Zuno] Dispatch failed, queuing", err);
-			queue.push(event);
-			// Optimistically increment version here too, assuming the previous one is "pending"
-			// and subsequent edits should build on top of it.
-			const currentV = versions.get(event.storeKey) ?? 0;
-			versions.set(event.storeKey, currentV + 1);
-
-			setTimeout(flushQueue, 1000);
+			if (queue.length < 100) {
+				queue.push(event);
+				setTimeout(flushQueue, 1000);
+			}
 			return {
 				ok: false,
 				status: 500,

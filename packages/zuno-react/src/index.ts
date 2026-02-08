@@ -37,6 +37,7 @@ export type BoundStore<T> = {
 	get: () => T;
 	set: (next: T | ((prev: T) => T)) => Promise<unknown>;
 	subscribe: (cb: (state: T) => void) => () => void;
+	equals: (v1: unknown, v2: unknown) => boolean;
 	raw: () => ZunoSubscribableStore<T>;
 };
 
@@ -45,11 +46,20 @@ export type BoundStore<T> = {
  * retrieve, and update stores.
  */
 export type ZunoCore = {
-	store<T>(storeKey: string, init: () => T): BoundStore<T>;
+	store<T>(
+		storeKey: string,
+		init: () => T,
+		reducer?: (prev: T, intent: unknown) => T,
+		equals?: (v1: unknown, v2: unknown) => boolean,
+	): BoundStore<T>;
 	set<T>(
 		storeKey: string,
 		next: T | ((prev: T) => T),
 		init?: () => T,
+	): Promise<unknown>;
+	mutate(
+		storeKey: string,
+		intent: { type: string; payload?: unknown },
 	): Promise<unknown>;
 	get<T>(storeKey: string, init?: () => T): T;
 	stop?: () => void;
@@ -137,8 +147,13 @@ export const bindReact = (zuno: ZunoCore) => {
 	/**
 	 * Creates a React-enhanced store.
 	 */
-	const store = <T>(storeKey: string, init: () => T): ReactBoundStore<T> => {
-		const base = zuno.store<T>(storeKey, init);
+	const store = <T>(
+		storeKey: string,
+		init: () => T,
+		reducer?: (prev: T, intent: unknown) => T,
+		equals?: (v1: unknown, v2: unknown) => boolean,
+	): ReactBoundStore<T> => {
+		const base = zuno.store<T>(storeKey, init, reducer, equals);
 
 		return {
 			...base,
@@ -152,6 +167,7 @@ export const bindReact = (zuno: ZunoCore) => {
 				);
 				return useExternalStore<T, TSelected>(readable, selector, equalityFn);
 			},
+			equals: (v1, v2) => base.equals(v1, v2),
 		};
 	};
 

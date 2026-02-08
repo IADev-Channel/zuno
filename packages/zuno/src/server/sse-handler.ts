@@ -33,23 +33,41 @@ export const createSSEConnection = (
 	const lastEventId =
 		Number.parseInt(Array.isArray(raw) ? raw[0] : (raw ?? "0"), 10) || 0;
 
+	// 1. Subscribe FIRST and buffer events until snapshot/missed-events are sent
+	const buffer: ZunoStateEvent[] = [];
+	let isSyncing = true;
+
+	const writeEvent = (event: ZunoStateEvent) => {
+		res.write(`id: ${event.eventId}\n`);
+		res.write(`event: state\n`);
+		res.write(`data: ${JSON.stringify(event)}\n\n`);
+	};
+
+	const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
+		if (isSyncing) {
+			buffer.push(event);
+		} else {
+			writeEvent(event);
+		}
+	});
+
+	// 2. Send missed events or snapshot
 	if (lastEventId > 0) {
 		const missed = getEventsAfter(lastEventId);
 		for (const event of missed) {
-			res.write(`id: ${event.eventId}\n`);
-			res.write(`event: state\n`);
-			res.write(`data: ${JSON.stringify(event)}\n\n`);
+			writeEvent(event);
 		}
 	} else {
 		res.write(`event: snapshot\n`);
 		res.write(`data: ${JSON.stringify(getUniverseState())}\n\n`);
 	}
 
-	const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
-		res.write(`id: ${event.eventId}\n`);
-		res.write(`event: state\n`);
-		res.write(`data: ${JSON.stringify(event)}\n\n`);
-	});
+	// 3. Flush buffer and switch to live mode
+	isSyncing = false;
+	while (buffer.length > 0) {
+		const event = buffer.shift();
+		if (event) writeEvent(event);
+	}
 
 	const heartbeat = setInterval(() => {
 		res.write(`: ping ${Date.now()}\n\n`);

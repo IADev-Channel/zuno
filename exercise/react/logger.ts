@@ -7,7 +7,17 @@ export const loggerMiddleware: Middleware =
 			"Prev State:",
 			api.universe.getStore(event.storeKey, () => null).get(),
 		);
-		console.log("Event:", event);
+
+		if (event.intent) {
+			const hasPayload =
+				event.intent.payload !== undefined && event.intent.payload !== null;
+			const payloadStr = hasPayload
+				? ` ${JSON.stringify(event.intent.payload)}`
+				: "";
+			console.log(`[Zuno] Intent: ${event.intent.type}${payloadStr}`);
+		} else {
+			console.log("Direct Set State:", event.state);
+		}
 
 		const result = await next(event);
 

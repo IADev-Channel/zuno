@@ -38,7 +38,26 @@ export function createZunoElysia() {
 
 			yield sse({ data: ": connected" });
 
-			// Get last event id
+			// 1. Subscribe FIRST to avoid missing events during snapshot/missed-events retrieval
+			// biome-ignore lint/suspicious/noExplicitAny: queue of any SSE events
+			const queue: any[] = [];
+			let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
+
+			const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
+				queue.push(
+					sse({
+						id: String(event.eventId),
+						event: "state",
+						data: JSON.stringify(event),
+					}),
+				);
+				if (resolve) {
+					resolve();
+					resolve = null;
+				}
+			});
+
+			// 2. Decide if we send snapshot or missed events
 			const rawLastEventId = headers["last-event-id"] || query?.lastEventId;
 			const lastEventId = Number.parseInt(rawLastEventId || "0", 10) || 0;
 
@@ -59,26 +78,7 @@ export function createZunoElysia() {
 				});
 			}
 
-			// biome-ignore lint/suspicious/noExplicitAny: queue of any SSE events
-			const queue: any[] = [];
-			let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
-
-			// Subscribe to events
-			const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
-				queue.push(
-					sse({
-						id: String(event.eventId),
-						event: "state",
-						data: JSON.stringify(event),
-					}),
-				);
-				if (resolve) {
-					resolve();
-					resolve = null;
-				}
-			});
-
-			// Heartbeat interval
+			// 3. Heartbeat interval
 			const heartbeat = setInterval(() => {
 				queue.push(sse({ data: `: ping ${Date.now()}` }));
 				if (resolve) {

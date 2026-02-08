@@ -56,7 +56,8 @@ Zuno uses a multi-layered transport strategy to balance latency and reliability:
 
 1.  **SSE (Server-Sent Events)**: The primary downstream channel. The server streams authoritative state changes to all connected clients.
 2.  **HTTP POST Sync**: The upstream channel. Clients "propose" state changes to the server.
-3.  **BroadcastChannel**: A local optimization. Same-origin browser tabs share state updates directly to reduce server load and latency.
+3.  **BroadcastChannel**: A local optimization. Same-origin browser tabs share state updates directly.
+4.  **Mutation Batching**: Multiple synchronous updates are coalesced into a single network payload to reduce chatter.
 
 ### Consistency Model: "Optimistic Convergent Consistency"
 
@@ -75,6 +76,7 @@ Zuno favors simplicity and predictability over complex conflict resolution like 
 
 -   `packages/zuno`: The core state engine and sync primitives.
 -   `packages/zuno-react`: React bindings (`useSyncExternalStore`).
+-   `packages/zuno-angular`: Angular bindings (Signals & Observables).
 -   `packages/zuno-express`: Server adapter for Node.js Express.
 -   `packages/zuno-elysia`: Server adapter for Bun/Elysia.
 

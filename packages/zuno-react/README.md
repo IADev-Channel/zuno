@@ -23,9 +23,18 @@ Peer dependency:
 ```tsx
 import { createZunoReact } from "@iadev93/zuno-react";
 
-const zuno = createZunoReact();
+const zuno = createZunoReact({
+  // Optional: Enable batching
+  batchSync: true,
+});
 
-const counter = zuno.store("counter", () => 0);
+const counter = zuno.store(
+  "counter", 
+  () => 0, 
+  undefined, 
+  // Optional: Custom equality
+  (a, b) => a === b
+);
 
 function App() {
   const value = counter.use();

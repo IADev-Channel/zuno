@@ -27,7 +27,8 @@ It ensures that every mutation across your ecosystem (tabs, background workers, 
 | Package | Purpose | Docs |
 | :--- | :--- | :--- |
 | **[`@iadev93/zuno`](./packages/zuno)** | Core state engine & sync primitives | [README](./packages/zuno/README.md) |
-| **[`@iadev93/zuno-react`](./packages/zuno-react)** | React hooks & state bindings | [README](./packages/zuno-react/README.md) |
+| **[`@iadev93/zuno-react`](./packages/zuno-react)** | React bindings & hooks | [README](./packages/zuno-react/README.md) |
+| **[`@iadev93/zuno-angular`](./packages/zuno-angular)** | Angular bindings (Signals/Observables) | [README](./packages/zuno-angular/README.md) |
 | **[`@iadev93/zuno-express`](./packages/zuno-express)** | Server adapter for Express | [README](./packages/zuno-express/README.md) |
 | **[`@iadev93/zuno-elysia`](./packages/zuno-elysia)** | Server adapter for Elysia (Bun) | [README](./packages/zuno-elysia/README.md) |
 
@@ -39,7 +40,7 @@ It ensures that every mutation across your ecosystem (tabs, background workers, 
 ```typescript
 import { createZuno } from "@iadev93/zuno";
 
-const zuno = createZuno();
+const zuno = createZuno({ batchSync: true });
 export const counter = zuno.store("counter", () => 0);
 
 // Use it anywhere!
@@ -60,7 +61,24 @@ function Counter() {
 }
 ```
 
-### 3. Sync with Server (Express)
+### 3. Connect to Angular
+```typescript
+import { Component, inject } from '@angular/core';
+import { ZunoService } from '@iadev93/zuno-angular';
+
+@Component({
+  template: `{{ count() }} <button (click)="inc()">+</button>`
+})
+export class Counter {
+  zuno = inject(ZunoService);
+  store = this.zuno.store('counter', () => 0);
+  count = this.store.asSignal();
+
+  inc() { this.store.set(c => c + 1); }
+}
+```
+
+### 4. Sync with Server (Express)
 ```typescript
 import express from "express";
 import { createZunoExpress } from "@iadev93/zuno-express";

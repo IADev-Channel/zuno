@@ -26,7 +26,9 @@ import { createZunoExpress } from "@iadev93/zuno-express";
 const app = express();
 app.use(express.json());
 
-const zuno = createZunoExpress();
+const zuno = createZunoExpress({
+  batchSync: true // Optional: Enable batching
+});
 
 // Unified handlers
 app.get("/zuno/sse", zuno.sse);

@@ -20,7 +20,9 @@ import { createZunoElysia } from '@iadev93/zuno-elysia'
 const app = new Elysia()
   .use(cors())
   
-const zuno = createZunoElysia()
+const zuno = createZunoElysia({
+  batchSync: true // Optional: Enable batching
+})
 
 // Register Zuno handlers
 app.get('/zuno/sse', zuno.sse)

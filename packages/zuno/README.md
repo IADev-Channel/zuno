@@ -12,22 +12,37 @@ This package provides the foundation:
 
 ---
 
+## Features
+
+- 🚀 **Ultra-Fast**: 1000+ snapshots/ms with incremental caching.
+- ⚡️ **Batching**: coalesces multiple updates into single network syncs.
+- 🔄 **Real-time**: SSE and BroadcastChannel for multi-tab/multi-client sync.
+- 🛡️ **Type-Safe**: TypeScript-first design.
+- 🔌 **Adapters**: React, Angular, Express, Elysia.
+
 ## Install
 
 ```bash
 npm install @iadev93/zuno
 ```
 
----
-
 ## Quick Start (Client)
 
 ```ts
 import { createZuno } from "@iadev93/zuno";
 
-const zuno = createZuno();
+const zuno = createZuno({
+  // Optional: Enable batching for high-frequency updates
+  batchSync: true,
+});
 
-const counter = zuno.store("counter", () => 0);
+const counter = zuno.store(
+  "counter", 
+  () => 0, 
+  undefined, 
+  // Optional: Custom equality check
+  (a, b) => a === b
+);
 
 await counter.set((v) => v + 1);
 console.log(counter.get());
@@ -124,7 +139,9 @@ import { toReadable } from "@iadev93/zuno";
 const readable = toReadable(store);
 ```
 
-This contract is used by `@iadev93/zuno-react` and future adapters (Solid/Vue/Svelte/etc.).
+This contract is used by official adapters:
+- `@iadev93/zuno-react`
+- `@iadev93/zuno-angular` (New!)
 
 ---
 
@@ -161,9 +178,13 @@ import { /* apply-state-event export */ } from "@iadev93/zuno/server";
 
 ---
 
-## Recommended: Express Integration
+## Framework Integration
 
-If you’re using Express, use the dedicated adapter:
+- **React**: `npm install @iadev93/zuno-react`
+- **Angular**: `npm install @iadev93/zuno-angular` (New!)
+- **Express**: `npm install @iadev93/zuno-express`
+
+For Express usage:
 
 ```bash
 npm install @iadev93/zuno-express

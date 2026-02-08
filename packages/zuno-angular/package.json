@@ -1,0 +1,56 @@
+{
+	"name": "@iadev93/zuno-angular",
+	"version": "0.0.1",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs",
+			"require": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch"
+	},
+	"peerDependencies": {
+		"@angular/core": "^19.0.0",
+		"@iadev93/zuno": "workspace:*",
+		"rxjs": "^7.8.0"
+	},
+	"devDependencies": {
+		"@angular/core": "^19.0.0",
+		"@angular/platform-browser": "^19.2.18",
+		"@angular/platform-browser-dynamic": "^19.2.18",
+		"@iadev93/zuno": "workspace:*",
+		"@types/node": "^20.19.27",
+		"rxjs": "^7.8.0",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3",
+		"zone.js": "^0.15.0"
+	},
+	"keywords": [
+		"zuno",
+		"angular",
+		"state",
+		"state-management",
+		"sync",
+		"sse",
+		"observables",
+		"signals",
+		"realtime"
+	],
+	"homepage": "https://github.com/IADev-Channel/zuno",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/IADev-Channel/zuno.git"
+	},
+	"author": "Ibrahim Aftab",
+	"license": "MIT"
+}

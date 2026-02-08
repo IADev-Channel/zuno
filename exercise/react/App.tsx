@@ -19,7 +19,7 @@ const z = createZunoReact({
 	optimistic: true,
 	batchSync: true,
 	middleware: [loggerMiddleware],
-	resolveConflict: (local, server) => server, // Server Wins
+	resolveConflict: (_local, server) => server, // Server Wins
 });
 
 // --- Stores ---

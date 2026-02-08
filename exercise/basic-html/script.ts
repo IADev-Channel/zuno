@@ -59,7 +59,8 @@ const initiate = () => {
 
 		// Re-attach listeners (simple delegation would be better but this works for simple demo)
 		todoList.querySelectorAll("li").forEach((li) => {
-			const id = li.dataset.id!;
+			const id = li.dataset.id;
+			if (!id) return;
 
 			// Toggle
 			li.querySelector(".todo-title")?.addEventListener("click", () => {

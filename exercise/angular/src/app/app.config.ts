@@ -12,7 +12,7 @@ export const appConfig: ApplicationConfig = {
 			syncUrl: "http://localhost:3003/zuno/sync",
 			sseUrl: "http://localhost:3003/zuno/sse",
 			channelName: "zuno-angular",
-			clientId: "angular-client-" + Math.random().toString(36).slice(2),
+			clientId: `angular-client-${Math.random().toString(36).slice(2)}`,
 		}),
 	],
 };

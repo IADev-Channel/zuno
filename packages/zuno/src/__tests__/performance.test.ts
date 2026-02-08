@@ -7,7 +7,7 @@ if (typeof globalThis.EventSource === "undefined") {
 	globalThis.EventSource = class {
 		close() {}
 		addEventListener() {}
-	} as any;
+	} as unknown as typeof EventSource;
 }
 
 describe("Performance & Batching", () => {
@@ -33,8 +33,6 @@ describe("Performance & Batching", () => {
 		zuno.set("counter", 3);
 
 		expect(zuno.get("counter")).toBe(3);
-		// Local BC should have been called 3 times (instant local sync)
-		// but we are testing SSE batching here.
 
 		// Wait for microtask flush
 		await new Promise((resolve) => setTimeout(resolve, 0));
@@ -57,9 +55,10 @@ describe("Performance & Batching", () => {
 		const store = zuno.store(
 			"data",
 			() => ({ count: 0 }),
-			(s, i) => {
-				if (i.type === "INC") return { ...s, count: s.count + 1 };
-				if (i.type === "NOOP") return { ...s }; // Returns new reference
+			(s, i: unknown) => {
+				const intent = i as { type: string };
+				if (intent.type === "INC") return { ...s, count: s.count + 1 };
+				if (intent.type === "NOOP") return { ...s }; // Returns new reference
 				return s;
 			},
 			shallowEqual,

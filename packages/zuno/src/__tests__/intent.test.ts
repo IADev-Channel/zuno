@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createZuno } from "../core";
+import type { TransportStatus, ZunoStateEvent } from "../sync";
 
 type SimpleIntent = { type: string; payload?: unknown };
 
@@ -35,7 +36,9 @@ describe("Zuno Intents", () => {
 	it("should be observable via middleware", async () => {
 		const intents: SimpleIntent[] = [];
 		const middleware =
-			() => (next: (...args: any[]) => any) => async (event: any) => {
+			() =>
+			(next: (e: ZunoStateEvent) => Promise<TransportStatus>) =>
+			async (event: ZunoStateEvent) => {
 				if (event.intent) intents.push(event.intent);
 				return next(event);
 			};

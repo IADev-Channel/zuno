@@ -340,7 +340,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 					store.apply(event.intent);
 					event.state = store.get();
 				} else {
-					const i = event.intent as { type: string; payload?: any };
+					const i = event.intent as { type: string; payload?: unknown };
 					if (i.type === "SET") {
 						event.state = i.payload;
 					}
@@ -349,8 +349,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 				}
 			} else if (event.state !== undefined) {
 				if (opts.optimistic !== false) {
-					// biome-ignore lint/suspicious/noExplicitAny: generic dispatch layer
-					store.set(event.state as any);
+					store.set(event.state as never);
 				}
 			}
 

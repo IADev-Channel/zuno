@@ -3,7 +3,6 @@ import {
 	BrowserDynamicTestingModule,
 	platformBrowserDynamicTesting,
 } from "@angular/platform-browser-dynamic/testing";
-import { firstValueFrom } from "rxjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { provideZuno, ZunoService } from "../index";
 import "zone.js";
@@ -32,16 +31,6 @@ describe("ZunoService", () => {
 		const service = TestBed.inject(ZunoService);
 		const store = service.store("obs-test", () => 0);
 
-		// const val1 = await firstValueFrom(store.asObservable());
-		// expect(val1).toBe(0);
-
-		// store.set(1);
-		// Wait for next emission? or just check value?
-		// Observable emits sync because Zuno is sync.
-		// But firstValueFrom completes on first value. We need take(1) or just current value.
-		// Actually store.asObservable() re-subscribes.
-
-		// Let's modify:
 		let lastVal: number | undefined;
 		const sub = store.asObservable().subscribe((v) => {
 			lastVal = v;
@@ -62,17 +51,11 @@ describe("ZunoService", () => {
 			const service = TestBed.inject(ZunoService);
 			const store = service.store("sig-test", () => 10);
 
-			// asSignal must be called in injection context because it uses toSignal
 			const sig = store.asSignal();
 
 			expect(sig()).toBe(10);
 
 			store.set(20);
-			// Signals might need change detection or just work if they are based on observable?
-			// toSignal updates when observable emits.
-			// Zuno emits sync. Observable emits sync. toSignal updates sync?
-			// Yes, with requireSync: false (default), or if initialValue provided.
-
 			expect(sig()).toBe(20);
 		});
 	});
@@ -88,7 +71,8 @@ describe("ZunoService", () => {
 			"eq-test",
 			() => 1.1,
 			undefined,
-			(a: any, b: any) => Math.floor(a) === Math.floor(b),
+			(a: unknown, b: unknown) =>
+				Math.floor(a as number) === Math.floor(b as number),
 		);
 
 		let callCount = 0;

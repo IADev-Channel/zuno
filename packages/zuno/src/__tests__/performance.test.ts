@@ -1,10 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createZuno, shallowEqual } from "../index";
 import * as sync from "../sync";
 
 // Mock EventSource for Node environment
 if (typeof globalThis.EventSource === "undefined") {
-	// biome-ignore lint/suspicious/noExplicitAny: simple mock
 	globalThis.EventSource = class {
 		close() {}
 		addEventListener() {}
@@ -16,7 +15,7 @@ describe("Performance & Batching", () => {
 		const mockDispatch = vi
 			.fn()
 			.mockResolvedValue({ ok: true, status: 200, json: {} });
-		const startSSESpy = vi.spyOn(sync, "startSSE").mockReturnValue({
+		const _startSSESpy = vi.spyOn(sync, "startSSE").mockReturnValue({
 			dispatch: mockDispatch,
 			unsubscribe: vi.fn(),
 		});

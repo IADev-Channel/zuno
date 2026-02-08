@@ -1,56 +1,97 @@
 import { CommonModule } from "@angular/common";
 import { Component, inject } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import { ZunoService } from "@iadev93/zuno-angular";
+
+type Todo = {
+	id: string;
+	title: string;
+	done: boolean;
+	createdAt: number;
+};
 
 @Component({
 	selector: "app-root",
 	standalone: true,
-	imports: [CommonModule],
+	imports: [CommonModule, FormsModule],
 	template: `
-    <div style="max-width: 600px; margin: 0 auto;">
-        <h1>Zuno Angular Adapter</h1>
-        
-        <div style="border: 1px solid #ccc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-            <h2>Counter Demo</h2>
-            <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
-                <button (click)="dec()">-</button>
-                <span style="font-size: 1.5rem; font-weight: bold;">{{ count() }}</span>
-                <button (click)="inc()">+</button>
-            </div>
-            
-            <p><strong>Signal Value:</strong> {{ count() }}</p>
-            <p><strong>Observable Value:</strong> {{ count$ | async }}</p>
-        </div>
+    <div class="container">
+      <h1>Zuno Angular</h1>
+      
+      <div class="counter-section">
+        <button (click)="dec()">-</button>
+        <span class="count-display">{{ count() }}</span>
+        <button (click)="inc()">+</button>
+      </div>
 
-        <div style="background: #f5f5f5; padding: 1rem; border-radius: 8px;">
-            <h3>Diagnostics</h3>
-            <pre>Connection: {{ connected ? 'Online' : 'Offline' }}</pre>
-            <button (click)="snapshot()">Log Snapshot</button>
-        </div>
+      <div class="todo-form">
+        <input 
+          type="text" 
+          [(ngModel)]="newTodoTitle" 
+          (keyup.enter)="addTodo()"
+          placeholder="What needs to be done?"
+        >
+        <button (click)="addTodo()">Add</button>
+      </div>
+
+      <ul>
+        @for (todo of sortedTodos(); track todo.id) {
+          <li class="todo-item" [class.done]="todo.done" (click)="toggle(todo.id)">
+            <span class="todo-title">{{ todo.title }}</span>
+            <button class="delete-btn" (click)="remove(todo.id, $event)">✕</button>
+          </li>
+        }
+      </ul>
     </div>
   `,
 })
 export class AppComponent {
 	zuno = inject(ZunoService);
-	// Initialize store 'counter' with 0 (must be a factory function)
-	store = this.zuno.store("counter", () => 0);
 
-	// Use as Signal
-	count = this.store.asSignal();
-	// Use as Observable
-	count$ = this.store.asObservable();
-
-	connected = true; // Placeholder
+	// --- Counter ---
+	counterStore = this.zuno.store("counter", () => 0);
+	count = this.counterStore.asSignal();
 
 	inc() {
-		this.store.set((c) => c + 1);
+		this.counterStore.set((c) => c + 1);
 	}
-
 	dec() {
-		this.store.set((c) => c - 1);
+		this.counterStore.set((c) => c - 1);
 	}
 
-	snapshot() {
-		console.log("Snapshot:", this.zuno.snapshot());
+	// --- Todos ---
+	todoStore = this.zuno.store<Todo[]>("todos", () => []);
+	todos = this.todoStore.asSignal();
+
+	newTodoTitle = "";
+
+	// Computed signal for sorting
+	get sortedTodos() {
+		return () => [...this.todos()].sort((a, b) => b.createdAt - a.createdAt);
+	}
+
+	addTodo() {
+		if (!this.newTodoTitle.trim()) return;
+
+		const newTodo: Todo = {
+			id: crypto.randomUUID(),
+			title: this.newTodoTitle.trim(),
+			done: false,
+			createdAt: Date.now(),
+		};
+
+		this.todoStore.set((list) => [newTodo, ...list]);
+		this.newTodoTitle = "";
+	}
+
+	toggle(id: string) {
+		this.todoStore.set((list) =>
+			list.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+		);
+	}
+
+	remove(id: string, e: Event) {
+		e.stopPropagation();
+		this.todoStore.set((list) => list.filter((t) => t.id !== id));
 	}
 }

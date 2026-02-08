@@ -3,13 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zuno Exercise</title>
+  <title>Zuno HTML Demo</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <h1>Zuno Exercise</h1>
-  <p>Count: <span id="count">0</span></p>
-  <button id="increment">Increment</button>
-  <button id="decrement">Decrement</button>
+  <div class="container">
+    <h1>Zuno HTML</h1>
+    
+    <div class="counter-section">
+      <button id="decrement">-</button>
+      <span id="count">0</span>
+      <button id="increment">+</button>
+    </div>
+
+    <div class="todo-section">
+      <div class="todo-form">
+        <input type="text" id="todo-input" placeholder="What needs to be done?">
+        <button id="add-todo">Add</button>
+      </div>
+      <ul id="todo-list">
+        <!-- Todos will appear here -->
+      </ul>
+    </div>
+  </div>
   <script type="module" src="./script.ts"></script>
 </body>
 </html>

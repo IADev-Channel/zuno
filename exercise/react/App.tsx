@@ -1,75 +1,129 @@
 import { createZunoReact } from "@iadev93/zuno-react";
+import { useState } from "react";
 import { loggerMiddleware } from "./logger";
+import "./App.css";
 
-/**
- * Zuno React adapter, you can also create separate files for store
- * and export it to use it in other components or utils functions.
- */
-const z = createZunoReact({
-	/** Channel name
-	 * Used for broadcast channel for multiple tabs sync
-	 * */
-	channelName: "zuno-demo",
-	/** SSE URL
-	 * Used for server-sent events for server sync
-	 * */
-	sseUrl: "http://localhost:3002/zuno/sse",
-	/** Sync URL
-	 * Used for real-time updates for client sync
-	 * */
-	syncUrl: "http://localhost:3002/zuno/sync",
-	/** Optimistic
-	 * Used for optimistic updates - local updates before server confirmation
-	 * */
-	optimistic: true,
-	middleware: [loggerMiddleware],
-	resolveConflict: (local, server, key) => {
-		console.warn(`[Zuno Conflict] Key: ${key}`, { local, server });
-		// return local; // local Wins strategy
-		return server; // Server Wins strategy
-	},
-});
-
-const counterReducer = (state: number, intent: any) => {
-	switch (intent.type) {
-		case "INCREMENT":
-			return state + (intent.payload ?? 1);
-		case "DECREMENT":
-			return state - (intent.payload ?? 1);
-		default:
-			return state;
-	}
+// --- Types ---
+type Todo = {
+	id: string;
+	title: string;
+	done: boolean;
+	createdAt: number;
 };
 
-const counter = z.store<number>("counter", () => 0, counterReducer);
+// --- Zuno Setup ---
+const z = createZunoReact({
+	channelName: "zuno-demo",
+	sseUrl: "http://localhost:3002/zuno/sse",
+	syncUrl: "http://localhost:3002/zuno/sync",
+	optimistic: true,
+	batchSync: true,
+	middleware: [loggerMiddleware],
+	resolveConflict: (local, server) => server, // Server Wins
+});
 
-/** App component */
-const App = () => {
-	/** Counter store
-	 * Used for counter state
-	 * */
-	const count = counter.use(); // ✅
+// --- Stores ---
+const counter = z.store("counter", () => 0);
+const todos = z.store<Todo[]>("todos", () => []);
 
-	/** Handle counter */
-	const handleCounter = (n: number) => {
-		/** Mutate with intent */
-		z.mutate("counter", {
-			type: n > 0 ? "INCREMENT" : "DECREMENT",
-			payload: Math.abs(n),
-		});
+// --- Components ---
+
+const Counter = () => {
+	const count = counter.use();
+	return (
+		<div className="counter-section">
+			<button type="button" onClick={() => counter.set((c) => c - 1)}>
+				-
+			</button>
+			<span className="count-display">{count}</span>
+			<button type="button" onClick={() => counter.set((c) => c + 1)}>
+				+
+			</button>
+		</div>
+	);
+};
+
+const AddTodo = () => {
+	const [text, setText] = useState("");
+
+	const handleSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!text.trim()) return;
+
+		const newTodo: Todo = {
+			id: crypto.randomUUID(),
+			title: text.trim(),
+			done: false,
+			createdAt: Date.now(),
+		};
+
+		todos.set((list) => [newTodo, ...list]);
+		setText("");
 	};
 
-	/** Return JSX */
 	return (
-		<div>
-			<h1>React Counter</h1>
-			<p>Count: {count}</p>
-			<button type="button" onClick={() => handleCounter(1)}>
-				Increment
-			</button>
-			<button type="button" onClick={() => handleCounter(-1)}>
-				Decrement
-			</button>
+		<form className="todo-form" onSubmit={handleSubmit}>
+			<input
+				type="text"
+				value={text}
+				onChange={(e) => setText(e.target.value)}
+				placeholder="What needs to be done?"
+			/>
+			<button type="submit">Add</button>
+		</form>
+	);
+};
+
+const TodoList = () => {
+	const list = todos.use();
+
+	// Sort by date descending
+	const sorted = [...list].sort((a, b) => b.createdAt - a.createdAt);
+
+	const toggle = (id: string) => {
+		todos.set((prev) =>
+			prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+		);
+	};
+
+	const remove = (id: string, e: React.MouseEvent) => {
+		e.stopPropagation();
+		todos.set((prev) => prev.filter((t) => t.id !== id));
+	};
+
+	return (
+		<ul>
+			{sorted.map((todo) => (
+				<li key={todo.id} className={`todo-item ${todo.done ? "done" : ""}`}>
+					<button
+						type="button"
+						className="todo-title-btn"
+						onClick={() => toggle(todo.id)}
+					>
+						{todo.title}
+					</button>
+					<button
+						type="button"
+						className="delete-btn"
+						onClick={(e) => remove(todo.id, e)}
+					>
+						✕
+					</button>
+				</li>
+			))}
+		</ul>
+	);
+};
+
+const App = () => {
+	return (
+		<div className="container">
+			<h1>Zuno React</h1>
+			<Counter />
+			<div className="todo-section">
+				<AddTodo />
+				<TodoList />
+			</div>
 		</div>
 	);
 };

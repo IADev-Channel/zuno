@@ -18,7 +18,7 @@ export type ZunoReadable<T> = {
 export type ZunoSubscribableStore<T> = {
 	get(): T;
 	subscribe(cb: (state: T) => void): () => void;
-	equals(v1: any, v2: any): boolean;
+	equals(v1: unknown, v2: unknown): boolean;
 };
 
 /** Adapter helper: convert store => readable */

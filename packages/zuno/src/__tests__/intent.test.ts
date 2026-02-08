@@ -1,14 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createZuno } from "../core";
+import type { StoreIntent, StoreMiddleware } from "../core/types";
 
 describe("Zuno Intents", () => {
 	it("should update state via a reducer using zuno.mutate", async () => {
 		const zuno = createZuno();
 		const COUNTER_KEY = "counter";
 
-		const reducer = (state: number, intent: any) => {
+		const reducer = (state: number, intent: StoreIntent) => {
 			if (intent.type === "INC") return state + 1;
-			if (intent.type === "ADD") return state + intent.payload;
+			if (intent.type === "ADD") return state + (intent.payload as number);
 			return state;
 		};
 
@@ -30,8 +31,8 @@ describe("Zuno Intents", () => {
 	});
 
 	it("should be observable via middleware", async () => {
-		const intents: any[] = [];
-		const middleware = () => (next: any) => async (event: any) => {
+		const intents: StoreIntent[] = [];
+		const middleware: StoreMiddleware = () => (next) => async (event) => {
 			if (event.intent) intents.push(event.intent);
 			return next(event);
 		};

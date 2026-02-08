@@ -1,91 +1,103 @@
 import { createZuno } from "@iadev93/zuno";
 
-/**
- * Initiate Zuno
- */
+type Todo = {
+	id: string;
+	title: string;
+	done: boolean;
+	createdAt: number;
+};
+
 const initiate = () => {
-	/** Counter element */
+	// Elements
 	const counterEl = document.getElementById("count") as HTMLSpanElement;
+	const incBtn = document.getElementById("increment") as HTMLButtonElement;
+	const decBtn = document.getElementById("decrement") as HTMLButtonElement;
 
-	/** Increment button */
-	const inc = document.getElementById("increment") as HTMLButtonElement;
+	const todoInput = document.getElementById("todo-input") as HTMLInputElement;
+	const addBtn = document.getElementById("add-todo") as HTMLButtonElement;
+	const todoList = document.getElementById("todo-list") as HTMLUListElement;
 
-	/** Decrement button */
-	const dec = document.getElementById("decrement") as HTMLButtonElement;
-
-	/** Create Zuno */
+	// Initialize Zuno
 	const zuno = createZuno({
-		/** Channel name (for mutiple tabs sync broadcast channel) */
-		channelName: "zuno-demo",
-
-		/** SSE URL (for server sync - real-time updates) */
+		channelName: "zuno-todos",
 		sseUrl: "http://localhost:3002/zuno/sse",
-
-		/** Sync URL (for client sync - state updates) */
 		syncUrl: "http://localhost:3002/zuno/sync",
-
-		/** Optimistic (for optimistic updates - local updates before server confirmation) */
 		optimistic: true,
-
-		/** Middleware (for intercepting and logging events) */
-		middleware: [
-			(_api) => (next) => async (event) => {
-				if (event.intent) {
-					const hasPayload =
-						event.intent.payload !== undefined && event.intent.payload !== null;
-					const payloadStr = hasPayload
-						? ` ${JSON.stringify(event.intent.payload)}`
-						: "";
-					console.log(`[Zuno] Intent: ${event.intent.type}${payloadStr}`);
-				}
-				const res = await next(event);
-				console.log(`[Zuno] Dispatching ${event.storeKey}:`, event.state);
-				console.log(`[Zuno] Result for ${event.storeKey}:`, res);
-				return res;
-			},
-		],
-
-		/** Conflict resolver (Highest number wins strategy) */
-		resolveConflict: (local, server, key) => {
-			console.warn(`[Zuno] Conflict detected on ${key}!`);
-			if (typeof local === "number" && typeof server === "number") {
-				return Math.max(local, server);
-			}
-			return server; // Fallback to server state
-		},
+		batchSync: true,
 	});
 
-	/** Counter reducer */
-	const counterReducer = (state: number, intent: any) => {
-		switch (intent.type) {
-			case "INCREMENT":
-				return state + 1;
-			case "DECREMENT":
-				return state - 1;
-			default:
-				return state;
-		}
-	};
+	// --- Counter Logic ---
 
-	/** Counter store with reducer */
-	const counter = zuno.store<number>("counter", () => 0, counterReducer);
+	const counter = zuno.store("counter", () => 0);
 
-	/** Set counter element */
+	counter.subscribe((val) => {
+		counterEl.textContent = String(val);
+	});
+	// Initial render
 	counterEl.textContent = String(counter.get());
 
-	/** Counter subscription */
-	counter.subscribe((counterValue) => {
-		counterEl.textContent = String(counterValue);
-	});
+	incBtn.addEventListener("click", () => counter.set((c) => c + 1));
+	decBtn.addEventListener("click", () => counter.set((c) => c - 1));
 
-	/** Increment button click handler */
-	inc.addEventListener("click", () => {
-		zuno.mutate("counter", { type: "INCREMENT" });
-	});
+	// --- Todo Logic ---
 
-	/** Decrement button click handler */
-	dec.addEventListener("click", () => {
-		zuno.mutate("counter", { type: "DECREMENT" });
+	const todos = zuno.store<Todo[]>("todos", () => []);
+
+	// Render Todos
+	const renderTodos = (items: Todo[]) => {
+		todoList.innerHTML = items
+			.sort((a, b) => b.createdAt - a.createdAt)
+			.map(
+				(todo) => `
+        <li class="${todo.done ? "done" : ""}" data-id="${todo.id}">
+          <span class="todo-title">${todo.title}</span>
+          <button class="delete-btn">✕</button>
+        </li>
+      `,
+			)
+			.join("");
+
+		// Re-attach listeners (simple delegation would be better but this works for simple demo)
+		todoList.querySelectorAll("li").forEach((li) => {
+			const id = li.dataset.id!;
+
+			// Toggle
+			li.querySelector(".todo-title")?.addEventListener("click", () => {
+				todos.set((list) =>
+					list.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+				);
+			});
+
+			// Delete
+			li.querySelector(".delete-btn")?.addEventListener("click", (e) => {
+				e.stopPropagation();
+				todos.set((list) => list.filter((t) => t.id !== id));
+			});
+		});
+	};
+
+	todos.subscribe(renderTodos);
+	renderTodos(todos.get());
+
+	// Add Todo
+	const addTodo = () => {
+		const title = todoInput.value.trim();
+		if (!title) return;
+
+		const newTodo: Todo = {
+			id: crypto.randomUUID(),
+			title,
+			done: false,
+			createdAt: Date.now(),
+		};
+
+		todos.set((list) => [newTodo, ...list]);
+		todoInput.value = "";
+	};
+
+	addBtn.addEventListener("click", addTodo);
+	todoInput.addEventListener("keypress", (e) => {
+		if (e.key === "Enter") addTodo();
 	});
 };
 

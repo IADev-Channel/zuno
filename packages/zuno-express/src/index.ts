@@ -68,7 +68,10 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 		 * @param app The Express App or Router to mount the handlers on.
 		 * @param basePath The base path for the Zuno routes (defaults to "/zuno").
 		 */
-		mount: (app: { get: Function; post: Function }, basePath = "/zuno") => {
+		mount: (
+			app: { get: (...args: any[]) => any; post: (...args: any[]) => any },
+			basePath = "/zuno",
+		) => {
 			app.get(`${basePath}/sse`, handlers.sse);
 			app.get(`${basePath}/snapshot`, handlers.snapshot);
 			app.post(`${basePath}/sync`, handlers.sync);
@@ -80,7 +83,7 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
  * A standalone helper to mount Zuno handlers on an Express app/router.
  */
 export function mountZuno(
-	app: { get: Function; post: Function },
+	app: { get: (...args: any[]) => any; post: (...args: any[]) => any },
 	opts?: CreateZunoExpressOptions & { basePath?: string },
 ) {
 	const { basePath = "/zuno", ...rest } = opts ?? {};

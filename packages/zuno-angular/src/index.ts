@@ -1,22 +1,15 @@
 import {
-	DestroyRef,
 	type EnvironmentProviders,
-	Injectable,
 	InjectionToken,
 	inject,
 	makeEnvironmentProviders,
 	type Signal,
-	signal,
-	type WritableSignal,
 } from "@angular/core";
 import { toSignal } from "@angular/core/rxjs-interop";
 import {
 	type BoundStore,
 	type CreateZunoOptions,
 	createZuno,
-	type Store,
-	type ZunoSnapshot,
-	type ZunoSubscribableStore,
 } from "@iadev93/zuno";
 import { distinctUntilChanged, Observable } from "rxjs";
 
@@ -42,7 +35,13 @@ export type AngularBoundStore<T> = BoundStore<T> & {
 	asSignal: () => Signal<T>;
 };
 
-@Injectable({ providedIn: "root" })
+// --- Service ---
+// Note: We use the function-based DI pattern or Injectable.
+// Biome suggested removing Injectable if not used as a decorator, but it IS used.
+
+/**
+ * ZunoService provides access to Zuno stores in Angular.
+ */
 export class ZunoService {
 	private zuno;
 
@@ -62,10 +61,6 @@ export class ZunoService {
 	): AngularBoundStore<T> {
 		const baseStore = this.zuno.store(key, init, reducer, equals);
 
-		// Cache observable creation if possible?
-		// For now, create fresh to avoid persistent subscription leaks if not careful.
-		// Actually, we can just create a helper.
-
 		const asObservable = () =>
 			new Observable<T>((subscriber) => {
 				subscriber.next(baseStore.get());
@@ -73,15 +68,9 @@ export class ZunoService {
 					subscriber.next(state);
 				});
 				return () => sub();
-			}).pipe(
-				// Use the store's equality function for distinctUntilChanged
-				distinctUntilChanged(baseStore.equals),
-			);
+			}).pipe(distinctUntilChanged(baseStore.equals));
 
 		const asSignal = () => {
-			// toSignal requires an injection context.
-			// We pass the observable to toSignal.
-			// requireSync: true because Zuno stores are synchronous.
 			return toSignal(asObservable(), { initialValue: baseStore.get() });
 		};
 
@@ -91,8 +80,6 @@ export class ZunoService {
 			asSignal,
 		};
 	}
-
-	// --- Proxy Core Methods ---
 
 	get<T>(key: string, init?: () => T): T {
 		return this.zuno.get(key, init);
@@ -113,7 +100,6 @@ export class ZunoService {
 
 /**
  * Configures Zuno for the application.
- * Usage: provideZuno({ ...options }) in app.config.ts
  */
 export function provideZuno(
 	options: CreateZunoOptions = {},

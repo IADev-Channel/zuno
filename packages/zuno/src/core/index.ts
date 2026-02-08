@@ -122,9 +122,9 @@ export const createStore = <T>(
 			notify();
 		},
 		apply: (intent) => {
-			const i = intent as { type: string; payload?: any };
+			const i = intent as { type: string; payload?: unknown };
 			if (i.type === "SET") {
-				const value = i.payload;
+				const value = i.payload as T;
 				if (equals(value, state)) return;
 				state = value;
 				notify();
@@ -156,7 +156,7 @@ export const createStore = <T>(
 export const createUniverse = (): Universe => {
 	// biome-ignore lint/suspicious/noExplicitAny: internal registry of heterogeneous stores
 	const stores = new Map<string, Store<any>>();
-	let cachedSnapshot: Record<string, any> | null = null;
+	let cachedSnapshot: Record<string, unknown> | null = null;
 
 	const universe: Universe = {
 		getStore<T>(
@@ -471,7 +471,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 			return dispatch({
 				storeKey: key,
 				// coreDispatch will calculate state from intent
-				state: undefined as any,
+				state: undefined as unknown,
 				intent,
 			});
 		},

@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createZuno } from "../core";
-import type { StoreIntent, StoreMiddleware } from "../core/types";
+
+type SimpleIntent = { type: string; payload?: unknown };
 
 describe("Zuno Intents", () => {
 	it("should update state via a reducer using zuno.mutate", async () => {
 		const zuno = createZuno();
 		const COUNTER_KEY = "counter";
 
-		const reducer = (state: number, intent: StoreIntent) => {
-			if (intent.type === "INC") return state + 1;
-			if (intent.type === "ADD") return state + (intent.payload as number);
+		const reducer = (state: number, intent: unknown) => {
+			const i = intent as SimpleIntent;
+			if (i.type === "INC") return state + 1;
+			if (i.type === "ADD") return state + (i.payload as number);
 			return state;
 		};
 
@@ -31,11 +33,12 @@ describe("Zuno Intents", () => {
 	});
 
 	it("should be observable via middleware", async () => {
-		const intents: StoreIntent[] = [];
-		const middleware: StoreMiddleware = () => (next) => async (event) => {
-			if (event.intent) intents.push(event.intent);
-			return next(event);
-		};
+		const intents: SimpleIntent[] = [];
+		const middleware =
+			() => (next: (...args: any[]) => any) => async (event: any) => {
+				if (event.intent) intents.push(event.intent);
+				return next(event);
+			};
 
 		const zuno = createZuno({ middleware: [middleware] });
 		const key = "test";

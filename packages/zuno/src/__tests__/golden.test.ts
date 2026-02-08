@@ -80,7 +80,7 @@ describe("Zuno Golden Tests", () => {
 	});
 
 	it("Golden Flow 2: Conflict Resolution Determinism", async () => {
-		const resolveConflict = (local: any, server: any) => {
+		const resolveConflict = (local: unknown, server: unknown) => {
 			if (typeof local === "number" && typeof server === "number") {
 				return Math.max(local, server);
 			}

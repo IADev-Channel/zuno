@@ -5,7 +5,7 @@ import {
 } from "@angular/platform-browser-dynamic/testing";
 import { firstValueFrom } from "rxjs";
 import { beforeAll, describe, expect, it } from "vitest";
-import { provideZuno, ZUNO_OPTIONS, ZunoService } from "../index";
+import { provideZuno, ZunoService } from "../index";
 import "zone.js";
 import "zone.js/testing";
 

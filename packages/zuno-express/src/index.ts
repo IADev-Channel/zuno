@@ -3,9 +3,17 @@ import type { ZunoStateEvent } from "@iadev93/zuno";
 import {
 	applyStateEvent,
 	createSSEConnection,
+	createZunoServerState,
 	sendSnapshot,
+	type ZunoServerState,
 } from "@iadev93/zuno/server";
 import type { Request, Response } from "express";
+
+export type ZunoExpressAuthorizationContext = {
+	action: "read" | "write";
+	request: Request;
+	event?: unknown;
+};
 
 /**
  * Options for creating an Express router for Zuno.
@@ -13,6 +21,12 @@ import type { Request, Response } from "express";
 export type CreateZunoExpressOptions = {
 	/** Optional custom headers to be sent with the SSE response. */
 	headers?: IncomingHttpHeaders;
+	/** Isolated authoritative server state. A new instance is created by default. */
+	server?: ZunoServerState;
+	/** Provider-agnostic authorization hook for snapshots, SSE, and mutations. */
+	authorize?: (
+		context: ZunoExpressAuthorizationContext,
+	) => boolean | Promise<boolean>;
 };
 
 /**
@@ -20,7 +34,13 @@ export type CreateZunoExpressOptions = {
  * Returns both granular handlers and a convenience `mount` helper.
  */
 export function createZunoExpress(opts?: CreateZunoExpressOptions) {
-	const { headers = {} } = opts ?? {};
+	const {
+		headers = {},
+		server = createZunoServerState(),
+		authorize = () => true,
+	} = opts ?? {};
+	const forbidden = (res: Response) =>
+		res.status(403).json({ ok: false, reason: "FORBIDDEN" });
 
 	/**
 	 * Granular handlers for maximum control.
@@ -31,22 +51,35 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 		 * SSE connection handler.
 		 * Usage: app.get('/custom/sse', zuno.sse);
 		 */
-		sse: (req: Request, res: Response) =>
-			createSSEConnection(req, res, headers),
+		sse: async (req: Request, res: Response) => {
+			if (!(await authorize({ action: "read", request: req }))) {
+				forbidden(res);
+				return;
+			}
+			createSSEConnection(req, res, headers, server);
+		},
 
 		/**
 		 * Sync POST handler.
 		 * Usage: app.post('/custom/sync', zuno.sync);
 		 */
-		sync: (req: Request, res: Response) => {
+		sync: async (req: Request, res: Response) => {
 			const incoming = req.body as ZunoStateEvent;
-			const result = applyStateEvent(incoming);
+			if (
+				!(await authorize({ action: "write", request: req, event: incoming }))
+			) {
+				forbidden(res);
+				return;
+			}
+			const result = applyStateEvent(incoming, server);
 
 			if (!result.ok) {
-				res.status(409).json({
+				res.status(result.reason === "VERSION_CONFLICT" ? 409 : 400).json({
 					ok: false,
 					reason: result.reason,
-					current: result.current,
+					...(result.reason === "VERSION_CONFLICT"
+						? { current: result.current }
+						: { errors: result.errors }),
 				});
 				return;
 			}
@@ -58,11 +91,18 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 		 * Snapshot GET handler.
 		 * Usage: app.get('/custom/snapshot', zuno.snapshot);
 		 */
-		snapshot: (req: Request, res: Response) => sendSnapshot(req, res),
+		snapshot: async (req: Request, res: Response) => {
+			if (!(await authorize({ action: "read", request: req }))) {
+				forbidden(res);
+				return;
+			}
+			sendSnapshot(req, res, server);
+		},
 	};
 
 	return {
 		...handlers,
+		server,
 		/**
 		 * Optional convenience method to mount all Zuno handlers at once.
 		 * @param app The Express App or Router to mount the handlers on.

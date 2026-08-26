@@ -1,10 +1,8 @@
 import type { ZunoStateEvent } from "@iadev93/zuno";
 import {
 	applyStateEvent,
-	getEventsAfter,
-	getLastEventId,
-	getUniverseState,
-	subscribeToStateEvents,
+	createZunoServerState,
+	type ZunoServerState,
 } from "@iadev93/zuno/server";
 import { sse } from "elysia";
 
@@ -21,7 +19,20 @@ import { sse } from "elysia";
  *   - snapshot: A function that handles snapshot GET requests for Elysia.
  *   - snapshot: A function that handles snapshot GET requests for Elysia.
  */
-export function createZunoElysia() {
+export type CreateZunoElysiaOptions = {
+	/** Isolated authoritative server state. A new instance is created by default. */
+	server?: ZunoServerState;
+	/** Provider-agnostic authorization hook for snapshots, SSE, and mutations. */
+	authorize?: (context: {
+		action: "read" | "write";
+		request: unknown;
+		event?: unknown;
+	}) => boolean | Promise<boolean>;
+};
+
+export function createZunoElysia(options: CreateZunoElysiaOptions = {}) {
+	const server = options.server ?? createZunoServerState();
+	const authorize = options.authorize ?? (() => true);
 	return {
 		/**
 		 * Handles SSE connections for Elysia using an async generator.
@@ -31,7 +42,12 @@ export function createZunoElysia() {
 		 * @param {Object} param.query - Elysia request query parameters.
 		 */
 		// biome-ignore lint/suspicious/noExplicitAny: Elysia request object
-		sse: async function* ({ set, headers, query }: any) {
+		sse: async function* (request: any) {
+			const { set, headers, query } = request;
+			if (!(await authorize({ action: "read", request }))) {
+				set.status = 403;
+				return;
+			}
 			set.headers["Content-Type"] = "text/event-stream";
 			set.headers["Cache-Control"] = "no-cache";
 			set.headers.Connection = "keep-alive";
@@ -43,26 +59,28 @@ export function createZunoElysia() {
 			const queue: any[] = [];
 			let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
 
-			const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
-				queue.push(
-					sse({
-						id: String(event.eventId),
-						event: "state",
-						data: JSON.stringify(event),
-					}),
-				);
-				if (resolve) {
-					resolve();
-					resolve = null;
-				}
-			});
+			const unsubscribe = server.subscribeToStateEvents(
+				(event: ZunoStateEvent) => {
+					queue.push(
+						sse({
+							id: String(event.eventId),
+							event: "state",
+							data: JSON.stringify(event),
+						}),
+					);
+					if (resolve) {
+						resolve();
+						resolve = null;
+					}
+				},
+			);
 
 			// 2. Decide if we send snapshot or missed events
 			const rawLastEventId = headers["last-event-id"] || query?.lastEventId;
 			const lastEventId = Number.parseInt(rawLastEventId || "0", 10) || 0;
 
 			if (lastEventId > 0) {
-				const missed = getEventsAfter(lastEventId);
+				const missed = server.getEventsAfter(lastEventId);
 				for (const event of missed) {
 					yield sse({
 						id: String(event.eventId),
@@ -71,7 +89,7 @@ export function createZunoElysia() {
 					});
 				}
 			} else {
-				const snapshot = getUniverseState();
+				const snapshot = server.getUniverseState();
 				yield sse({
 					event: "snapshot",
 					data: JSON.stringify(snapshot),
@@ -116,16 +134,23 @@ export function createZunoElysia() {
 		 *   - event: The event that was applied to the universe.
 		 */
 		// biome-ignore lint/suspicious/noExplicitAny: Elysia request body
-		sync: ({ body, set }: any) => {
+		sync: async (request: any) => {
+			const { body, set } = request;
 			const incoming = body as ZunoStateEvent;
-			const result = applyStateEvent(incoming);
+			if (!(await authorize({ action: "write", request, event: incoming }))) {
+				set.status = 403;
+				return { ok: false, reason: "FORBIDDEN" };
+			}
+			const result = applyStateEvent(incoming, server);
 
 			if (!result.ok) {
-				set.status = 409;
+				set.status = result.reason === "VERSION_CONFLICT" ? 409 : 400;
 				return {
 					ok: false,
 					reason: result.reason,
-					current: result.current,
+					...(result.reason === "VERSION_CONFLICT"
+						? { current: result.current }
+						: { errors: result.errors }),
 				};
 			}
 
@@ -139,13 +164,16 @@ export function createZunoElysia() {
 		 *   - version: The version of the universe.
 		 *   - lastEventId: The ID of the last event in the universe.
 		 */
-		snapshot: () => {
+		snapshot: async (request: { set: { status?: number } }) => {
+			if (!(await authorize({ action: "read", request }))) {
+				request.set.status = 403;
+				return { ok: false, reason: "FORBIDDEN" };
+			}
 			return {
-				state: getUniverseState(),
-				// biome-ignore lint/suspicious/noExplicitAny: helper cast
-				version: (getUniverseState() as any).version ?? 0,
-				lastEventId: getLastEventId(),
+				state: server.getUniverseState(),
+				lastEventId: server.getLastEventId(),
 			};
 		},
+		server,
 	};
 }

@@ -1,32 +1,36 @@
-import { createZuno } from "@iadev93/zuno";
-import { describe, expect, it } from "vitest";
-import { type CreateZunoExpressOptions, createZunoExpress } from "../index";
+import { createZunoServerState } from "@iadev93/zuno/server";
+import type { Request, Response } from "express";
+import { describe, expect, it, vi } from "vitest";
+import { createZunoExpress } from "../index";
 
 describe("Zuno Express", () => {
-	it("should attach zuno instance to request", () => {
-		// 1. Setup Zuno instance
-		const _instance = createZuno();
-
-		// 2. Create middleware
-		const _opts: CreateZunoExpressOptions = {
-			// zuno: instance, // createZunoExpress doesn't take 'zuno' option in index.ts logic
-			// Wait, looking at index.ts, createZunoExpress takes headers.
-			// It returns handlers: { sse, sync, snapshot }.
-			// It does NOT act as a middleware that attaches req.zuno?
-			// Let's re-read index.ts behavior.
-		};
-
-		// logic check:
-		// createZunoExpress returns handlers.
-		// It seems zuno-express is NOT a middleware that attaches 'zuno' to req?
-		// It's a set of handlers you mount.
-
+	it("returns the server handlers", () => {
 		const handlers = createZunoExpress();
 		expect(handlers).toHaveProperty("sse");
 		expect(handlers).toHaveProperty("sync");
 		expect(handlers).toHaveProperty("snapshot");
 	});
 
-	// Note: Testing actual SSE/Sync routes requires mocking zuno.startSSE behavior which isn't exposed perfectly on instance.
-	// But checking attachment is the core responsibility of the wrapper.
+	it("uses an injected isolated server instance", () => {
+		const server = createZunoServerState();
+		expect(createZunoExpress({ server }).server).toBe(server);
+	});
+
+	it("creates an isolated server by default", () => {
+		expect(createZunoExpress().server).not.toBe(createZunoExpress().server);
+	});
+
+	it("rejects unauthorized writes before mutating state", async () => {
+		const server = createZunoServerState();
+		const handlers = createZunoExpress({ server, authorize: () => false });
+		const status = vi.fn().mockReturnThis();
+		const json = vi.fn();
+		const request = { body: { storeKey: "counter", state: 1 } } as Request;
+		const response = { status, json } as unknown as Response;
+
+		await handlers.sync(request, response);
+
+		expect(status).toHaveBeenCalledWith(403);
+		expect(server.getUniverseState()).toEqual({});
+	});
 });

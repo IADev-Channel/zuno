@@ -26,7 +26,10 @@ app.get("/zuno/counter/:value", (req, res) => {
 		return;
 	}
 
-	const result = applyStateEvent({ storeKey: "counter", state: counterValue });
+	const result = applyStateEvent(
+		{ storeKey: "counter", state: counterValue },
+		zuno.server,
+	);
 
 	res.status(200).json({ ok: true, event: result.ok ? result.event : null });
 });

@@ -18,10 +18,10 @@ const app = new Elysia()
 			return { ok: false, reason: "INVALID_VALUE" };
 		}
 
-		const result = applyStateEvent({
-			storeKey: "counter",
-			state: counterValue,
-		});
+		const result = applyStateEvent(
+			{ storeKey: "counter", state: counterValue },
+			zuno.server,
+		);
 
 		return { ok: true, event: result.ok ? result.event : null };
 	})

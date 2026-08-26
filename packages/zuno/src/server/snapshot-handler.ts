@@ -1,14 +1,18 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getLastEventId, getUniverseState } from "./core";
+import { defaultZunoServerState, type ZunoServerState } from "./core";
 
 /**
  * Sends a snapshot of the current universe state to the response.
  * Compatible with both Express and raw Node.js http.
  */
-export function sendSnapshot(_req: IncomingMessage, res: ServerResponse) {
+export function sendSnapshot(
+	_req: IncomingMessage,
+	res: ServerResponse,
+	server: ZunoServerState = defaultZunoServerState,
+) {
 	const snapshot = {
-		state: getUniverseState(),
-		lastEventId: getLastEventId(),
+		state: server.getUniverseState(),
+		lastEventId: server.getLastEventId(),
 	};
 
 	// Check for Express-like .json() method

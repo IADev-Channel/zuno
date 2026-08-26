@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-08-26
+
+### Added
+- Added isolated `ZunoServerState` instances and a lazy namespace/tenant registry.
+- Added provider-agnostic read/write authorization hooks to Express and Elysia adapters.
+- Added configurable replay-log and serialized-state size limits.
+- Added regression coverage for server isolation, namespaces, validation, limits, and authorization.
+
+### Changed
+- Express and Elysia adapters now create isolated server state by default and expose it as `zuno.server`.
+- Custom server endpoints can share adapter state by passing the exposed server to `applyStateEvent`.
+
+### Fixed
+- Malformed events now return consistent validation errors without mutating authoritative state.
+
 ## [0.0.10] - 2026-08-26
 
 ### Fixed

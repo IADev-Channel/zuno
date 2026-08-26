@@ -149,6 +149,27 @@ This contract is used by official adapters:
 
 If you want to host Zuno sync endpoints yourself (without `@iadev93/zuno-express`), the core package provides server-side utilities via the `@iadev93/zuno/server` entry point.
 
+### Isolated server state
+
+Create one server state instance per application or isolation boundary. State, replay events, and SSE listeners are private to that instance.
+
+```ts
+import {
+  applyStateEvent,
+  createZunoServerState,
+} from "@iadev93/zuno/server";
+
+const server = createZunoServerState({ maxEvents: 1000 });
+const result = applyStateEvent(
+  { storeKey: "counter", state: 1, baseVersion: 0 },
+  server,
+);
+```
+
+For multi-tenant routing, use `createZunoServerRegistry()` and select a namespace from trusted application context before invoking an adapter or server helper. Registry entries have independent state, replay logs, and listeners.
+
+The original module-level helpers remain available and use `defaultZunoServerState` for backward compatibility. New applications should prefer explicit instances.
+
 ### Snapshot handler
 
 The snapshot handler returns the current universe/store snapshot for new clients.

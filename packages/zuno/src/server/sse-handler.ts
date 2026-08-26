@@ -1,11 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ZunoStateEvent } from "../sync";
 import { applyStateEvent } from "./apply-state-event";
-import {
-	getEventsAfter,
-	getUniverseState,
-	subscribeToStateEvents,
-} from "./core";
+import { defaultZunoServerState, type ZunoServerState } from "./core";
 
 type IncomingHeaders = IncomingMessage["headers"];
 
@@ -16,6 +12,7 @@ export const createSSEConnection = (
 	req: IncomingMessage,
 	res: ServerResponse,
 	headers: IncomingHeaders,
+	server: ZunoServerState = defaultZunoServerState,
 ) => {
 	res.writeHead(200, {
 		"Cache-Control": "no-cache, no-transform",
@@ -43,7 +40,7 @@ export const createSSEConnection = (
 		res.write(`data: ${JSON.stringify(event)}\n\n`);
 	};
 
-	const unsubscribe = subscribeToStateEvents((event: ZunoStateEvent) => {
+	const unsubscribe = server.subscribeToStateEvents((event: ZunoStateEvent) => {
 		if (isSyncing) {
 			buffer.push(event);
 		} else {
@@ -53,13 +50,13 @@ export const createSSEConnection = (
 
 	// 2. Send missed events or snapshot
 	if (lastEventId > 0) {
-		const missed = getEventsAfter(lastEventId);
+		const missed = server.getEventsAfter(lastEventId);
 		for (const event of missed) {
 			writeEvent(event);
 		}
 	} else {
 		res.write(`event: snapshot\n`);
-		res.write(`data: ${JSON.stringify(getUniverseState())}\n\n`);
+		res.write(`data: ${JSON.stringify(server.getUniverseState())}\n\n`);
 	}
 
 	// 3. Flush buffer and switch to live mode
@@ -88,6 +85,7 @@ export const createSSEConnection = (
 export const syncUniverseState = (
 	req: IncomingMessage,
 	res: ServerResponse,
+	server: ZunoServerState = defaultZunoServerState,
 ) => {
 	const MAX_BODY_BYTES = 512 * 1024; // 512KB safety
 	let body = "";
@@ -106,7 +104,7 @@ export const syncUniverseState = (
 			const incoming: ZunoStateEvent = JSON.parse(
 				body || "{}",
 			) as unknown as ZunoStateEvent;
-			const result = applyStateEvent(incoming);
+			const result = applyStateEvent(incoming, server);
 
 			if (!result.ok) {
 				if (result.reason === "VERSION_CONFLICT") {
@@ -116,6 +114,15 @@ export const syncUniverseState = (
 							ok: false,
 							reason: "VERSION_CONFLICT",
 							current: result.current,
+						}),
+					);
+				} else {
+					res.writeHead(400, { "Content-Type": "application/json" });
+					res.end(
+						JSON.stringify({
+							ok: false,
+							reason: result.reason,
+							errors: result.errors,
 						}),
 					);
 				}
@@ -131,6 +138,10 @@ export const syncUniverseState = (
 	});
 };
 
-export const setUniverseState = (req: IncomingMessage, res: ServerResponse) => {
-	return syncUniverseState(req, res);
+export const setUniverseState = (
+	req: IncomingMessage,
+	res: ServerResponse,
+	server: ZunoServerState = defaultZunoServerState,
+) => {
+	return syncUniverseState(req, res, server);
 };

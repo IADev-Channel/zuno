@@ -154,6 +154,101 @@ describe("Zuno Sync", () => {
 		expect(secondCallBody.baseVersion).toBe(20);
 	});
 
+	it("bounds the offline queue", async () => {
+		Object.defineProperty(navigator, "onLine", { value: false });
+		const transport = startSSE({ ...opts, maxQueueSize: 1 });
+
+		const first = await transport.dispatch({ storeKey: "a", state: 1 });
+		const second = await transport.dispatch({ storeKey: "b", state: 2 });
+
+		expect(first.reason).toBe("OFFLINE_QUEUED");
+		expect(second.reason).toBe("QUEUE_FULL");
+		transport.unsubscribe?.();
+	});
+
+	it("retains and retries events after a server error", async () => {
+		vi.useFakeTimers();
+		class SilentEventSource {
+			onopen: (() => void) | null = null;
+			onerror: (() => void) | null = null;
+			close() {}
+			addEventListener() {}
+		}
+		global.EventSource = SilentEventSource as unknown as typeof EventSource;
+		global.fetch = vi
+			.fn()
+			.mockResolvedValueOnce({
+				ok: false,
+				status: 503,
+				json: async () => ({ reason: "UNAVAILABLE" }),
+			})
+			.mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({ event: { version: 1 } }),
+			});
+		const transport = startSSE(opts);
+
+		const result = await transport.dispatch({ storeKey: "retry", state: 1 });
+		expect(result.reason).toBe("SERVER_ERROR_QUEUED");
+		await vi.advanceTimersByTimeAsync(1000);
+		const retryCalls = vi.mocked(global.fetch).mock.calls.filter((call) => {
+			const body = JSON.parse(String(call[1]?.body));
+			return body.storeKey === "retry";
+		});
+		expect(retryCalls).toHaveLength(2);
+
+		transport.unsubscribe?.();
+		vi.useRealTimers();
+		global.EventSource = MockEventSource as unknown as typeof EventSource;
+	});
+
+	it("bounds automatic conflict retries", async () => {
+		global.fetch = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 409,
+			json: async () => ({ current: { state: 0, version: 1 } }),
+		});
+		const transport = startSSE({
+			...opts,
+			maxConflictRetries: 1,
+			resolveConflict: (local) => local,
+		});
+
+		const result = await transport.dispatch({ storeKey: "loop", state: 5 });
+
+		expect(result.reason).toBe("CONFLICT_RETRY_LIMIT");
+		expect(global.fetch).toHaveBeenCalledTimes(2);
+		transport.unsubscribe?.();
+	});
+
+	it("cancels scheduled reconnects and removes listeners on stop", async () => {
+		vi.useFakeTimers();
+		const instances: ReconnectEventSource[] = [];
+		class ReconnectEventSource {
+			onopen: (() => void) | null = null;
+			onerror: (() => void) | null = null;
+			constructor(_url: string) {
+				instances.push(this);
+			}
+			close() {}
+			addEventListener() {}
+		}
+		global.EventSource = ReconnectEventSource as unknown as typeof EventSource;
+		const removeListener = vi.spyOn(window, "removeEventListener");
+		const transport = startSSE(opts);
+		instances[0].onerror?.();
+
+		transport.unsubscribe?.();
+		await vi.runAllTimersAsync();
+
+		expect(instances).toHaveLength(1);
+		expect(removeListener).toHaveBeenCalledWith("online", expect.any(Function));
+		removeListener.mockRestore();
+		vi.useRealTimers();
+		global.EventSource = MockEventSource as unknown as typeof EventSource;
+	});
+
 	// Mock BroadcastChannel with shared listeners
 	// biome-ignore lint/suspicious/noExplicitAny: mock channel data
 	const listeners = new Map<string, Set<(e: any) => void>>();

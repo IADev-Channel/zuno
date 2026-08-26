@@ -57,21 +57,29 @@ export function createZunoElysia(options: CreateZunoElysiaOptions = {}) {
 			// 1. Subscribe FIRST to avoid missing events during snapshot/missed-events retrieval
 			// biome-ignore lint/suspicious/noExplicitAny: queue of any SSE events
 			const queue: any[] = [];
+			let overflowed = false;
 			let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
+			const enqueue = (message: unknown) => {
+				if (queue.length >= server.maxSubscriberBuffer) {
+					overflowed = true;
+				} else {
+					queue.push(message);
+				}
+				if (resolve) {
+					resolve();
+					resolve = null;
+				}
+			};
 
 			const unsubscribe = server.subscribeToStateEvents(
 				(event: ZunoStateEvent) => {
-					queue.push(
+					enqueue(
 						sse({
 							id: String(event.eventId),
 							event: "state",
 							data: JSON.stringify(event),
 						}),
 					);
-					if (resolve) {
-						resolve();
-						resolve = null;
-					}
 				},
 			);
 
@@ -79,7 +87,7 @@ export function createZunoElysia(options: CreateZunoElysiaOptions = {}) {
 			const rawLastEventId = headers["last-event-id"] || query?.lastEventId;
 			const lastEventId = Number.parseInt(rawLastEventId || "0", 10) || 0;
 
-			if (lastEventId > 0) {
+			if (lastEventId > 0 && server.canReplayAfter(lastEventId)) {
 				const missed = server.getEventsAfter(lastEventId);
 				for (const event of missed) {
 					yield sse({
@@ -91,6 +99,7 @@ export function createZunoElysia(options: CreateZunoElysiaOptions = {}) {
 			} else {
 				const snapshot = server.getUniverseState();
 				yield sse({
+					id: String(server.getLastEventId()),
 					event: "snapshot",
 					data: JSON.stringify(snapshot),
 				});
@@ -98,20 +107,18 @@ export function createZunoElysia(options: CreateZunoElysiaOptions = {}) {
 
 			// 3. Heartbeat interval
 			const heartbeat = setInterval(() => {
-				queue.push(sse({ data: `: ping ${Date.now()}` }));
-				if (resolve) {
-					resolve();
-					resolve = null;
-				}
+				enqueue(sse({ data: `: ping ${Date.now()}` }));
 			}, 15000);
 
 			try {
 				while (true) {
+					if (overflowed) return;
 					if (queue.length === 0) {
 						await new Promise<void>((r) => {
 							resolve = r;
 						});
 					}
+					if (overflowed) return;
 
 					while (queue.length > 0) {
 						// biome-ignore lint/style/noNonNullAssertion: queue is checked for length > 0

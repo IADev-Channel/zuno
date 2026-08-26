@@ -12,6 +12,8 @@ export type CreateZunoServerStateOptions = {
 	maxEvents?: number;
 	/** Maximum serialized state size accepted per event. */
 	maxStateBytes?: number;
+	/** Maximum events buffered for a slow SSE subscriber. */
+	maxSubscriberBuffer?: number;
 };
 
 /**
@@ -21,6 +23,7 @@ export type CreateZunoServerStateOptions = {
 export class ZunoServerState {
 	readonly maxEvents: number;
 	readonly maxStateBytes: number;
+	readonly maxSubscriberBuffer: number;
 	private readonly universeState = new Map<string, UniverseRecord>();
 	private readonly eventLog: ZunoStateEvent[] = [];
 	private readonly listeners = new Set<ZunoStateListener>();
@@ -29,14 +32,19 @@ export class ZunoServerState {
 	constructor(options: CreateZunoServerStateOptions = {}) {
 		const maxEvents = options.maxEvents ?? 1000;
 		const maxStateBytes = options.maxStateBytes ?? 512 * 1024;
+		const maxSubscriberBuffer = options.maxSubscriberBuffer ?? 1000;
 		if (!Number.isInteger(maxEvents) || maxEvents < 1) {
 			throw new TypeError("maxEvents must be a positive integer");
 		}
 		if (!Number.isInteger(maxStateBytes) || maxStateBytes < 1) {
 			throw new TypeError("maxStateBytes must be a positive integer");
 		}
+		if (!Number.isInteger(maxSubscriberBuffer) || maxSubscriberBuffer < 1) {
+			throw new TypeError("maxSubscriberBuffer must be a positive integer");
+		}
 		this.maxEvents = maxEvents;
 		this.maxStateBytes = maxStateBytes;
+		this.maxSubscriberBuffer = maxSubscriberBuffer;
 	}
 
 	getUniverseRecord(storeKey: string): UniverseRecord | undefined {
@@ -71,6 +79,17 @@ export class ZunoServerState {
 
 	getEventsAfter(lastEventId: number): ZunoStateEvent[] {
 		return this.eventLog.filter((event) => (event.eventId ?? 0) > lastEventId);
+	}
+
+	canReplayAfter(lastEventId: number): boolean {
+		const latest = this.getLastEventId();
+		if (lastEventId === latest) return true;
+		const first = this.eventLog[0]?.eventId;
+		return (
+			typeof first === "number" &&
+			lastEventId >= first - 1 &&
+			lastEventId < latest
+		);
 	}
 
 	getLastEventId(): number {

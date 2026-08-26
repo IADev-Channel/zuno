@@ -50,14 +50,14 @@ Completion evidence: 38 tests pass, Biome passes, and all five packages build wi
 
 Completion criteria: isolated instances pass adapter integration tests, invalid events are rejected consistently, and existing consumers have a clear compatibility path.
 
-## Milestone 4: Replay and Transport Resilience
+## Milestone 4: Replay and Transport Resilience — In Progress
 
-- [ ] Detect event-log replay gaps and send a full snapshot when the requested event is no longer retained.
-- [ ] Stop scheduled SSE reconnections after `stop()`.
-- [ ] Remove browser event listeners during cleanup.
-- [ ] Add bounded retry and backoff behavior for network and conflict failures.
-- [ ] Preserve retryable events on HTTP 5xx responses.
-- [ ] Add queue and SSE-client buffer limits for backpressure protection.
+- [x] Detect event-log replay gaps and send a full snapshot when the requested event is no longer retained.
+- [x] Stop scheduled SSE reconnections after `stop()`.
+- [x] Remove browser event listeners during cleanup.
+- [x] Add bounded retry and backoff behavior for network and conflict failures.
+- [x] Preserve retryable events on HTTP 5xx responses.
+- [x] Add queue and SSE-client buffer limits for backpressure protection.
 - [ ] Add a pluggable offline queue with an IndexedDB implementation.
 - [ ] Test reconnects, replay truncation, process restart, slow subscribers, and cleanup.
 

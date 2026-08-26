@@ -115,6 +115,11 @@ export type SSEOptions = {
 	clientId: string;
 	versions: Map<string, number>;
 	getLastEventId: () => number;
+	setLastEventId?: (id: number) => void;
+	/** Maximum number of mutations retained while offline (default: 100). */
+	maxQueueSize?: number;
+	/** Maximum automatic retries for a single conflict (default: 3). */
+	maxConflictRetries?: number;
 	onOpen?: () => void;
 	onClose?: () => void;
 	onEvent?: (event: ZunoStateEvent) => void;
@@ -129,11 +134,23 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		clientId,
 		versions,
 		getLastEventId,
+		setLastEventId,
 		onEvent,
 		resolveConflict,
 	} = opts;
+	const maxQueueSize = opts.maxQueueSize ?? 100;
+	const maxConflictRetries = opts.maxConflictRetries ?? 3;
+	if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) {
+		throw new TypeError("maxQueueSize must be a positive integer");
+	}
+	if (!Number.isInteger(maxConflictRetries) || maxConflictRetries < 0) {
+		throw new TypeError("maxConflictRetries must be a non-negative integer");
+	}
 	let es: EventSource | null = null;
 	let retryCount = 0;
+	let stopped = false;
+	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Helper to apply state changes
 	const applyState = (event: ZunoStateEvent) => {
@@ -157,9 +174,23 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 	// --- Offline Support ---
 	const queue: ZunoStateEvent[] = [];
+	const conflictRetries = new Map<string, number>();
 	let isFlushing = false;
+	const enqueue = (event: ZunoStateEvent) => {
+		if (queue.length >= maxQueueSize) return false;
+		queue.push(event);
+		return true;
+	};
+	const scheduleFlush = () => {
+		if (stopped || flushTimer) return;
+		flushTimer = setTimeout(() => {
+			flushTimer = null;
+			void flushQueue();
+		}, 1000);
+	};
 
 	async function flushQueue() {
+		if (stopped) return;
 		if (isFlushing || queue.length === 0) return;
 		if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
@@ -208,16 +239,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 					});
 
 					if (!res.ok && res.status !== 409) {
-						// Keep in queue for retry if it's a transient server error?
-						// For now we dequeue on non-network errors to avoid blocking.
 						if (res.status >= 400 && res.status < 500) {
 							queue.shift();
 							continue;
 						}
-						// For 500, we might want to retry? Let's treat it as network-ish for now.
-						// But to be safe and not block forever:
-						queue.shift();
-						continue;
+						// Preserve retryable server failures at the front of the queue.
+						scheduleFlush();
+						break;
 					}
 
 					if (res.status === 409) {
@@ -250,6 +278,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 							// 3. If resolved state differs from server, auto-sync back
 							if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {
+								const attempts = (conflictRetries.get(event.storeKey) ?? 0) + 1;
+								if (attempts > maxConflictRetries) {
+									conflictRetries.delete(event.storeKey);
+									queue.shift();
+									continue;
+								}
+								conflictRetries.set(event.storeKey, attempts);
 								queue.unshift({
 									...event,
 									state: nextState,
@@ -260,6 +295,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 						}
 						queue.shift();
 					} else if (res.ok) {
+						conflictRetries.delete(event.storeKey);
 						const json = await res.json();
 						if (json.event && typeof json.event.version === "number") {
 							// Just update version map
@@ -271,6 +307,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 					}
 				} catch (err) {
 					console.error("[Zuno] Flush failed, retrying later", err);
+					scheduleFlush();
 					break; // Network error, stop flushing
 				}
 			}
@@ -279,6 +316,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		}
 	}
 	function connect() {
+		if (stopped) return;
 		const lastId = getLastEventId();
 		const connectUrl = new URL(url, globalThis.location?.href);
 		if (lastId > 0) connectUrl.searchParams.set("lastEventId", String(lastId));
@@ -288,6 +326,8 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		// biome-ignore lint/suspicious/noExplicitAny: EventSource data is string, rec is parsed JSON
 		es.addEventListener("snapshot", (e: any) => {
 			try {
+				const snapshotEventId = Number.parseInt(e.lastEventId || "0", 10);
+				if (snapshotEventId >= 0) setLastEventId?.(snapshotEventId);
 				const snap = JSON.parse(e.data);
 				for (const [key, rec] of Object.entries(snap)) {
 					// biome-ignore lint/suspicious/noExplicitAny: rec state can be anything
@@ -323,6 +363,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		});
 
 		es.onopen = () => {
+			if (stopped) return;
 			retryCount = 0;
 			opts.onOpen?.();
 			flushQueue();
@@ -330,10 +371,14 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 		es.onerror = () => {
 			es?.close();
+			if (stopped) return;
 			opts.onClose?.();
 			const delay = Math.min(1000 * 2 ** retryCount, 30000);
 			retryCount++;
-			setTimeout(connect, delay);
+			reconnectTimer = setTimeout(() => {
+				reconnectTimer = null;
+				connect();
+			}, delay);
 		};
 	}
 
@@ -345,6 +390,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 	const dispatchFn = async (
 		event: ZunoStateEvent,
+		conflictAttempt = 0,
 	): Promise<TransportStatus> => {
 		try {
 			// Removed local application here. Local application is handled by coreDispatch
@@ -358,8 +404,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 			// Check online status first
 			if (typeof navigator !== "undefined" && !navigator.onLine) {
-				queue.push(event);
-				return { ok: false, status: 0, json: null, reason: "OFFLINE_QUEUED" };
+				const queued = enqueue(event);
+				return {
+					ok: false,
+					status: 0,
+					json: null,
+					reason: queued ? "OFFLINE_QUEUED" : "QUEUE_FULL",
+				};
 			}
 
 			const res = await fetch(syncUrl, {
@@ -393,18 +444,41 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 					});
 
 					if (JSON.stringify(nextState) !== JSON.stringify(serverState)) {
-						return await dispatchFn({
-							...event,
-							state: nextState,
-							baseVersion: serverVersion,
-						});
+						if (conflictAttempt >= maxConflictRetries) {
+							return {
+								ok: false,
+								status: 409,
+								json: data,
+								reason: "CONFLICT_RETRY_LIMIT",
+							};
+						}
+						return await dispatchFn(
+							{
+								...event,
+								state: nextState,
+								baseVersion: serverVersion,
+							},
+							conflictAttempt + 1,
+						);
 					}
 				}
 				return { ok: false, status: 409, json: data, reason: "CONFLICT" };
 			}
 
-			if (!res.ok)
-				return { ok: false, status: res.status, json: await res.json() };
+			if (!res.ok) {
+				const json = await res.json();
+				if (res.status >= 500) {
+					const queued = enqueue(event);
+					if (queued) scheduleFlush();
+					return {
+						ok: false,
+						status: res.status,
+						json,
+						reason: queued ? "SERVER_ERROR_QUEUED" : "QUEUE_FULL",
+					};
+				}
+				return { ok: false, status: res.status, json };
+			}
 
 			const json = await res.json();
 			if (json.event) {
@@ -417,15 +491,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			return { ok: true, status: 200, json };
 		} catch (err) {
 			// Network failure catch
-			if (queue.length < 100) {
-				queue.push(event);
-				setTimeout(flushQueue, 1000);
-			}
+			const queued = enqueue(event);
+			if (queued) scheduleFlush();
 			return {
 				ok: false,
 				status: 500,
 				json: err,
-				reason: "NETWORK_ERROR_QUEUED",
+				reason: queued ? "NETWORK_ERROR_QUEUED" : "QUEUE_FULL",
 			};
 		}
 	};
@@ -433,7 +505,10 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	return {
 		dispatch: dispatchFn,
 		unsubscribe: () => {
+			stopped = true;
 			es?.close();
+			if (reconnectTimer) clearTimeout(reconnectTimer);
+			if (flushTimer) clearTimeout(flushTimer);
 			if (typeof window !== "undefined") {
 				window.removeEventListener("online", flushQueue);
 			}

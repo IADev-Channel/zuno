@@ -113,6 +113,8 @@ app.listen(3000);
 
 This is a monorepo powered by **pnpm**.
 
+See the [exercise guide](./exercise/README.md) for multi-framework sync, missed-event replay, and snapshot-fallback testing.
+
 ```bash
 pnpm install
 pnpm build

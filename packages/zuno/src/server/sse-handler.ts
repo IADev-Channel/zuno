@@ -32,16 +32,61 @@ export const createSSEConnection = (
 
 	// 1. Subscribe FIRST and buffer events until snapshot/missed-events are sent
 	const buffer: ZunoStateEvent[] = [];
+	const pendingWrites: ZunoStateEvent[] = [];
 	let isSyncing = true;
+	let backpressured = false;
+	let closed = false;
+	let heartbeat: ReturnType<typeof setInterval> | null = null;
+	let unsubscribe = () => {};
 
+	const closeConnection = () => {
+		if (closed) return;
+		closed = true;
+		if (heartbeat) clearInterval(heartbeat);
+		unsubscribe();
+		res.end();
+	};
+	const flushPendingWrites = () => {
+		backpressured = false;
+		while (!closed && pendingWrites.length > 0) {
+			const event = pendingWrites.shift();
+			if (!event) continue;
+			if (!res.write(formatStateEvent(event))) {
+				backpressured = true;
+				res.once("drain", flushPendingWrites);
+				break;
+			}
+		}
+	};
+	const formatStateEvent = (event: ZunoStateEvent) =>
+		`id: ${event.eventId}\nevent: state\ndata: ${JSON.stringify(event)}\n\n`;
 	const writeEvent = (event: ZunoStateEvent) => {
-		res.write(`id: ${event.eventId}\n`);
-		res.write(`event: state\n`);
-		res.write(`data: ${JSON.stringify(event)}\n\n`);
+		if (closed) return;
+		if (backpressured) {
+			if (pendingWrites.length >= server.maxSubscriberBuffer) {
+				closeConnection();
+				return;
+			}
+			pendingWrites.push(event);
+			return;
+		}
+		if (!res.write(formatStateEvent(event))) {
+			backpressured = true;
+			res.once("drain", flushPendingWrites);
+		}
+	};
+	const writeSnapshot = () => {
+		res.write(`id: ${server.getLastEventId()}\n`);
+		res.write("event: snapshot\n");
+		res.write(`data: ${JSON.stringify(server.getUniverseState())}\n\n`);
 	};
 
-	const unsubscribe = server.subscribeToStateEvents((event: ZunoStateEvent) => {
+	unsubscribe = server.subscribeToStateEvents((event: ZunoStateEvent) => {
 		if (isSyncing) {
+			if (buffer.length >= server.maxSubscriberBuffer) {
+				closeConnection();
+				return;
+			}
 			buffer.push(event);
 		} else {
 			writeEvent(event);
@@ -49,14 +94,13 @@ export const createSSEConnection = (
 	});
 
 	// 2. Send missed events or snapshot
-	if (lastEventId > 0) {
+	if (lastEventId > 0 && server.canReplayAfter(lastEventId)) {
 		const missed = server.getEventsAfter(lastEventId);
 		for (const event of missed) {
 			writeEvent(event);
 		}
 	} else {
-		res.write(`event: snapshot\n`);
-		res.write(`data: ${JSON.stringify(server.getUniverseState())}\n\n`);
+		writeSnapshot();
 	}
 
 	// 3. Flush buffer and switch to live mode
@@ -65,17 +109,17 @@ export const createSSEConnection = (
 		const event = buffer.shift();
 		if (event) writeEvent(event);
 	}
+	if (closed) return;
 
-	const heartbeat = setInterval(() => {
+	heartbeat = setInterval(() => {
+		if (closed) return;
 		res.write(`: ping ${Date.now()}\n\n`);
 	}, 15000);
 
 	res.write(": connected \n\n");
 
 	req.on("close", () => {
-		clearInterval(heartbeat);
-		unsubscribe();
-		res.end();
+		closeConnection();
 	});
 };
 

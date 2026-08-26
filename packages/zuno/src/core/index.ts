@@ -77,6 +77,10 @@ export type CreateZunoOptions = {
 	middleware?: Middleware[];
 	/** Optional function to resolve 409 conflicts. */
 	resolveConflict?: ConflictResolver;
+	/** Maximum mutations retained while offline (default: 100). */
+	maxQueueSize?: number;
+	/** Maximum automatic retries for a single conflict (default: 3). */
+	maxConflictRetries?: number;
 };
 
 /**
@@ -263,6 +267,11 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 					clientId,
 					versions,
 					getLastEventId: () => lastEventId,
+					setLastEventId: (id) => {
+						lastEventId = id;
+					},
+					maxQueueSize: opts.maxQueueSize,
+					maxConflictRetries: opts.maxConflictRetries,
 					onOpen: () => {
 						_sseReady = true;
 					},

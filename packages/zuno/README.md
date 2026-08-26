@@ -34,6 +34,9 @@ import { createZuno } from "@iadev93/zuno";
 const zuno = createZuno({
   // Optional: Enable batching for high-frequency updates
   batchSync: true,
+  // Bound offline work and automatic conflict resolution.
+  maxQueueSize: 100,
+  maxConflictRetries: 3,
 });
 
 const counter = zuno.store(
@@ -159,7 +162,11 @@ import {
   createZunoServerState,
 } from "@iadev93/zuno/server";
 
-const server = createZunoServerState({ maxEvents: 1000 });
+const server = createZunoServerState({
+  maxEvents: 1000,
+  maxStateBytes: 512 * 1024,
+  maxSubscriberBuffer: 1000,
+});
 const result = applyStateEvent(
   { storeKey: "counter", state: 1, baseVersion: 0 },
   server,

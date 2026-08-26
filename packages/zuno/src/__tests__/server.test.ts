@@ -71,6 +71,10 @@ describe("Zuno server state", () => {
 		expect(server.getEventsAfter(0).map((event) => event.eventId)).toEqual([
 			2, 3,
 		]);
+		expect(server.canReplayAfter(0)).toBe(false);
+		expect(server.canReplayAfter(1)).toBe(true);
+		expect(server.canReplayAfter(3)).toBe(true);
+		expect(server.canReplayAfter(4)).toBe(false);
 	});
 
 	it("rejects state above the configured serialized size limit", () => {

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-08-26
+
+### Fixed
+- Added authoritative `baseVersion` values to optimistic, non-optimistic, and batched mutations so the server can reliably detect concurrent writes.
+- Fixed snapshot cache invalidation after universe restore, delete, and clear operations.
+- Fixed Angular declaration generation and aligned Angular examples with a compatible TypeScript version.
+- Connected the Angular example to the shared Elysia demo universe used by the React and HTML examples.
+
+### Added
+- Added regression tests for versioned synchronization and snapshot caching.
+- Added a repeatable `pnpm verify` command and GitHub Actions verification workflow.
+
 ### Added
 - **Angular Adapter**: Official support for Angular 18+ via `@iadev93/zuno-angular`, featuring Signal and Observable bindings.
 - **Mutation Batching**: Core engine now coalesces multiple synchronous updates into a single network payload, significantly reducing traffic.

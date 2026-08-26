@@ -59,18 +59,22 @@ export class ZunoService {
 		reducer?: (prev: T, intent: unknown) => T,
 		equals?: (v1: unknown, v2: unknown) => boolean,
 	): AngularBoundStore<T> {
-		const baseStore = this.zuno.store(key, init, reducer, equals);
+		const baseStore = this.zuno.store<T>(key, init, reducer, equals);
 
-		const asObservable = () =>
+		const asObservable: () => Observable<T> = () =>
 			new Observable<T>((subscriber) => {
 				subscriber.next(baseStore.get());
 				const sub = baseStore.subscribe((state) => {
 					subscriber.next(state);
 				});
 				return () => sub();
-			}).pipe(distinctUntilChanged(baseStore.equals));
+			}).pipe(
+				distinctUntilChanged((previous: T, current: T) =>
+					baseStore.equals(previous, current),
+				),
+			);
 
-		const asSignal = () => {
+		const asSignal: () => Signal<T> = () => {
 			return toSignal(asObservable(), { initialValue: baseStore.get() });
 		};
 

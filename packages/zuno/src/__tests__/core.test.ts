@@ -56,6 +56,22 @@ describe("Zuno Core", () => {
 			expect(universe.getStore("a", () => 0).get()).toBe(20);
 			expect(universe.getStore("b", () => 0).get()).toBe(30);
 		});
+
+		it("should invalidate cached snapshots after restore, delete, and clear", () => {
+			const universe = createUniverse();
+			universe.getStore("a", () => 1);
+			expect(universe.snapshot()).toEqual({ a: 1 });
+
+			universe.restore({ b: 2 });
+			expect(universe.snapshot()).toEqual({ a: 1, b: 2 });
+			universe.getStore("b", () => 0).set(3);
+			expect(universe.snapshot()).toEqual({ a: 1, b: 3 });
+
+			universe.delete("a");
+			expect(universe.snapshot()).toEqual({ b: 3 });
+			universe.clear();
+			expect(universe.snapshot()).toEqual({});
+		});
 	});
 
 	describe("Middleware", () => {

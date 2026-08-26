@@ -170,4 +170,73 @@ describe("Zuno Golden Tests", () => {
 		expect(res.ok).toBe(false);
 		expect(order).toEqual(["m1-start", "caught-error", "m1-end"]);
 	});
+
+	it("sends the authoritative version as baseVersion", async () => {
+		const zuno = createZuno({
+			universe,
+			syncUrl: "http://sync",
+			sseUrl: "http://sse",
+		});
+
+		zuno.hydrateSnapshot({
+			state: { counter: { state: 4, version: 7 } },
+			lastEventId: 10,
+		});
+		await zuno.set("counter", 5);
+
+		const body = JSON.parse(
+			// biome-ignore lint/suspicious/noExplicitAny: access mock calls
+			(globalThis.fetch as any).mock.calls[0][1].body,
+		);
+		expect(body.baseVersion).toBe(7);
+		expect(body.version).toBe(8);
+	});
+
+	it("sends baseVersion when optimistic updates are disabled", async () => {
+		const zuno = createZuno({
+			universe,
+			syncUrl: "http://sync",
+			sseUrl: "http://sse",
+			optimistic: false,
+		});
+
+		zuno.hydrateSnapshot({
+			state: { counter: { state: 4, version: 7 } },
+			lastEventId: 10,
+		});
+		await zuno.set("counter", 5);
+
+		const body = JSON.parse(
+			// biome-ignore lint/suspicious/noExplicitAny: access mock calls
+			(globalThis.fetch as any).mock.calls[0][1].body,
+		);
+		expect(body.baseVersion).toBe(7);
+		expect(body.version).toBeUndefined();
+	});
+
+	it("preserves the first baseVersion when batching the same store", async () => {
+		const zuno = createZuno({
+			universe,
+			syncUrl: "http://sync",
+			sseUrl: "http://sse",
+			batchSync: true,
+		});
+
+		zuno.hydrateSnapshot({
+			state: { counter: { state: 0, version: 3 } },
+			lastEventId: 0,
+		});
+		void zuno.set("counter", 1);
+		void zuno.set("counter", 2);
+		await Promise.resolve();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		const body = JSON.parse(
+			// biome-ignore lint/suspicious/noExplicitAny: access mock calls
+			(globalThis.fetch as any).mock.calls[0][1].body,
+		);
+		expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+		expect(body.state).toBe(2);
+		expect(body.baseVersion).toBe(3);
+	});
 });

@@ -157,6 +157,12 @@ export const createUniverse = (): Universe => {
 	// biome-ignore lint/suspicious/noExplicitAny: internal registry of heterogeneous stores
 	const stores = new Map<string, Store<any>>();
 	let cachedSnapshot: Record<string, unknown> | null = null;
+	const trackStore = <T>(store: Store<T>) => {
+		store.subscribe(() => {
+			cachedSnapshot = null;
+		});
+		return store;
+	};
 
 	const universe: Universe = {
 		getStore<T>(
@@ -167,14 +173,9 @@ export const createUniverse = (): Universe => {
 		): Store<T> {
 			let s = stores.get(key);
 			if (!s) {
-				s = createStore(init(), reducer, equals);
+				s = trackStore(createStore(init(), reducer, equals));
 				stores.set(key, s);
-				// Invalidate cache when new store is added
 				cachedSnapshot = null;
-				// Subscribing to invalidate cache on changes
-				s.subscribe(() => {
-					cachedSnapshot = null;
-				});
 			}
 			return s as Store<T>;
 		},
@@ -196,15 +197,18 @@ export const createUniverse = (): Universe => {
 					existing.set(value as any);
 				} else {
 					// biome-ignore lint/suspicious/noExplicitAny: external data needs to be cast to store type
-					stores.set(key, createStore(value as any));
+					stores.set(key, trackStore(createStore(value as any)));
+					cachedSnapshot = null;
 				}
 			}
 		},
 		delete(key: string): void {
 			stores.delete(key);
+			cachedSnapshot = null;
 		},
 		clear(): void {
 			stores.clear();
+			cachedSnapshot = null;
 		},
 		hydrateSnapshot(snapshot: ZunoSnapshot) {
 			const plain: Record<string, unknown> = {};
@@ -353,9 +357,12 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 				}
 			}
 
-			// Local bookkeeping and versioning
+			// Always send the authoritative version this mutation was based on.
+			const current = versions.get(event.storeKey) ?? 0;
+			event.baseVersion ??= current;
+
+			// Local bookkeeping and optimistic versioning
 			if (opts.optimistic !== false) {
-				const current = versions.get(event.storeKey) ?? 0;
 				const nextVersion = current + 1;
 				versions.set(event.storeKey, nextVersion);
 				event.version = nextVersion;
@@ -372,7 +379,11 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		if (sse) {
 			if (opts.batchSync) {
 				// Coalesce outgoing syncs for the same storeKey within the same microtask
-				pendingSyncs.set(event.storeKey, event);
+				const pending = pendingSyncs.get(event.storeKey);
+				pendingSyncs.set(event.storeKey, {
+					...event,
+					baseVersion: pending?.baseVersion ?? event.baseVersion,
+				});
 
 				if (!batchPromise) {
 					batchPromise = Promise.resolve().then(flushBatch);

@@ -136,15 +136,15 @@ ul {
 	border-bottom: none;
 }
 
-.todo-item.done .todo-title {
-	text-decoration: line-through;
-	color: var(--text-secondary);
-}
-
 .todo-title {
 	cursor: pointer;
 	flex: 1;
 	transition: color 0.2s;
+}
+
+.todo-item.done .todo-title {
+	text-decoration: line-through;
+	color: var(--text-secondary);
 }
 
 .todo-title:hover {

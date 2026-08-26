@@ -53,6 +53,9 @@ An async generator handler for Server-Sent Events. It automatically handles:
 - Connection keep-alive and heartbeats.
 - Reconnection logic via `last-event-id`.
 - Initial state snapshots for fresh connections.
+- Retained-event replay after short interruptions.
+- Authoritative snapshot fallback when the requested replay range has expired.
+- Bounded per-subscriber buffering through the selected server state's `maxSubscriberBuffer` option.
 
 #### `sync` (POST)
 Validates and applies incoming state events to the Zuno universe. Handles version conflicts and broadcasts updates to all connected SSE clients.
@@ -62,6 +65,8 @@ Returns the current full state of the universe, the current version, and the las
 
 ## Features
 - **Native SSE**: Uses Elysia's optimized streaming capabilities with async generators.
+- **Resilient Recovery**: Replays missed events when retained and falls back to an event-ID-bearing snapshot after a replay gap.
+- **Backpressure Protection**: Disconnects subscribers that exceed the configured pending-message buffer so they can recover cleanly on reconnect.
 - **Lightweight**: Zero runtime dependencies on Elysia itself (uses structural typing).
 - **Type Safe**: Fully written in TypeScript with comprehensive docstrings.
 

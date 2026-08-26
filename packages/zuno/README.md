@@ -120,6 +120,14 @@ SSE is ideal for:
 * CDN/proxy friendly infra
 * avoiding WebSocket lock-in
 
+On reconnect, the client sends its last observed event ID. The server replays retained events after that ID. If the requested range is no longer complete, the server sends an authoritative snapshot with the current event ID instead. Calling `stop()` permanently cancels the active connection, scheduled reconnects, queue flush timers, and browser online listener.
+
+Client recovery is bounded by default:
+
+* `maxQueueSize` limits mutations retained while offline (default: `100`)
+* `maxConflictRetries` limits automatic retries for one conflict (default: `3`)
+* retryable HTTP 5xx mutations remain queued instead of being silently discarded
+
 ---
 
 ## Adapter Contract (UI / Frameworks)
@@ -176,6 +184,8 @@ const result = applyStateEvent(
 For multi-tenant routing, use `createZunoServerRegistry()` and select a namespace from trusted application context before invoking an adapter or server helper. Registry entries have independent state, replay logs, and listeners.
 
 The original module-level helpers remain available and use `defaultZunoServerState` for backward compatibility. New applications should prefer explicit instances.
+
+`maxSubscriberBuffer` bounds pending messages per SSE subscriber. A slow subscriber that exhausts its buffer is disconnected and can recover through replay or snapshot fallback on reconnect.
 
 ### Snapshot handler
 

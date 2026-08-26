@@ -4,6 +4,16 @@ Last reviewed: 2026-08-26
 
 This roadmap tracks Zuno's path from an experimental distributed-state engine to a production-ready library. Update the checkboxes and review date whenever a milestone changes.
 
+Current verified releases:
+
+- `@iadev93/zuno@0.0.12`
+- `@iadev93/zuno-react@0.0.13`
+- `@iadev93/zuno-angular@0.0.2`
+- `@iadev93/zuno-express@0.0.13`
+- `@iadev93/zuno-elysia@0.0.9`
+
+Current verification baseline: 54 tests pass, Biome passes, and all five packages build with TypeScript declarations.
+
 ## Status Legend
 
 - [x] Complete
@@ -60,6 +70,8 @@ Completion criteria: isolated instances pass adapter integration tests, invalid 
 - [x] Add queue and SSE-client buffer limits for backpressure protection.
 - [ ] Add a pluggable offline queue with an IndexedDB implementation.
 - [ ] Test reconnects, replay truncation, process restart, slow subscribers, and cleanup.
+
+Delivered in the `0.0.12` core / `0.0.9` Elysia release: replay-gap snapshot recovery, event-ID snapshots, bounded client retries and queues, bounded subscriber buffers, reliable cleanup, and retryable HTTP 5xx handling.
 
 Completion criteria: interruption and recovery scenarios converge deterministically without leaking listeners or silently losing retryable mutations.
 
@@ -127,3 +139,4 @@ These should start only after the production-readiness milestones above:
 | 2026-08-26 | Use Elysia on port 3002 as the shared multi-framework demo server. | Running Express and Elysia simultaneously creates separate in-memory universes. |
 | 2026-08-26 | Pin Angular 19 workspaces to TypeScript 5.8.3. | Angular 19 rejects TypeScript 5.9 and later. |
 | 2026-08-26 | Prioritize server isolation before adding more framework adapters. | Process-global state prevents safe tenant and instance isolation. |
+| 2026-08-26 | Use retained SSE replay for short interruptions and authoritative snapshots for replay gaps. | Clients recover efficiently when possible and still converge when their requested history has expired. |

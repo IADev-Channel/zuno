@@ -58,11 +58,12 @@ When a `409 Conflict` is received:
 1.  Zuno pauses the sync queue for that store.
 2.  The `resolveConflict` hook is called with `(localState, serverState, storeKey)`.
 3.  The return value of this hook becomes the **new local state**.
-4.  Zuno automatically triggers a re-sync of this new state with the correct `baseVersion` (the version returned by the server in the 409 payload).
+4.  Zuno automatically triggers a re-sync of this new state with the correct `baseVersion` (the version returned by the server in the 409 payload), up to `maxConflictRetries` attempts (default: `3`).
 
 ---
 
 ## Technical Notes
 
 -   **Optimistic UI**: During the conflict resolution, the UI might flicker if the resolution result differs significantly from the optimistic local state.
+-   **Bounded Resolution**: Set `maxConflictRetries` when creating Zuno to cap automatic conflict retries and prevent resolver loops.
 -   **Server-Side Resolution**: While Zuno primarily handles resolution on the client (to keep the server simple/stateless), a server can also enforce its own rules by rejecting certain `POST` requests even if versions match (e.g., validation logic).

@@ -59,6 +59,8 @@ Zuno uses a multi-layered transport strategy to balance latency and reliability:
 3.  **BroadcastChannel**: A local optimization. Same-origin browser tabs share state updates directly.
 4.  **Mutation Batching**: Multiple synchronous updates are coalesced into a single network payload to reduce chatter.
 
+SSE recovery is event-ID based. A reconnecting replica receives the complete retained range after its last event ID; if that range has been truncated, the server sends a full authoritative snapshot instead. Client mutation queues, conflict retries, and server subscriber buffers are bounded so disconnections and slow consumers cannot grow memory or retry indefinitely.
+
 ### Consistency Model: "Optimistic Convergent Consistency"
 
 Zuno favors simplicity and predictability over complex conflict resolution like CRDTs.

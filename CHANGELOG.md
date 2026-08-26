@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.12] - 2026-08-26
+
+### Added
+- Added replay-gap detection so stale SSE clients receive an authoritative snapshot when the retained event log cannot provide a complete replay.
+- Added bounded offline mutation queues (`maxQueueSize`), bounded conflict retries (`maxConflictRetries`), and bounded server subscriber buffers (`maxSubscriberBuffer`).
+- Added a replay exercise for testing retained-event recovery and snapshot fallback with the shared Elysia demo.
+- Added regression coverage for replay ranges, queue overflow, retryable HTTP 5xx responses, conflict retry limits, reconnection, and cleanup.
+
+### Changed
+- SSE snapshots now carry an event ID, allowing clients to resume replay from the snapshot's authoritative position.
+- Retryable mutations are retained after HTTP 5xx responses and retried with bounded behavior.
+- Raw Node and Elysia SSE connections now protect slow subscribers with bounded buffers.
+- Released `@iadev93/zuno@0.0.12` and `@iadev93/zuno-elysia@0.0.9`.
+
+### Fixed
+- `stop()` now cancels pending reconnect and flush timers, closes the active EventSource, and removes browser online listeners.
+- Automatic conflict resolution no longer retries indefinitely.
+
 ## [0.0.11] - 2026-08-26
 
 ### Added
@@ -18,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Express and Elysia adapters now create isolated server state by default and expose it as `zuno.server`.
 - Custom server endpoints can share adapter state by passing the exposed server to `applyStateEvent`.
+- Released `@iadev93/zuno@0.0.11`, `@iadev93/zuno-express@0.0.13`, and `@iadev93/zuno-elysia@0.0.8`.
 
 ### Fixed
 - Malformed events now return consistent validation errors without mutating authoritative state.

@@ -116,7 +116,8 @@ To handle network interruptions, Zuno supports the standard SSE `Last-Event-ID` 
 
 1. **Client**: Sends `Last-Event-ID` header or `lastEventId` query parameter on reconnect.
 2. **Server**: Checks for missed events after that ID and replays them before resuming the live stream.
-3. **Fallback**: If no ID is provided, the server sends a full **snapshot** to re-synchronize the client.
+3. **Replay**: If all events after that ID are still retained, the server sends them in order before resuming the live stream.
+4. **Fallback**: If no ID is provided, the ID is invalid, or the requested replay range is incomplete, the server sends a full authoritative **snapshot** carrying the current event ID.
 
 ---
 
@@ -172,8 +173,9 @@ Zuno provides **eventual consistency**, not strong consistency.
 ## Transport Notes
 
 * BroadcastChannel works **only on same-origin tabs**.
-* SSE connections close when tab closes; reconnect should rehydrate from a fresh snapshot.
-* Snapshot + replay must be used for hydration so that late subscribers catch up.
+* SSE connections close when a tab closes; reconnect should request events after the last observed event ID.
+* The server replays a complete retained range, otherwise it sends a current snapshot so the replica still converges.
+* Implementations should bound offline queues, conflict retries, and pending subscriber messages to avoid unbounded memory or retry loops.
 * WebSocket support can mirror the same message shapes; SSE is the minimal baseline.
 
 ---

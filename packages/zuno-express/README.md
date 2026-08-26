@@ -57,7 +57,7 @@ Each call creates isolated server state by default. Pass `server` when several r
 The optional `authorize` hook runs before SSE/snapshot reads and mutation writes. Returning `false` produces a `403 FORBIDDEN` response without reading or mutating server state.
 
 #### `sse` (GET)
-Handles persistent SSE connections, heartbeats, and initial synchronization.
+Handles persistent SSE connections, heartbeats, and initial synchronization. Reconnecting clients receive retained events after their last event ID; if that replay range is incomplete, the handler sends an authoritative snapshot carrying the current event ID. Pending writes are bounded by the selected server state's `maxSubscriberBuffer` option, and slow subscribers reconnect to recover.
 
 #### `sync` (POST)
 Validates and applies incoming state events.

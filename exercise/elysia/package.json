@@ -6,10 +6,10 @@
 		"start": "bun run app.ts"
 	},
 	"dependencies": {
-		"@elysiajs/cors": "^1.4.1",
+		"@elysiajs/cors": "^1.4.2",
 		"@iadev93/zuno": "workspace:*",
 		"@iadev93/zuno-elysia": "workspace:*",
-		"elysia": "^1.2.10"
+		"elysia": "^1.4.30"
 	},
 	"devDependencies": {
 		"tsup": "^8.5.1"

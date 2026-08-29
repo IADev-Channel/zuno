@@ -11,13 +11,13 @@
 	"packageManager": "pnpm@10.27.0",
 	"dependencies": {
 		"@iadev93/zuno-react": "workspace:*",
-		"react": "^19.2.3",
-		"react-dom": "^19.2.3",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8",
 		"vite": "^7.3.0"
 	},
 	"devDependencies": {
 		"@types/react": "^19.2.7",
-		"@types/react-dom": "^19.2.3",
+		"@types/react-dom": "^19.2.5",
 		"tsup": "^8.5.1"
 	},
 	"author": "Ibrahim Aftab",

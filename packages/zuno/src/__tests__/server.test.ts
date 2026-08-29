@@ -1,10 +1,35 @@
+import { EventEmitter } from "node:events";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import {
 	applyStateEvent,
+	createSSEConnection,
 	createZunoServerRegistry,
 	createZunoServerState,
 	validateStateEvent,
 } from "../server";
+
+const createSSEMocks = (
+	lastEventId: number,
+	write: (chunk: string) => boolean = () => true,
+) => {
+	const request = Object.assign(new EventEmitter(), {
+		headers: { "last-event-id": String(lastEventId) },
+		url: "/sync",
+	});
+	const response = Object.assign(new EventEmitter(), {
+		writeHead: vi.fn(),
+		flushHeaders: vi.fn(),
+		write: vi.fn(write),
+		end: vi.fn(),
+	});
+	return {
+		request: request as unknown as IncomingMessage,
+		response: response as unknown as ServerResponse,
+		requestEmitter: request,
+		responseMock: response,
+	};
+};
 
 describe("Zuno server state", () => {
 	it("isolates state, event logs, and listeners between instances", () => {
@@ -97,5 +122,62 @@ describe("Zuno server state", () => {
 		expect(registry.get("tenant-a")).toBe(tenantA);
 		expect(tenantA.getUniverseState()).toHaveProperty("counter");
 		expect(tenantB.getUniverseState()).toEqual({});
+	});
+
+	it("falls back to an authoritative snapshot when replay was truncated", () => {
+		const server = createZunoServerState({ maxEvents: 2 });
+		for (let state = 1; state <= 4; state++) {
+			applyStateEvent({ storeKey: "counter", state }, server);
+		}
+		const { request, response, requestEmitter, responseMock } =
+			createSSEMocks(1);
+
+		createSSEConnection(request, response, {}, server);
+
+		const output = responseMock.write.mock.calls.flat().join("");
+		expect(output).toContain("id: 4\nevent: snapshot");
+		expect(output).toContain('"counter":{"state":4,"version":4}');
+		requestEmitter.emit("close");
+	});
+
+	it("sends a fresh snapshot after an in-memory server process restart", () => {
+		const restartedServer = createZunoServerState();
+		const { request, response, requestEmitter, responseMock } =
+			createSSEMocks(12);
+
+		createSSEConnection(request, response, {}, restartedServer);
+
+		const output = responseMock.write.mock.calls.flat().join("");
+		expect(output).toContain("id: 0\nevent: snapshot\ndata: {}");
+		requestEmitter.emit("close");
+	});
+
+	it("disconnects a slow subscriber when its pending buffer is full", () => {
+		const server = createZunoServerState({ maxSubscriberBuffer: 1 });
+		const { request, response, responseMock } = createSSEMocks(
+			0,
+			(chunk) => !chunk.includes("event: state"),
+		);
+		createSSEConnection(request, response, {}, server);
+
+		applyStateEvent({ storeKey: "counter", state: 1 }, server);
+		applyStateEvent({ storeKey: "counter", state: 2 }, server);
+		applyStateEvent({ storeKey: "counter", state: 3 }, server);
+
+		expect(responseMock.end).toHaveBeenCalledOnce();
+	});
+
+	it("removes the server listener when the SSE request closes", () => {
+		const server = createZunoServerState();
+		const { request, response, requestEmitter, responseMock } =
+			createSSEMocks(0);
+		createSSEConnection(request, response, {}, server);
+		const writesBeforeClose = responseMock.write.mock.calls.length;
+
+		requestEmitter.emit("close");
+		applyStateEvent({ storeKey: "counter", state: 1 }, server);
+
+		expect(responseMock.write).toHaveBeenCalledTimes(writesBeforeClose);
+		expect(responseMock.end).toHaveBeenCalledOnce();
 	});
 });

@@ -1,4 +1,17 @@
 import type { Universe } from "../core";
+import {
+	createMemoryOfflineQueue,
+	type ZunoOfflineQueue,
+} from "./offline-queue";
+
+export type {
+	IndexedDBOfflineQueueOptions,
+	ZunoOfflineQueue,
+} from "./offline-queue";
+export {
+	createIndexedDBOfflineQueue,
+	createMemoryOfflineQueue,
+} from "./offline-queue";
 
 // --- Types ---
 
@@ -120,6 +133,8 @@ export type SSEOptions = {
 	maxQueueSize?: number;
 	/** Maximum automatic retries for a single conflict (default: 3). */
 	maxConflictRetries?: number;
+	/** Queue persistence provider (default: an in-memory provider). */
+	offlineQueue?: ZunoOfflineQueue;
 	onOpen?: () => void;
 	onClose?: () => void;
 	onEvent?: (event: ZunoStateEvent) => void;
@@ -140,6 +155,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	} = opts;
 	const maxQueueSize = opts.maxQueueSize ?? 100;
 	const maxConflictRetries = opts.maxConflictRetries ?? 3;
+	const offlineQueue = opts.offlineQueue ?? createMemoryOfflineQueue();
 	if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) {
 		throw new TypeError("maxQueueSize must be a positive integer");
 	}
@@ -174,12 +190,54 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 	// --- Offline Support ---
 	const queue: ZunoStateEvent[] = [];
+	let queueStorageHealthy = true;
+	const reportQueueStorageError = (error: unknown) => {
+		queueStorageHealthy = false;
+		console.error("[Zuno] Offline queue storage failed", error);
+	};
+	const queueReady = offlineQueue
+		.load()
+		.then(async (storedEvents) => {
+			queue.push(...storedEvents.slice(0, maxQueueSize));
+			if (storedEvents.length > maxQueueSize) {
+				try {
+					await offlineQueue.save(queue);
+				} catch (error) {
+					reportQueueStorageError(error);
+				}
+			}
+		})
+		.catch(reportQueueStorageError);
 	const conflictRetries = new Map<string, number>();
 	let isFlushing = false;
-	const enqueue = (event: ZunoStateEvent) => {
-		if (queue.length >= maxQueueSize) return false;
+	const persistQueue = async () => {
+		try {
+			await offlineQueue.save(queue);
+			queueStorageHealthy = true;
+			return true;
+		} catch (error) {
+			reportQueueStorageError(error);
+			return false;
+		}
+	};
+	const enqueue = async (event: ZunoStateEvent) => {
+		await queueReady;
+		if (!queueStorageHealthy) return "storage-error" as const;
+		if (queue.length >= maxQueueSize) return "full" as const;
 		queue.push(event);
-		return true;
+		if (!(await persistQueue())) {
+			queue.pop();
+			return "storage-error" as const;
+		}
+		return "queued" as const;
+	};
+	const queueReason = (
+		result: "queued" | "full" | "storage-error",
+		queuedReason: string,
+	) => {
+		if (result === "queued") return queuedReason;
+		if (result === "full") return "QUEUE_FULL";
+		return "QUEUE_STORAGE_ERROR";
 	};
 	const scheduleFlush = () => {
 		if (stopped || flushTimer) return;
@@ -191,6 +249,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 	async function flushQueue() {
 		if (stopped) return;
+		await queueReady;
 		if (isFlushing || queue.length === 0) return;
 		if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
@@ -227,6 +286,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		// but we can clear and push.
 		queue.length = 0;
 		queue.push(...reducedQueue);
+		await persistQueue();
 
 		try {
 			while (queue.length > 0) {
@@ -241,6 +301,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 					if (!res.ok && res.status !== 409) {
 						if (res.status >= 400 && res.status < 500) {
 							queue.shift();
+							await persistQueue();
 							continue;
 						}
 						// Preserve retryable server failures at the front of the queue.
@@ -282,6 +343,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 								if (attempts > maxConflictRetries) {
 									conflictRetries.delete(event.storeKey);
 									queue.shift();
+									await persistQueue();
 									continue;
 								}
 								conflictRetries.set(event.storeKey, attempts);
@@ -294,6 +356,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 							}
 						}
 						queue.shift();
+						await persistQueue();
 					} else if (res.ok) {
 						conflictRetries.delete(event.storeKey);
 						const json = await res.json();
@@ -302,8 +365,10 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 							versions.set(event.storeKey, json.event.version);
 						}
 						queue.shift();
+						await persistQueue();
 					} else {
 						queue.shift();
+						await persistQueue();
 					}
 				} catch (err) {
 					console.error("[Zuno] Flush failed, retrying later", err);
@@ -404,12 +469,12 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 			// Check online status first
 			if (typeof navigator !== "undefined" && !navigator.onLine) {
-				const queued = enqueue(event);
+				const queued = await enqueue(event);
 				return {
 					ok: false,
 					status: 0,
 					json: null,
-					reason: queued ? "OFFLINE_QUEUED" : "QUEUE_FULL",
+					reason: queueReason(queued, "OFFLINE_QUEUED"),
 				};
 			}
 
@@ -468,13 +533,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			if (!res.ok) {
 				const json = await res.json();
 				if (res.status >= 500) {
-					const queued = enqueue(event);
-					if (queued) scheduleFlush();
+					const queued = await enqueue(event);
+					if (queued === "queued") scheduleFlush();
 					return {
 						ok: false,
 						status: res.status,
 						json,
-						reason: queued ? "SERVER_ERROR_QUEUED" : "QUEUE_FULL",
+						reason: queueReason(queued, "SERVER_ERROR_QUEUED"),
 					};
 				}
 				return { ok: false, status: res.status, json };
@@ -491,13 +556,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			return { ok: true, status: 200, json };
 		} catch (err) {
 			// Network failure catch
-			const queued = enqueue(event);
-			if (queued) scheduleFlush();
+			const queued = await enqueue(event);
+			if (queued === "queued") scheduleFlush();
 			return {
 				ok: false,
 				status: 500,
 				json: err,
-				reason: queued ? "NETWORK_ERROR_QUEUED" : "QUEUE_FULL",
+				reason: queueReason(queued, "NETWORK_ERROR_QUEUED"),
 			};
 		}
 	};

@@ -176,6 +176,7 @@ Zuno provides **eventual consistency**, not strong consistency.
 * SSE connections close when a tab closes; reconnect should request events after the last observed event ID.
 * The server replays a complete retained range, otherwise it sends a current snapshot so the replica still converges.
 * Implementations should bound offline queues, conflict retries, and pending subscriber messages to avoid unbounded memory or retry loops.
+* Zuno coalesces queued state snapshots per `storeKey` before flushing. The oldest `baseVersion` and newest state are retained so the replica proposes its final offline state with one request per affected store.
 * WebSocket support can mirror the same message shapes; SSE is the minimal baseline.
 
 ---

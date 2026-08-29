@@ -10,6 +10,27 @@ pnpm start
 
 Open the React, Angular, and Basic HTML URLs printed by Vite. Updating the counter or todo list in one client should update the others.
 
+Each browser exercise uses an IndexedDB-backed offline queue. Because the Vite
+clients run on different origins, each origin has its own `zuno-exercises`
+database and a framework-specific queue key.
+
+## Durable offline queue exercise
+
+1. Open any browser client and switch the Network profile to **Offline**.
+2. Change the counter or todo list. The optimistic change is written to IndexedDB.
+3. Reload the page while it is still offline.
+4. Restore the Network profile to **Online**.
+5. The new client instance loads the queued mutation, sends it to the shared
+   Elysia server, and clears the durable queue after acknowledgement.
+
+Multiple offline changes to the same store are coalesced when the queue flushes.
+Only that store's latest state is sent; changes for different stores are retained
+separately. You can confirm this by changing the counter several times offline
+and observing a single final counter mutation after reconnecting.
+
+To inspect the queue, open the browser's Application panel, expand IndexedDB,
+and inspect the `offline-queues` store inside `zuno-exercises`.
+
 ## Missed-event replay exercise
 
 This exercise verifies that an SSE client receives events it missed during a short disconnection.

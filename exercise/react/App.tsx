@@ -1,3 +1,4 @@
+import { createIndexedDBOfflineQueue } from "@iadev93/zuno";
 import { createZunoReact } from "@iadev93/zuno-react";
 import { useState } from "react";
 import { loggerMiddleware } from "./logger";
@@ -18,6 +19,10 @@ const z = createZunoReact({
 	syncUrl: "http://localhost:3002/zuno/sync",
 	optimistic: true,
 	batchSync: true,
+	offlineQueue: createIndexedDBOfflineQueue({
+		databaseName: "zuno-exercises",
+		queueKey: "react",
+	}),
 	middleware: [loggerMiddleware],
 	resolveConflict: (_local, server) => server, // Server Wins
 });

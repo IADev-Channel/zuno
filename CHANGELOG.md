@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.13] - 2026-08-30
+
+### Added
+- Added a pluggable `ZunoOfflineQueue` contract with in-memory and IndexedDB implementations.
+- Added durable mutation recovery across client reloads and explicit `QUEUE_STORAGE_ERROR` reporting.
+- Added integration coverage for IndexedDB recovery, reconnect event IDs, replay truncation, server restart snapshots, slow subscribers, and SSE cleanup.
+- Added IndexedDB-backed offline recovery to the React, Angular, and Basic HTML exercises.
+
+### Changed
+- `createZuno` and `startSSE` now accept an optional `offlineQueue` provider.
+- Offline state snapshots are coalesced by store key before flushing, preserving the first `baseVersion` and latest state.
+- Milestone 4 verification now covers 61 tests across the full package suite.
+
 ## [0.0.12] - 2026-08-26
 
 ### Added

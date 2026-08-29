@@ -1,4 +1,4 @@
-import { createZuno } from "@iadev93/zuno";
+import { createIndexedDBOfflineQueue, createZuno } from "@iadev93/zuno";
 
 type Todo = {
 	id: string;
@@ -24,6 +24,10 @@ const initiate = () => {
 		syncUrl: "http://localhost:3002/zuno/sync",
 		optimistic: true,
 		batchSync: true,
+		offlineQueue: createIndexedDBOfflineQueue({
+			databaseName: "zuno-exercises",
+			queueKey: "basic-html",
+		}),
 	});
 
 	// --- Counter Logic ---

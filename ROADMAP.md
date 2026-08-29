@@ -1,18 +1,18 @@
 # Zuno Roadmap
 
-Last reviewed: 2026-08-26
+Last reviewed: 2026-08-30
 
 This roadmap tracks Zuno's path from an experimental distributed-state engine to a production-ready library. Update the checkboxes and review date whenever a milestone changes.
 
 Current verified releases:
 
-- `@iadev93/zuno@0.0.12`
+- `@iadev93/zuno@0.0.13`
 - `@iadev93/zuno-react@0.0.13`
 - `@iadev93/zuno-angular@0.0.2`
 - `@iadev93/zuno-express@0.0.13`
 - `@iadev93/zuno-elysia@0.0.9`
 
-Current verification baseline: 54 tests pass, Biome passes, and all five packages build with TypeScript declarations.
+Current verification baseline: 61 tests pass, Biome passes, and all five packages build with TypeScript declarations.
 
 ## Status Legend
 
@@ -60,7 +60,7 @@ Completion evidence: 38 tests pass, Biome passes, and all five packages build wi
 
 Completion criteria: isolated instances pass adapter integration tests, invalid events are rejected consistently, and existing consumers have a clear compatibility path.
 
-## Milestone 4: Replay and Transport Resilience — In Progress
+## Milestone 4: Replay and Transport Resilience — Complete
 
 - [x] Detect event-log replay gaps and send a full snapshot when the requested event is no longer retained.
 - [x] Stop scheduled SSE reconnections after `stop()`.
@@ -68,10 +68,10 @@ Completion criteria: isolated instances pass adapter integration tests, invalid 
 - [x] Add bounded retry and backoff behavior for network and conflict failures.
 - [x] Preserve retryable events on HTTP 5xx responses.
 - [x] Add queue and SSE-client buffer limits for backpressure protection.
-- [ ] Add a pluggable offline queue with an IndexedDB implementation.
-- [ ] Test reconnects, replay truncation, process restart, slow subscribers, and cleanup.
+- [x] Add a pluggable offline queue with an IndexedDB implementation.
+- [x] Test reconnects, replay truncation, process restart, slow subscribers, and cleanup.
 
-Delivered in the `0.0.12` core / `0.0.9` Elysia release: replay-gap snapshot recovery, event-ID snapshots, bounded client retries and queues, bounded subscriber buffers, reliable cleanup, and retryable HTTP 5xx handling.
+Delivered in the `0.0.13` core release: replay-gap snapshot recovery, event-ID snapshots, bounded client retries and queues, durable IndexedDB queue storage, per-store final-state coalescing, bounded subscriber buffers, reliable cleanup, and retryable HTTP 5xx handling.
 
 Completion criteria: interruption and recovery scenarios converge deterministically without leaking listeners or silently losing retryable mutations.
 
@@ -100,7 +100,7 @@ Completion criteria: a tagged release can be built, tested, packed, and publishe
 
 ## Milestone 7: Dependency and Framework Upgrades
 
-- [ ] Upgrade patch and minor dependencies first.
+- [x] Upgrade patch and minor dependencies first.
 - [ ] Upgrade Angular one major version at a time and test its adapter/example at each step.
 - [ ] Upgrade Analog and Vite with their matching Angular compatibility requirements.
 - [ ] Test TypeScript upgrades in CI before changing the supported compiler range.

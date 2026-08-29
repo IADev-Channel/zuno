@@ -128,6 +128,33 @@ Client recovery is bounded by default:
 * `maxConflictRetries` limits automatic retries for one conflict (default: `3`)
 * retryable HTTP 5xx mutations remain queued instead of being silently discarded
 
+By default the offline queue is held in memory. To preserve queued mutations across
+page reloads, provide the IndexedDB adapter with a queue key unique to the current
+application namespace or signed-in user:
+
+```ts
+import { createIndexedDBOfflineQueue, createZuno } from "@iadev93/zuno";
+
+const zuno = createZuno({
+  sseUrl: "/zuno/events",
+  syncUrl: "/zuno/sync",
+  offlineQueue: createIndexedDBOfflineQueue({
+    databaseName: "my-app",
+    queueKey: "tenant-a:user-123",
+  }),
+});
+```
+
+Custom persistence providers can implement the exported `ZunoOfflineQueue`
+`load()`/`save()` contract. A failed durable write returns
+`QUEUE_STORAGE_ERROR` rather than claiming that the mutation was safely queued.
+
+Before flushing, queued state snapshots are coalesced by `storeKey`: Zuno keeps
+the first mutation's `baseVersion` and sends only the latest state for that store.
+For example, offline counter states `1 → 2 → 3` produce one sync request carrying
+state `3`. Different store keys remain separate. This preserves final-state
+convergence while avoiding redundant requests and repeated version conflicts.
+
 ---
 
 ## Adapter Contract (UI / Frameworks)

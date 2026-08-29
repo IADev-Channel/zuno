@@ -1,6 +1,11 @@
+import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createUniverse } from "../core";
-import { startSSE, type ZunoStateEvent } from "../sync";
+import {
+	createIndexedDBOfflineQueue,
+	startSSE,
+	type ZunoStateEvent,
+} from "../sync";
 
 describe("Zuno Sync", () => {
 	const universe = createUniverse();
@@ -166,6 +171,66 @@ describe("Zuno Sync", () => {
 		transport.unsubscribe?.();
 	});
 
+	it("persists offline events in IndexedDB and flushes them after restart", async () => {
+		Object.defineProperty(globalThis, "indexedDB", {
+			configurable: true,
+			value: new IDBFactory(),
+		});
+		Object.defineProperty(navigator, "onLine", { value: false });
+		const queueOptions = {
+			databaseName: "zuno-sync-restart-test",
+			queueKey: "client-a",
+		};
+		const firstQueue = createIndexedDBOfflineQueue(queueOptions);
+		const firstTransport = startSSE({ ...opts, offlineQueue: firstQueue });
+		await firstTransport.dispatch({ storeKey: "durable", state: 42 });
+		firstTransport.unsubscribe?.();
+
+		expect(await firstQueue.load()).toEqual([
+			expect.objectContaining({ storeKey: "durable", state: 42 }),
+		]);
+
+		Object.defineProperty(navigator, "onLine", { value: true });
+		const restartedQueue = createIndexedDBOfflineQueue(queueOptions);
+		const restartedTransport = startSSE({
+			...opts,
+			offlineQueue: restartedQueue,
+		});
+
+		await vi.waitFor(() => {
+			expect(global.fetch).toHaveBeenCalledWith(
+				"http://sync",
+				expect.objectContaining({
+					body: expect.stringContaining('"storeKey":"durable"'),
+				}),
+			);
+		});
+		expect(await restartedQueue.load()).toEqual([]);
+		restartedTransport.unsubscribe?.();
+	});
+
+	it("reports durable queue storage failures without claiming the event was queued", async () => {
+		Object.defineProperty(navigator, "onLine", { value: false });
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => {});
+		const transport = startSSE({
+			...opts,
+			offlineQueue: {
+				load: async () => {
+					throw new Error("storage unavailable");
+				},
+				save: async () => {},
+			},
+		});
+
+		const result = await transport.dispatch({ storeKey: "unsafe", state: 1 });
+
+		expect(result.reason).toBe("QUEUE_STORAGE_ERROR");
+		transport.unsubscribe?.();
+		consoleError.mockRestore();
+	});
+
 	it("retains and retries events after a server error", async () => {
 		vi.useFakeTimers();
 		class SilentEventSource {
@@ -245,6 +310,31 @@ describe("Zuno Sync", () => {
 		expect(instances).toHaveLength(1);
 		expect(removeListener).toHaveBeenCalledWith("online", expect.any(Function));
 		removeListener.mockRestore();
+		vi.useRealTimers();
+		global.EventSource = MockEventSource as unknown as typeof EventSource;
+	});
+
+	it("reconnects with the last observed event ID after backoff", async () => {
+		vi.useFakeTimers();
+		const instances: ReconnectEventSource[] = [];
+		class ReconnectEventSource {
+			onopen: (() => void) | null = null;
+			onerror: (() => void) | null = null;
+			constructor(readonly url: string) {
+				instances.push(this);
+			}
+			close() {}
+			addEventListener() {}
+		}
+		global.EventSource = ReconnectEventSource as unknown as typeof EventSource;
+		const transport = startSSE({ ...opts, getLastEventId: () => 7 });
+
+		instances[0].onerror?.();
+		await vi.advanceTimersByTimeAsync(1000);
+
+		expect(instances).toHaveLength(2);
+		expect(instances[1].url).toContain("lastEventId=7");
+		transport.unsubscribe?.();
 		vi.useRealTimers();
 		global.EventSource = MockEventSource as unknown as typeof EventSource;
 	});

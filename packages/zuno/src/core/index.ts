@@ -1,6 +1,7 @@
 import type {
 	ConflictResolver,
 	TransportStatus,
+	ZunoOfflineQueue,
 	ZunoStateEvent,
 } from "../sync";
 import { applyIncomingEvent, startBroadcastChannel, startSSE } from "../sync";
@@ -81,6 +82,8 @@ export type CreateZunoOptions = {
 	maxQueueSize?: number;
 	/** Maximum automatic retries for a single conflict (default: 3). */
 	maxConflictRetries?: number;
+	/** Optional durable queue used for offline/server-error mutations. */
+	offlineQueue?: ZunoOfflineQueue;
 };
 
 /**
@@ -272,6 +275,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 					},
 					maxQueueSize: opts.maxQueueSize,
 					maxConflictRetries: opts.maxConflictRetries,
+					offlineQueue: opts.offlineQueue,
 					onOpen: () => {
 						_sseReady = true;
 					},

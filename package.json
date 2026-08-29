@@ -30,7 +30,7 @@
 		"clean": "pnpm clean:node_modules && pnpm clean:dist",
 		"test": "vitest run",
 		"check": "biome check .",
-		"verify": "pnpm check && pnpm test && pnpm build",
+		"verify": "pnpm check && pnpm build && pnpm test",
 		"format": "biome check --write .",
 		"postinstall": "lefthook install"
 	},

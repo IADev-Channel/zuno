@@ -1,5 +1,18 @@
 # @iadev93/zuno-angular
 
+## 0.2.0
+
+### Minor Changes
+
+- 841d292: Add observable connection, queue, retry, and conflict status plus structured
+  logging and metrics hooks. Expose the operational status contract through the
+  Angular service.
+
+### Patch Changes
+
+- Updated dependencies [841d292]
+  - @iadev93/zuno@0.1.0
+
 ## 0.1.0
 
 ### Minor Changes

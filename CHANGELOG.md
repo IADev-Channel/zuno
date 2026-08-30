@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-31
+
+### Added
+- Added observable connection, queue, retry, conflict, and error status.
+- Added structured logging and metrics hooks.
+- Added operational indicators, policies, demo topology, and reproducible multi-client benchmarks.
+
+### Changed
+- Standardized the consistency claim as optimistic, server-authoritative eventual consistency with version-based conflict detection.
+
+## [0.0.16] - 2026-08-30
+
 ### Changed
 - Upgraded the Angular integration to Angular 22, Analog 2.7, Vite 8.2, and TypeScript 6.
 - Added stable TypeScript 7 native checking for core, React, Express, and Elysia while retaining TypeScript 6 as the declaration-bundling bridge.

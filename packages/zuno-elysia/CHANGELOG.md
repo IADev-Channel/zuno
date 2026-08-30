@@ -1,5 +1,12 @@
 # @iadev93/zuno-elysia
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [841d292]
+  - @iadev93/zuno@0.1.0
+
 ## 0.0.11
 
 ### Patch Changes

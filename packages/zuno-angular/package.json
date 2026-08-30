@@ -26,20 +26,19 @@
 		"dev": "tsup --watch"
 	},
 	"peerDependencies": {
-		"@angular/core": "^19.0.0",
+		"@angular/core": "^22.0.0",
 		"@iadev93/zuno": "workspace:*",
 		"rxjs": "^7.8.0"
 	},
 	"devDependencies": {
-		"@angular/core": "^19.0.0",
-		"@angular/platform-browser": "^19.2.18",
-		"@angular/platform-browser-dynamic": "^19.2.18",
+		"@angular/core": "^22.1.4",
+		"@angular/platform-browser": "^22.1.4",
 		"@iadev93/zuno": "workspace:*",
-		"@types/node": "^20.19.27",
+		"@types/node": "^22.20.1",
 		"rxjs": "^7.8.0",
 		"tsup": "^8.5.1",
-		"typescript": "5.8.3",
-		"zone.js": "^0.15.0"
+		"typescript": "npm:@typescript/typescript6@6.0.2",
+		"zone.js": "~0.16.0"
 	},
 	"keywords": [
 		"zuno",

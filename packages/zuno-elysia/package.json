@@ -23,7 +23,8 @@
 	},
 	"scripts": {
 		"build": "tsup",
-		"dev": "tsup --watch"
+		"dev": "tsup --watch",
+		"typecheck": "tsc --noEmit"
 	},
 	"peerDependencies": {
 		"@iadev93/zuno": "workspace:*",
@@ -31,9 +32,10 @@
 	},
 	"devDependencies": {
 		"@iadev93/zuno": "workspace:*",
+		"@typescript/native": "npm:typescript@7.0.2",
 		"elysia": "^1.4.30",
 		"tsup": "^8.5.1",
-		"typescript": "^5.9.3"
+		"typescript": "npm:@typescript/typescript6@6.0.2"
 	},
 	"author": "Ibrahim Aftab",
 	"license": "MIT",

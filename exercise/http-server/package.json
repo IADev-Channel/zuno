@@ -11,7 +11,7 @@
 	"dependencies": {
 		"@iadev93/zuno": "workspace:*",
 		"tsx": "^4.23.12",
-		"typescript": "^5.9.3"
+		"typescript": "npm:@typescript/typescript6@6.0.2"
 	},
 	"devDependencies": {
 		"tsup": "^8.5.1"

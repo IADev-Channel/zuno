@@ -1,8 +1,8 @@
 import { getTestBed, TestBed } from "@angular/core/testing";
 import {
-	BrowserDynamicTestingModule,
-	platformBrowserDynamicTesting,
-} from "@angular/platform-browser-dynamic/testing";
+	BrowserTestingModule,
+	platformBrowserTesting,
+} from "@angular/platform-browser/testing";
 import { beforeAll, describe, expect, it } from "vitest";
 import { provideZuno, ZunoService } from "../index";
 import "zone.js";
@@ -11,8 +11,8 @@ import "zone.js/testing";
 describe("ZunoService", () => {
 	beforeAll(() => {
 		getTestBed().initTestEnvironment(
-			BrowserDynamicTestingModule,
-			platformBrowserDynamicTesting(),
+			BrowserTestingModule,
+			platformBrowserTesting(),
 		);
 	});
 

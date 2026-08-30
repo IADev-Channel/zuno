@@ -100,14 +100,22 @@ The release workflow is implemented and locally verified. Publishing becomes act
 
 Completion criteria: a tagged release can be built, tested, packed, and published reproducibly from CI.
 
-## Milestone 7: Dependency and Framework Upgrades
+## Milestone 7: Dependency and Framework Upgrades — Complete
 
 - [x] Upgrade patch and minor dependencies first.
-- [ ] Upgrade Angular one major version at a time and test its adapter/example at each step.
-- [ ] Upgrade Analog and Vite with their matching Angular compatibility requirements.
-- [ ] Test TypeScript upgrades in CI before changing the supported compiler range.
-- [ ] Upgrade Node.js type definitions based on the declared runtime support policy.
-- [ ] Remove deprecated Angular dependencies where the modern bootstrap path no longer needs them.
+- [x] Upgrade Angular one major version at a time and test its adapter/example at each step.
+- [x] Upgrade Analog and Vite with their matching Angular compatibility requirements.
+- [x] Test TypeScript upgrades in CI before changing the supported compiler range.
+- [x] Upgrade Node.js type definitions based on the declared runtime support policy.
+- [x] Remove deprecated Angular dependencies where the modern bootstrap path no longer needs them.
+
+Delivered with Angular 20 and 21 migration checkpoints followed by the verified
+Angular 22.1, Analog 2.7, Vite 8.2, and TypeScript 6.0 stack. Core, React,
+Express, and Elysia are additionally checked with stable TypeScript 7.0 while
+TypeScript 6 remains as Angular's compiler and the declaration-bundling bridge. The standalone
+example no longer installs legacy animation, dynamic-platform, or CLI packages;
+the adapter tests use Angular's modern browser testing platform. Supported
+ranges and the upgrade policy are documented in `docs/compatibility.md`.
 
 Completion criteria: supported dependency ranges are documented, tested, and free of known framework compatibility conflicts.
 

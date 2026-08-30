@@ -1,4 +1,4 @@
-import type { ZunoStateEvent, ZunoTransport } from "../sync/sync-types";
+import type { ZunoStateEvent } from "../sync";
 
 /**
  * A subscriber to state events.
@@ -10,7 +10,7 @@ type Subscriber = (event: ZunoStateEvent) => void;
  *
  * @returns A ZunoTransport instance.
  */
-export const createServerTransport = (): ZunoTransport => {
+export const createServerTransport = () => {
 	/**
 	 * The set of subscribers to state events.
 	 */

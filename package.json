@@ -31,11 +31,12 @@
 		"test": "vitest run",
 		"test:packages": "node scripts/verify-packed-packages.mjs",
 		"test:packages:bun": "node scripts/verify-packed-packages.mjs bun",
+		"typecheck:native": "pnpm --filter @iadev93/zuno typecheck && pnpm --filter @iadev93/zuno-react typecheck && pnpm --filter @iadev93/zuno-express typecheck && pnpm --filter @iadev93/zuno-elysia typecheck",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"release": "changeset publish",
 		"check": "biome check .",
-		"verify": "pnpm check && pnpm build && pnpm test && pnpm test:packages",
+		"verify": "pnpm check && pnpm typecheck:native && pnpm build && pnpm test && pnpm test:packages",
 		"format": "biome check --write .",
 		"postinstall": "lefthook install"
 	},
@@ -46,6 +47,7 @@
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.3",
 		"@types/cors": "^2.8.19",
+		"@typescript/native": "npm:typescript@7.0.2",
 		"concurrently": "^9.2.1",
 		"cors": "^2.8.6",
 		"fake-indexeddb": "^6.2.5",
@@ -53,7 +55,7 @@
 		"jsdom": "^27.4.0",
 		"lefthook": "^2.1.12",
 		"tsup": "^8.5.1",
-		"typescript": "5.8.3",
+		"typescript": "npm:@typescript/typescript6@6.0.2",
 		"vitest": "^4.1.11"
 	}
 }

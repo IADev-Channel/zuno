@@ -23,7 +23,8 @@
 	},
 	"scripts": {
 		"build": "tsup",
-		"dev": "tsup --watch"
+		"dev": "tsup --watch",
+		"typecheck": "tsc --noEmit"
 	},
 	"peerDependencies": {
 		"@iadev93/zuno": "workspace:*",
@@ -32,9 +33,10 @@
 	"devDependencies": {
 		"@iadev93/zuno": "workspace:*",
 		"@types/react": "^18.0.0",
+		"@typescript/native": "npm:typescript@7.0.2",
 		"react": "^19.2.8",
 		"tsup": "^8.5.1",
-		"typescript": "^5.9.3"
+		"typescript": "npm:@typescript/typescript6@6.0.2"
 	},
 	"keywords": [
 		"zuno",

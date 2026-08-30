@@ -1,8 +1,14 @@
 {
 	"name": "@iadev93/zuno-express",
 	"version": "0.0.13",
-	"main": "./dist/index.js",
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
+	"sideEffects": false,
+	"engines": {
+		"node": ">=18"
+	},
 	"files": [
 		"dist",
 		"README.md",
@@ -11,7 +17,8 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"default": "./dist/index.js"
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
 		}
 	},
 	"scripts": {

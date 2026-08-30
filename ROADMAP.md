@@ -88,13 +88,15 @@ Completion criteria: state and replay survive restarts, and multiple server proc
 
 ## Milestone 6: Packaging and Release Automation
 
-- [ ] Add clean ESM and CommonJS consumer fixtures for every package.
-- [ ] Test packed tarballs by installing them into the consumer fixtures.
-- [ ] Normalize package exports and supported runtime metadata.
-- [ ] Add Node.js and Bun compatibility matrices to CI.
-- [ ] Adopt Changesets or an equivalent coordinated release workflow.
-- [ ] Automate npm publishing with provenance and protected release approval.
-- [ ] Generate release notes and tags from the release workflow.
+- [x] Add clean ESM and CommonJS consumer fixtures for every package.
+- [x] Test packed tarballs by installing them into the consumer fixtures.
+- [x] Normalize package exports and supported runtime metadata.
+- [x] Add Node.js and Bun compatibility matrices to CI.
+- [x] Adopt Changesets or an equivalent coordinated release workflow.
+- [x] Automate npm publishing with provenance and protected release approval.
+- [x] Generate release notes and tags from the release workflow.
+
+The release workflow is implemented and locally verified. Publishing becomes active after the repository's `npm` environment is configured with required reviewers and an `NPM_TOKEN` secret.
 
 Completion criteria: a tagged release can be built, tested, packed, and published reproducibly from CI.
 

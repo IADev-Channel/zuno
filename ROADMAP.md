@@ -6,7 +6,7 @@ This roadmap tracks Zuno's path from an experimental distributed-state engine to
 
 Current verified releases:
 
-- `@iadev93/zuno@0.0.13`
+- `@iadev93/zuno@0.0.14`
 - `@iadev93/zuno-react@0.0.13`
 - `@iadev93/zuno-angular@0.0.2`
 - `@iadev93/zuno-express@0.0.13`

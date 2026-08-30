@@ -135,15 +135,108 @@ security/support/compatibility policies, and a reproducible 100-client benchmark
 
 Completion criteria: users can understand, operate, monitor, and troubleshoot Zuno without reading its source.
 
-## Later Expansion
+## Scale Objective: 200,000 Concurrent Connections
 
-These should start only after the production-readiness milestones above:
+The target means 200,000 simultaneously connected clients across a distributed
+deployment, not 200,000 clients subscribed to one global event stream. Zuno must
+not claim this capacity until a versioned workload profile and repeatable load
+test demonstrate it.
+
+The reference workload must define connected versus active clients, subscriptions
+per connection, mutations per active client, recipients per mutation, event size,
+idle percentage, regional distribution, reconnect rate, and acceptable latency,
+error, conflict, and recovery thresholds.
+
+## Milestone 9: Subscription and Partitioning Protocol
+
+- [ ] Add stable `ZunoTopic`, `ZunoPartitionKey`, and subscription identifier types.
+- [ ] Add subscribe, unsubscribe, and replace-subscriptions operations to the client transport contract.
+- [ ] Scope mutation events, replay cursors, and snapshots to an authorized partition and topic set.
+- [ ] Reject cross-tenant store keys and subscription escalation before state access.
+- [ ] Replace global server listener fan-out with indexed topic/partition subscriber registries.
+- [ ] Route one accepted mutation only to subscribers whose topic set matches it.
+- [ ] Add subscription limits per connection and topic-membership limits per principal.
+- [ ] Add protocol compatibility/version negotiation for clients that do not support subscriptions.
+- [ ] Test tenant isolation, subscription churn, unauthorized topics, replay, and snapshot recovery.
+
+Completion criteria: delivery work scales with matching recipients rather than
+all connected clients, and tests prove that partitions cannot observe each
+other's state or events.
+
+## Milestone 10: Production Authority and Durable Event Log
+
+- [ ] Add a production database persistence adapter with transactional compare-and-set semantics.
+- [ ] Store state by partition and store key with a database-enforced version constraint.
+- [ ] Add idempotency keys so retried mutation batches cannot be applied twice.
+- [ ] Replace whole-log load/save operations with append, ranged replay, snapshot, and compaction methods.
+- [ ] Define retention, tombstone, compaction, and partition-migration behavior.
+- [ ] Separate ephemeral presence/cursor events from durable authoritative state mutations.
+- [ ] Add a partition-aware event-bus contract with consumer offsets and duplicate-delivery handling.
+- [ ] Add database and event-bus failure-injection tests, including partial failure and restart recovery.
+- [ ] Benchmark realistic payload sizes and hot-partition contention against the production adapter.
+
+Completion criteria: authoritative state and replay survive process or node loss,
+duplicate delivery is safe, and no mutation relies on process-local memory for
+correctness.
+
+## Milestone 11: Connection Gateway and Horizontal Fan-Out
+
+- [ ] Extract SSE connection ownership from framework request handlers into a gateway contract.
+- [ ] Make gateways stateless apart from bounded connection/subscription indexes.
+- [ ] Route accepted events from the shared bus only to gateways with matching subscribers.
+- [ ] Add gateway registration, health, draining, and graceful deployment behavior.
+- [ ] Add per-principal connection limits and authenticated connection metadata.
+- [ ] Add configurable heartbeat intervals aligned with proxy/load-balancer idle timeouts.
+- [ ] Implement slow-consumer eviction with a typed `RESYNC_REQUIRED` control event.
+- [ ] Add reconnect jitter and admission control to prevent reconnect storms.
+- [ ] Add regional routing and document the single-writer/partition-leader policy.
+- [ ] Prove that adding gateways increases connection capacity without changing conflict semantics.
+
+Completion criteria: connections can be distributed across gateway instances,
+deployments drain without a synchronized reconnect spike, and slow clients
+recover through replay or scoped snapshots.
+
+## Milestone 12: Traffic and Connection Efficiency
+
+- [ ] Add a mutation-batch protocol with per-item results and one idempotency key per batch.
+- [ ] Add configurable time/count batching for high-frequency client mutations.
+- [ ] Prefer intents or deltas where safe instead of repeatedly transmitting full state.
+- [ ] Add payload compression thresholds and measure CPU versus bandwidth tradeoffs.
+- [ ] Add browser leader election or SharedWorker support for one remote connection across same-origin tabs.
+- [ ] Deduplicate identical subscriptions and snapshots within a browser session.
+- [ ] Add an optional WebSocket transport for bidirectional high-frequency workloads.
+- [ ] Keep SSE plus HTTP as the low-frequency default and verify transport interoperability.
+- [ ] Add byte, request, batch-size, and fan-out metrics to the public telemetry hooks.
+
+Completion criteria: the documented workload stays within its request, bandwidth,
+CPU, and memory budgets, and multiple tabs do not require one server connection
+each when platform support permits sharing.
+
+## Milestone 13: Capacity Validation and Operational Readiness
+
+- [ ] Add a distributed load-test harness that opens real SSE and WebSocket connections.
+- [ ] Version the 200k reference workload and publish the exact infrastructure topology.
+- [ ] Test ramp-up, steady state, burst writes, reconnect storms, gateway loss, and bus/database degradation.
+- [ ] Measure p50/p95/p99 mutation acknowledgement and event-delivery latency.
+- [ ] Measure connections per gateway, memory per connection, CPU, bandwidth, queue depth, and dropped/resynced clients.
+- [ ] Define SLOs and alerts for availability, delivery latency, conflicts, retries, lag, and reconnect rate.
+- [ ] Add load shedding, mutation rate limits, circuit breakers, and per-tenant quotas.
+- [ ] Run soak tests long enough to expose connection, listener, timer, and buffer leaks.
+- [ ] Publish capacity results with costs and explicitly document unsupported workload shapes.
+- [ ] Require the distributed test to pass before making a 200k-concurrency support claim.
+
+Completion criteria: 200,000 concurrent connections pass the published workload
+and SLOs with no correctness failures, unbounded queues, global fan-out, or
+single-process dependency.
+
+## Later Product Expansion
+
+These remain lower priority than the scale milestones:
 
 - [ ] Vue adapter
 - [ ] Svelte adapter
-- [ ] WebSocket transport
 - [ ] Developer tools and event timeline
-- [ ] Additional persistence adapters
+- [ ] Additional persistence adapters beyond the production reference
 - [ ] Cross-language Protocol v1 implementations
 
 ## Decision Log
@@ -156,3 +249,5 @@ These should start only after the production-readiness milestones above:
 | 2026-08-26 | Use retained SSE replay for short interruptions and authoritative snapshots for replay gaps. | Clients recover efficiently when possible and still converge when their requested history has expired. |
 | 2026-08-30 | Isolate Angular on TypeScript 6 and check non-Angular packages with TypeScript 7. | Angular 22 requires TypeScript 6 while the stable native compiler is ready for core and the other adapters. |
 | 2026-08-30 | Define the product claim as optimistic, server-authoritative eventual consistency. | Version checks detect stale writes, but replicas converge asynchronously and are not linearizable. |
+| 2026-08-31 | Define 200k as a measured distributed-connection target, not one global broadcast domain. | Connection count alone is insufficient; fan-out, write rate, payload size, reconnects, and SLOs determine capacity. |
+| 2026-08-31 | Prioritize subscriptions, partitioning, durable authority, and gateways before adding transports or UI adapters. | WebSockets do not solve global fan-out, persistence contention, or single-process connection ownership. |

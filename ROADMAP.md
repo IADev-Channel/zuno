@@ -4,13 +4,13 @@ Last reviewed: 2026-08-30
 
 This roadmap tracks Zuno's path from an experimental distributed-state engine to a production-ready library. Update the checkboxes and review date whenever a milestone changes.
 
-Current verified releases:
+Current verified package versions:
 
-- `@iadev93/zuno@0.0.15`
-- `@iadev93/zuno-react@0.0.14`
-- `@iadev93/zuno-angular@0.0.3`
-- `@iadev93/zuno-express@0.0.14`
-- `@iadev93/zuno-elysia@0.0.10`
+- `@iadev93/zuno@0.0.16`
+- `@iadev93/zuno-react@0.0.15`
+- `@iadev93/zuno-angular@0.1.0`
+- `@iadev93/zuno-express@0.0.15`
+- `@iadev93/zuno-elysia@0.0.11`
 
 Current verification baseline: 65 tests pass, Biome passes, and all five packages build with TypeScript declarations.
 

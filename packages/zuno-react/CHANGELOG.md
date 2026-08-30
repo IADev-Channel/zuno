@@ -1,5 +1,15 @@
 # @iadev93/zuno-react
 
+## 0.0.15
+
+### Patch Changes
+
+- Upgrade the supported framework and compiler toolchains for Milestone 7. Angular
+  now targets Angular 22 with TypeScript 6, while core, React, Express, and Elysia
+  are checked with the stable TypeScript 7 native compiler.
+- Updated dependencies
+  - @iadev93/zuno@0.0.16
+
 ## 0.0.14
 
 ### Patch Changes

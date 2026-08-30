@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Upgraded the Angular integration to Angular 22, Analog 2.7, Vite 8.2, and TypeScript 6.
+- Added stable TypeScript 7 native checking for core, React, Express, and Elysia while retaining TypeScript 6 as the declaration-bundling bridge.
+- Raised the shared compilation target to ES2022 in line with the Node.js 22 minimum.
+
 ## [0.0.14] - 2026-08-30
 
 ### Added

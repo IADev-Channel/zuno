@@ -36,5 +36,20 @@ export {
 	startBroadcastChannel,
 	startSSE,
 } from "./sync";
+export type {
+	ZunoPartitionKey,
+	ZunoSubscription,
+	ZunoSubscriptionId,
+	ZunoSubscriptionOperation,
+	ZunoSubscriptionTransport,
+	ZunoSubscriptionTransportStatus,
+	ZunoTopic,
+} from "./sync/subscriptions";
+export {
+	createZunoSubscription,
+	zunoPartitionKey,
+	zunoSubscriptionId,
+	zunoTopic,
+} from "./sync/subscriptions";
 
 export { shallowEqual } from "./utils";

@@ -37,7 +37,7 @@
 		"version-packages": "changeset version",
 		"release": "changeset publish",
 		"check": "biome check .",
-		"verify": "pnpm check && pnpm typecheck:native && pnpm build && pnpm test && pnpm test:packages",
+		"verify": "pnpm check && pnpm build && pnpm typecheck:native && pnpm test && pnpm test:packages",
 		"format": "biome check --write .",
 		"postinstall": "lefthook install"
 	},

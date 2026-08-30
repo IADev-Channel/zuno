@@ -6,11 +6,11 @@ This roadmap tracks Zuno's path from an experimental distributed-state engine to
 
 Current verified releases:
 
-- `@iadev93/zuno@0.0.14`
-- `@iadev93/zuno-react@0.0.13`
-- `@iadev93/zuno-angular@0.0.2`
-- `@iadev93/zuno-express@0.0.13`
-- `@iadev93/zuno-elysia@0.0.9`
+- `@iadev93/zuno@0.0.15`
+- `@iadev93/zuno-react@0.0.14`
+- `@iadev93/zuno-angular@0.0.3`
+- `@iadev93/zuno-express@0.0.14`
+- `@iadev93/zuno-elysia@0.0.10`
 
 Current verification baseline: 65 tests pass, Biome passes, and all five packages build with TypeScript declarations.
 

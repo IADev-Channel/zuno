@@ -23,7 +23,11 @@ export { toReadable } from "./shared/readable";
 export type {
 	ConflictResolver,
 	TransportStatus,
+	ZunoConnectionState,
+	ZunoLogEntry,
+	ZunoMetric,
 	ZunoStateEvent,
+	ZunoStatus,
 	ZunoTransport,
 } from "./sync";
 export * from "./sync";

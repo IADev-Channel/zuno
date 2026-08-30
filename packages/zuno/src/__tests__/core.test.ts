@@ -151,4 +151,21 @@ describe("Zuno Core", () => {
 			expect(zuno.getLastEventId()).toBe(100);
 		});
 	});
+
+	describe("Operational status", () => {
+		it("exposes a stable snapshot and unsubscribe function", async () => {
+			const { createZuno } = await import("../core");
+			const zuno = createZuno();
+			const unsubscribe = zuno.status.subscribe(() => {});
+
+			expect(zuno.status.get()).toEqual({
+				connection: "disabled",
+				queuedMutations: 0,
+				retryAttempt: 0,
+				conflictCount: 0,
+			});
+			expect(unsubscribe).toBeTypeOf("function");
+			unsubscribe();
+		});
+	});
 });

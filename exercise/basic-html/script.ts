@@ -12,6 +12,9 @@ const initiate = () => {
 	const counterEl = document.getElementById("count") as HTMLSpanElement;
 	const incBtn = document.getElementById("increment") as HTMLButtonElement;
 	const decBtn = document.getElementById("decrement") as HTMLButtonElement;
+	const statusEl = document.getElementById(
+		"connection-status",
+	) as HTMLDivElement;
 
 	const todoInput = document.getElementById("todo-input") as HTMLInputElement;
 	const addBtn = document.getElementById("add-todo") as HTMLButtonElement;
@@ -29,6 +32,12 @@ const initiate = () => {
 			queueKey: "basic-html",
 		}),
 	});
+	const renderStatus = (status: ReturnType<typeof zuno.status.get>) => {
+		statusEl.textContent = `${status.connection} · Queue ${status.queuedMutations} · Retries ${status.retryAttempt} · Conflicts ${status.conflictCount}`;
+		statusEl.dataset.connection = status.connection;
+	};
+	renderStatus(zuno.status.get());
+	zuno.status.subscribe(renderStatus);
 
 	// --- Counter Logic ---
 

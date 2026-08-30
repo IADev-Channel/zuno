@@ -29,6 +29,8 @@ pnpm start
 ```
 
 Open the React, Angular, and Basic HTML URLs printed by Vite. Updating the counter or todo list in one client should update the others.
+Each browser client shows its SSE connection, durable queue depth, reconnect
+attempt, and detected-conflict count above the demo controls.
 
 ## Durable server persistence exercise
 

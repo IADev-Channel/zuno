@@ -1,6 +1,6 @@
 import { createIndexedDBOfflineQueue } from "@iadev93/zuno";
 import { createZunoReact } from "@iadev93/zuno-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { loggerMiddleware } from "./logger";
 import "./App.css";
 
@@ -30,6 +30,22 @@ const z = createZunoReact({
 // --- Stores ---
 const counter = z.store("counter", () => 0);
 const todos = z.store<Todo[]>("todos", () => []);
+
+const ConnectionStatus = () => {
+	const status = useSyncExternalStore(
+		z.status.subscribe,
+		z.status.get,
+		z.status.get,
+	);
+	return (
+		<div className={`connection-status ${status.connection}`}>
+			<span>{status.connection}</span>
+			<span>Queue: {status.queuedMutations}</span>
+			<span>Retries: {status.retryAttempt}</span>
+			<span>Conflicts: {status.conflictCount}</span>
+		</div>
+	);
+};
 
 // --- Components ---
 
@@ -124,6 +140,7 @@ const App = () => {
 	return (
 		<div className="container">
 			<h1>Zuno React</h1>
+			<ConnectionStatus />
 			<Counter />
 			<div className="todo-section">
 				<AddTodo />

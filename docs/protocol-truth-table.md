@@ -2,6 +2,9 @@
 
 This document defines the expected behavior of Zuno replicas when encountering version conflicts during synchronization, specifically after periods of offline usage.
 
+The table specifies optimistic, server-authoritative eventual consistency with
+version-based conflict detection; it does not describe strong consistency.
+
 ## The Reconnection Scenario
 
 1.  **Stable State**: Client and Server are at `v1`.

@@ -1,8 +1,8 @@
 <div align="center">
   <img src="./zuno.png" alt="Zuno Logo" width="120" />
   <h1>Zuno</h1>
-  <p><b>Universal, event-driven state synchronization with strong consistency.</b></p>
-  <p>Client, server, and multiple runtimes — perfectly in sync.</p>
+  <p><b>Optimistic, server-authoritative eventual consistency across runtimes.</b></p>
+  <p>Client, server, and multiple runtimes — observable convergence.</p>
 </div>
 
 ---
@@ -10,7 +10,10 @@
 **Zuno** is a distributed state engine built on a simple premise:
 > "State is not local — it is distributed, versioned, and observable."
 
-It ensures that every mutation across your ecosystem (tabs, background workers, node servers, even different runtimes like Bun or Elysia) is deterministic and consistent.
+It gives tabs, servers, and framework adapters an optimistic local view that
+converges on versioned authoritative server state. Conflicting writes are
+detected and resolved explicitly; Zuno does not claim linearizable or strong
+consistency.
 
 ## 🚀 Key Features
 
@@ -103,6 +106,11 @@ app.listen(3000);
 - [**Changelog**](./CHANGELOG.md) — Project history and release notes.
 - [**Conflict Resolution**](./docs/conflict-resolution.md) — Strategies for merging state.
 - [**Server Persistence**](./docs/server-persistence.md) — Atomic storage and multi-process fan-out contracts.
+- [**Operations**](./docs/operations.md) — Status, logging, metrics, and demo topology.
+- [**Compatibility**](./docs/compatibility.md) — Supported runtimes and framework versions.
+- [**Benchmarks**](./docs/benchmarks.md) — Reproducible multi-client workload results.
+- [**Security Policy**](./SECURITY.md) — Reporting and supported versions.
+- [**Support Policy**](./SUPPORT.md) — Maintenance and support boundaries.
 - [**Protocol Truth Table**](./docs/protocol-truth-table.md) — Offline/Sync behavior matrix.
 - [**Contributing**](./CONTRIBUTING.md) — How to help build Zuno.
 - [**Code of Conduct**](./CODE_OF_CONDUCT.md) — Our community standards.

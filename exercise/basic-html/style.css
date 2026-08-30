@@ -43,6 +43,18 @@ h1 {
 	font-size: 1.875rem;
 }
 
+.connection-status {
+	margin: -1rem 0 1.5rem;
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: #dc2626;
+	text-transform: capitalize;
+}
+
+.connection-status[data-connection="connected"] {
+	color: #16a34a;
+}
+
 .counter-section {
 	display: flex;
 	justify-content: space-between;

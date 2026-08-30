@@ -2,6 +2,10 @@
 
 This document describes the high-level architecture of Zuno, its consistency model, and how state flows through the system.
 
+Zuno's consistency claim is optimistic, server-authoritative eventual
+consistency with version-based conflict detection. It does not provide
+linearizable or strong consistency across replicas.
+
 ## High-Level Overview
 
 Zuno is a **distributed state engine**. It treats state as a replicated, versioned log rather than a local memory object.

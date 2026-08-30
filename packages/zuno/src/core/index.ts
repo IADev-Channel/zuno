@@ -1,8 +1,11 @@
 import type {
 	ConflictResolver,
 	TransportStatus,
+	ZunoLogEntry,
+	ZunoMetric,
 	ZunoOfflineQueue,
 	ZunoStateEvent,
+	ZunoStatus,
 } from "../sync";
 import { applyIncomingEvent, startBroadcastChannel, startSSE } from "../sync";
 
@@ -84,6 +87,10 @@ export type CreateZunoOptions = {
 	maxConflictRetries?: number;
 	/** Optional durable queue used for offline/server-error mutations. */
 	offlineQueue?: ZunoOfflineQueue;
+	/** Structured operational log sink. */
+	onLog?: (entry: ZunoLogEntry) => void;
+	/** Metrics sink for transport counters. */
+	onMetric?: (metric: ZunoMetric) => void;
 };
 
 /**
@@ -242,6 +249,30 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		opts.clientId ?? globalThis.crypto?.randomUUID?.() ?? String(Math.random());
 	let _sseReady = false;
 	let lastEventId = 0;
+	let operationalStatus: ZunoStatus = {
+		connection: opts.sseUrl && opts.syncUrl ? "connecting" : "disabled",
+		queuedMutations: 0,
+		retryAttempt: 0,
+		conflictCount: 0,
+	};
+	const statusListeners = new Set<(status: ZunoStatus) => void>();
+	const updateStatus = (change: Partial<ZunoStatus>) => {
+		operationalStatus = {
+			...operationalStatus,
+			...change,
+			conflictCount:
+				change.lastError === "CONFLICT"
+					? operationalStatus.conflictCount + 1
+					: operationalStatus.conflictCount,
+		};
+		for (const listener of statusListeners) {
+			try {
+				listener(operationalStatus);
+			} catch (error) {
+				console.error("[Zuno] Status listener failed", error);
+			}
+		}
+	};
 
 	function hydrateSnapshot(snapshot: ZunoSnapshot) {
 		const plain: Record<string, unknown> = {};
@@ -284,6 +315,9 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 					},
 					onEvent: (e) => dispatch(e), // Route incoming SSE events through middleware
 					resolveConflict: opts.resolveConflict,
+					onStatus: updateStatus,
+					onLog: opts.onLog,
+					onMetric: opts.onMetric,
 				})
 			: null;
 
@@ -509,6 +543,13 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		getLastEventId: () => lastEventId,
 		setLastEventId: (id: number) => {
 			lastEventId = id;
+		},
+		status: {
+			get: () => operationalStatus,
+			subscribe: (listener: (status: ZunoStatus) => void) => {
+				statusListeners.add(listener);
+				return () => statusListeners.delete(listener);
+			},
 		},
 	};
 };

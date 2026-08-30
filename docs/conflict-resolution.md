@@ -2,6 +2,10 @@
 
 Zuno provides multiple ways to handle state divergence. This document explains how to implement each outcome mentioned in the [Protocol Truth Table](./protocol-truth-table.md).
 
+These strategies operate within Zuno's optimistic, server-authoritative eventual
+consistency model. The server detects stale base versions; a resolver chooses the
+next local proposal or accepts the authoritative state.
+
 ## 1. Outcome: Prefer Server (Default)
 
 This is the default Zuno behavior. If a conflict occurs, the client simply accepts the server's state.

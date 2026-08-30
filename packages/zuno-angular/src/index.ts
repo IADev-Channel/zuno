@@ -100,6 +100,21 @@ export class ZunoService {
 	snapshot() {
 		return this.zuno.universe.snapshot();
 	}
+
+	status() {
+		return this.zuno.status;
+	}
+
+	statusSignal() {
+		const status = this.zuno.status;
+		return toSignal(
+			new Observable((subscriber) => {
+				subscriber.next(status.get());
+				return status.subscribe((value) => subscriber.next(value));
+			}),
+			{ initialValue: status.get() },
+		);
+	}
 }
 
 /**

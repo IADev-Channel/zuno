@@ -2,7 +2,8 @@
 
 <p><b>The core state engine for Zuno.</b></p>
 
-Zuno is a universal, event-driven state system designed to keep **client, server, and multiple runtimes** in sync with strong consistency guarantees.
+Zuno is a universal, event-driven state system providing optimistic,
+server-authoritative eventual consistency with version-based conflict detection.
 
 This package provides the foundation:
 - 🌌 **Universe**: Central coordination for all stores.
@@ -154,6 +155,21 @@ the first mutation's `baseVersion` and sends only the latest state for that stor
 For example, offline counter states `1 → 2 → 3` produce one sync request carrying
 state `3`. Different store keys remain separate. This preserves final-state
 convergence while avoiding redundant requests and repeated version conflicts.
+
+### Operational status and telemetry
+
+Each instance exposes an observable `status` with connection state, queue depth,
+reconnect attempt, conflict count, and last error:
+
+```ts
+const unsubscribe = zuno.status.subscribe((status) => {
+  console.log(status.connection, status.queuedMutations);
+});
+```
+
+Use the `onLog` and `onMetric` creation options to forward structured transport
+events and counters to an application logger or metrics backend. See the
+repository operations guide for the stable event and status contract.
 
 ---
 

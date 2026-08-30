@@ -166,7 +166,8 @@ When receiving a mutation:
 if baseVersion !== currentVersion → reject (409)
 ```
 
-Zuno provides **eventual consistency**, not strong consistency.
+Zuno provides **optimistic, server-authoritative eventual consistency with
+version-based conflict detection**, not strong or linearizable consistency.
 
 ---
 

@@ -31,6 +31,7 @@
 		"test": "vitest run",
 		"test:packages": "node scripts/verify-packed-packages.mjs",
 		"test:packages:bun": "node scripts/verify-packed-packages.mjs bun",
+		"benchmark": "pnpm build-core && node scripts/benchmark.mjs",
 		"typecheck:native": "pnpm --filter @iadev93/zuno typecheck && pnpm --filter @iadev93/zuno-react typecheck && pnpm --filter @iadev93/zuno-express typecheck && pnpm --filter @iadev93/zuno-elysia typecheck",
 		"changeset": "changeset",
 		"version-packages": "changeset version",

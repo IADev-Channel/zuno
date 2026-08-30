@@ -86,6 +86,29 @@ describe("Zuno Sync", () => {
 		expect(universe.getStore("offline", () => 0).get()).toBe(99);
 	});
 
+	it("publishes observable queue status and structured metrics", async () => {
+		Object.defineProperty(navigator, "onLine", { value: false });
+		const onStatus = vi.fn();
+		const onMetric = vi.fn();
+		const transport = startSSE({ ...opts, onStatus, onMetric });
+
+		await transport.dispatch({ storeKey: "observable", state: 1 });
+
+		expect(onStatus).toHaveBeenCalledWith({ queuedMutations: 1 });
+		expect(onMetric).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "zuno.queue.enqueued",
+				value: 1,
+				tags: { storeKey: "observable" },
+			}),
+		);
+		transport.unsubscribe?.();
+		expect(onStatus).toHaveBeenCalledWith({
+			connection: "stopped",
+			retryAttempt: 0,
+		});
+	});
+
 	it("should resolve conflict (Server Wins default helper)", async () => {
 		// Simulate 409 Conflict
 		const serverState = 100;

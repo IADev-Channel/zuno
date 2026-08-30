@@ -17,6 +17,12 @@ type Todo = {
 	template: `
     <div class="container">
       <h1>Zuno Angular</h1>
+      <div class="connection-status" [class.connected]="status().connection === 'connected'">
+        <span>{{ status().connection }}</span>
+        <span>Queue: {{ status().queuedMutations }}</span>
+        <span>Retries: {{ status().retryAttempt }}</span>
+        <span>Conflicts: {{ status().conflictCount }}</span>
+      </div>
       
       <div class="counter-section">
         <button (click)="dec()">-</button>
@@ -47,6 +53,7 @@ type Todo = {
 })
 export class AppComponent {
 	zuno = inject(ZunoService);
+	status = this.zuno.statusSignal();
 
 	// --- Counter ---
 	counterStore = this.zuno.store("counter", () => 0);

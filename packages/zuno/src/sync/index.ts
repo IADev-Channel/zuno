@@ -46,6 +46,37 @@ export type TransportStatus = {
 	reason?: string;
 };
 
+export type ZunoConnectionState =
+	| "disabled"
+	| "connecting"
+	| "connected"
+	| "disconnected"
+	| "stopped";
+
+export type ZunoStatus = {
+	connection: ZunoConnectionState;
+	queuedMutations: number;
+	retryAttempt: number;
+	conflictCount: number;
+	lastError?: string;
+};
+
+export type ZunoLogEntry = {
+	level: "debug" | "info" | "warn" | "error";
+	event: string;
+	timestamp: number;
+	storeKey?: string;
+	details?: Record<string, unknown>;
+};
+
+export type ZunoMetric = {
+	name: string;
+	value: number;
+	unit: "count" | "milliseconds";
+	timestamp: number;
+	tags?: Record<string, string>;
+};
+
 /**
  * Client transport interface.
  */
@@ -139,6 +170,9 @@ export type SSEOptions = {
 	onClose?: () => void;
 	onEvent?: (event: ZunoStateEvent) => void;
 	resolveConflict?: ConflictResolver;
+	onStatus?: (change: Partial<ZunoStatus>) => void;
+	onLog?: (entry: ZunoLogEntry) => void;
+	onMetric?: (metric: ZunoMetric) => void;
 };
 
 export function startSSE(opts: SSEOptions): ZunoTransport {
@@ -167,6 +201,31 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	let stopped = false;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	let flushTimer: ReturnType<typeof setTimeout> | null = null;
+	const updateStatus = (change: Partial<ZunoStatus>) => opts.onStatus?.(change);
+	const log = (
+		level: ZunoLogEntry["level"],
+		event: string,
+		details?: Record<string, unknown>,
+	) => {
+		try {
+			opts.onLog?.({ level, event, timestamp: Date.now(), details });
+		} catch (error) {
+			console.error("[Zuno] Log hook failed", error);
+		}
+	};
+	const metric = (name: string, value = 1, tags?: Record<string, string>) => {
+		try {
+			opts.onMetric?.({
+				name,
+				value,
+				unit: "count",
+				timestamp: Date.now(),
+				tags,
+			});
+		} catch (error) {
+			console.error("[Zuno] Metric hook failed", error);
+		}
+	};
 
 	// Helper to apply state changes
 	const applyState = (event: ZunoStateEvent) => {
@@ -193,12 +252,16 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	let queueStorageHealthy = true;
 	const reportQueueStorageError = (error: unknown) => {
 		queueStorageHealthy = false;
+		updateStatus({ lastError: "QUEUE_STORAGE_ERROR" });
+		log("error", "queue.storage_error", { error: String(error) });
+		metric("zuno.queue.storage_errors");
 		console.error("[Zuno] Offline queue storage failed", error);
 	};
 	const queueReady = offlineQueue
 		.load()
 		.then(async (storedEvents) => {
 			queue.push(...storedEvents.slice(0, maxQueueSize));
+			updateStatus({ queuedMutations: queue.length });
 			if (storedEvents.length > maxQueueSize) {
 				try {
 					await offlineQueue.save(queue);
@@ -211,6 +274,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	const conflictRetries = new Map<string, number>();
 	let isFlushing = false;
 	const persistQueue = async () => {
+		updateStatus({ queuedMutations: queue.length });
 		try {
 			await offlineQueue.save(queue);
 			queueStorageHealthy = true;
@@ -227,8 +291,11 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		queue.push(event);
 		if (!(await persistQueue())) {
 			queue.pop();
+			updateStatus({ queuedMutations: queue.length });
 			return "storage-error" as const;
 		}
+		updateStatus({ queuedMutations: queue.length });
+		metric("zuno.queue.enqueued", 1, { storeKey: event.storeKey });
 		return "queued" as const;
 	};
 	const queueReason = (
@@ -286,6 +353,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		// but we can clear and push.
 		queue.length = 0;
 		queue.push(...reducedQueue);
+		updateStatus({ queuedMutations: queue.length });
 		await persistQueue();
 
 		try {
@@ -310,6 +378,8 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 					}
 
 					if (res.status === 409) {
+						metric("zuno.conflicts", 1, { storeKey: event.storeKey });
+						updateStatus({ lastError: "CONFLICT" });
 						const data = await res.json();
 						if (data.current) {
 							const { state: serverState, version: serverVersion } =
@@ -371,6 +441,8 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 						await persistQueue();
 					}
 				} catch (err) {
+					updateStatus({ lastError: "QUEUE_FLUSH_FAILED" });
+					log("warn", "queue.flush_failed", { error: String(err) });
 					console.error("[Zuno] Flush failed, retrying later", err);
 					scheduleFlush();
 					break; // Network error, stop flushing
@@ -382,6 +454,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	}
 	function connect() {
 		if (stopped) return;
+		updateStatus({ connection: "connecting" });
 		const lastId = getLastEventId();
 		const connectUrl = new URL(url, globalThis.location?.href);
 		if (lastId > 0) connectUrl.searchParams.set("lastEventId", String(lastId));
@@ -430,6 +503,13 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		es.onopen = () => {
 			if (stopped) return;
 			retryCount = 0;
+			updateStatus({
+				connection: "connected",
+				retryAttempt: 0,
+				lastError: undefined,
+			});
+			log("info", "connection.open");
+			metric("zuno.connection.opened");
 			opts.onOpen?.();
 			flushQueue();
 		};
@@ -440,6 +520,16 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			opts.onClose?.();
 			const delay = Math.min(1000 * 2 ** retryCount, 30000);
 			retryCount++;
+			updateStatus({
+				connection: "disconnected",
+				retryAttempt: retryCount,
+				lastError: "SSE_DISCONNECTED",
+			});
+			log("warn", "connection.retry_scheduled", {
+				delay,
+				retryAttempt: retryCount,
+			});
+			metric("zuno.connection.retries");
 			reconnectTimer = setTimeout(() => {
 				reconnectTimer = null;
 				connect();
@@ -485,6 +575,8 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			});
 
 			if (res.status === 409) {
+				metric("zuno.conflicts", 1, { storeKey: event.storeKey });
+				updateStatus({ lastError: "CONFLICT" });
 				const data = await res.json();
 				if (data.current) {
 					const { state: serverState, version: serverVersion } = data.current;
@@ -571,6 +663,8 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		dispatch: dispatchFn,
 		unsubscribe: () => {
 			stopped = true;
+			updateStatus({ connection: "stopped", retryAttempt: 0 });
+			log("info", "connection.stopped");
 			es?.close();
 			if (reconnectTimer) clearTimeout(reconnectTimer);
 			if (flushTimer) clearTimeout(flushTimer);

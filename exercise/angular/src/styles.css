@@ -44,6 +44,25 @@ h1 {
 	font-size: 1.875rem;
 }
 
+.connection-status {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1rem;
+	margin: -1rem 0 1.5rem;
+	font-size: 0.8rem;
+	color: var(--text-secondary);
+}
+
+.connection-status span:first-child {
+	font-weight: 700;
+	text-transform: capitalize;
+	color: #dc2626;
+}
+
+.connection-status.connected span:first-child {
+	color: #16a34a;
+}
+
 .counter-section {
 	display: flex;
 	justify-content: space-between;

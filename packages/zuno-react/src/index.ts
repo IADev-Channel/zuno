@@ -3,6 +3,7 @@ import {
 	createZuno,
 	toReadable,
 	type ZunoReadable,
+	type ZunoStatus,
 	type ZunoSubscribableStore,
 } from "@iadev93/zuno";
 import * as React from "react";
@@ -62,6 +63,10 @@ export type ZunoCore = {
 		intent: { type: string; payload?: unknown },
 	): Promise<unknown>;
 	get<T>(storeKey: string, init?: () => T): T;
+	status: {
+		get: () => ZunoStatus;
+		subscribe: (listener: (status: ZunoStatus) => void) => () => void;
+	};
 	stop?: () => void;
 };
 
@@ -84,7 +89,7 @@ export type ReactBoundStore<T> = BoundStore<T> & {
  * @param zuno The Zuno instance to bind.
  * @returns A React-enhanced Zuno instance.
  */
-export const bindReact = (zuno: ZunoCore) => {
+export const bindReact = <TZuno extends ZunoCore>(zuno: TZuno) => {
 	/**
 	 * A custom hook for accessing a Zuno store in a React component.
 	 */
@@ -174,7 +179,7 @@ export const bindReact = (zuno: ZunoCore) => {
 	return {
 		...zuno,
 		store,
-	};
+	} as Omit<TZuno, "store"> & { store: typeof store };
 };
 
 /**

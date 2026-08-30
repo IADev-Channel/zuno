@@ -1,5 +1,9 @@
 # Why Zuno Exists
 
+Zuno provides optimistic, server-authoritative eventual consistency with
+version-based conflict detection. Local replicas can update immediately and then
+converge on the server's accepted version.
+
 Zuno was created to solve a problem most state libraries avoid:
 
 > **How does state move and stay consistent across replicas?**

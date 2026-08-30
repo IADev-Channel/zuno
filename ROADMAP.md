@@ -1,6 +1,6 @@
 # Zuno Roadmap
 
-Last reviewed: 2026-08-30
+Last reviewed: 2026-08-31
 
 This roadmap tracks Zuno's path from an experimental distributed-state engine to a production-ready library. Update the checkboxes and review date whenever a milestone changes.
 
@@ -12,7 +12,7 @@ Current verified package versions:
 - `@iadev93/zuno-express@0.0.15`
 - `@iadev93/zuno-elysia@0.0.11`
 
-Current verification baseline: 65 tests pass, Biome passes, and all five packages build with TypeScript declarations.
+Current verification baseline: 67 tests pass, Biome passes, and all five packages build with TypeScript declarations.
 
 ## Status Legend
 
@@ -119,15 +119,19 @@ ranges and the upgrade policy are documented in `docs/compatibility.md`.
 
 Completion criteria: supported dependency ranges are documented, tested, and free of known framework compatibility conflicts.
 
-## Milestone 8: Product Readiness
+## Milestone 8: Product Readiness — Complete
 
-- [ ] Align all documentation on the consistency claim: optimistic, server-authoritative eventual consistency with version-based conflict detection.
-- [ ] Add observable connection, queue, retry, and conflict status APIs.
-- [ ] Add connection-status indicators to every example.
-- [ ] Add a single documented demo command and topology diagram.
-- [ ] Add structured logging and metrics hooks.
-- [ ] Publish security, support, and compatibility policies.
-- [ ] Benchmark realistic multi-client workloads and document the results.
+- [x] Align all documentation on the consistency claim: optimistic, server-authoritative eventual consistency with version-based conflict detection.
+- [x] Add observable connection, queue, retry, and conflict status APIs.
+- [x] Add connection-status indicators to every browser example.
+- [x] Add a single documented demo command and topology diagram.
+- [x] Add structured logging and metrics hooks.
+- [x] Publish security, support, and compatibility policies.
+- [x] Benchmark realistic multi-client workloads and document the results.
+
+Delivered with the public `status` observable, structured `onLog` and `onMetric`
+hooks, operational indicators in HTML/React/Angular, one-command demo topology,
+security/support/compatibility policies, and a reproducible 100-client benchmark.
 
 Completion criteria: users can understand, operate, monitor, and troubleshoot Zuno without reading its source.
 
@@ -150,3 +154,5 @@ These should start only after the production-readiness milestones above:
 | 2026-08-26 | Pin Angular 19 workspaces to TypeScript 5.8.3. | Angular 19 rejects TypeScript 5.9 and later. |
 | 2026-08-26 | Prioritize server isolation before adding more framework adapters. | Process-global state prevents safe tenant and instance isolation. |
 | 2026-08-26 | Use retained SSE replay for short interruptions and authoritative snapshots for replay gaps. | Clients recover efficiently when possible and still converge when their requested history has expired. |
+| 2026-08-30 | Isolate Angular on TypeScript 6 and check non-Angular packages with TypeScript 7. | Angular 22 requires TypeScript 6 while the stable native compiler is ready for core and the other adapters. |
+| 2026-08-30 | Define the product claim as optimistic, server-authoritative eventual consistency. | Version checks detect stale writes, but replicas converge asynchronously and are not linearizable. |

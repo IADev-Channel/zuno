@@ -3,27 +3,20 @@ import type {
 	ZunoSubscription,
 	ZunoSubscriptionId,
 	ZunoTopic,
-} from "../sync";
+} from "../sync/subscriptions";
 
 export type ZunoSubscriptionListener = (subscription: ZunoSubscription) => void;
 
 const indexKey = (partition: ZunoPartitionKey, topic: ZunoTopic) =>
 	`${partition}\u0000${topic}`;
 
-/**
- * Indexed subscription registry used by gateways/server transports.
- * Delivery lookup is scoped to a partition/topic pair instead of scanning
- * every connected listener.
- */
+/** Indexed registry so delivery work follows matching recipients, not all clients. */
 export class ZunoSubscriptionRegistry {
 	private readonly subscriptions = new Map<ZunoSubscriptionId, ZunoSubscription>();
 	private readonly listeners = new Map<ZunoSubscriptionId, ZunoSubscriptionListener>();
 	private readonly index = new Map<string, Set<ZunoSubscriptionId>>();
 
-	subscribe(
-		subscription: ZunoSubscription,
-		listener: ZunoSubscriptionListener,
-	): () => void {
+	subscribe(subscription: ZunoSubscription, listener: ZunoSubscriptionListener): () => void {
 		this.unsubscribe(subscription.id);
 		this.subscriptions.set(subscription.id, subscription);
 		this.listeners.set(subscription.id, listener);
@@ -49,11 +42,7 @@ export class ZunoSubscriptionRegistry {
 		return true;
 	}
 
-	replace(
-		currentIds: Iterable<ZunoSubscriptionId>,
-		next: readonly ZunoSubscription[],
-		listener: ZunoSubscriptionListener,
-	): () => void {
+	replace(currentIds: Iterable<ZunoSubscriptionId>, next: readonly ZunoSubscription[], listener: ZunoSubscriptionListener): () => void {
 		for (const id of currentIds) this.unsubscribe(id);
 		for (const subscription of next) this.subscribe(subscription, listener);
 		return () => {
@@ -74,9 +63,7 @@ export class ZunoSubscriptionRegistry {
 
 	publish(partition: ZunoPartitionKey, topic: ZunoTopic): number {
 		const matches = this.matching(partition, topic);
-		for (const subscription of matches) {
-			this.listeners.get(subscription.id)?.(subscription);
-		}
+		for (const subscription of matches) this.listeners.get(subscription.id)?.(subscription);
 		return matches.length;
 	}
 

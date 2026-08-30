@@ -1,4 +1,11 @@
 import type { ZunoStateEvent } from "../sync";
+import type { ZunoServerEventBus } from "./event-bus";
+import {
+	createEmptyPersistedServerState,
+	createMemoryZunoServerPersistence,
+	type ZunoCompareAndSetResult,
+	type ZunoServerPersistence,
+} from "./persistence";
 
 export type UniverseRecord = {
 	state: unknown;
@@ -14,6 +21,12 @@ export type CreateZunoServerStateOptions = {
 	maxStateBytes?: number;
 	/** Maximum events buffered for a slow SSE subscriber. */
 	maxSubscriberBuffer?: number;
+	/** Authoritative state and replay-log persistence. */
+	persistence?: ZunoServerPersistence;
+	/** Shared fan-out bus for other server instances using the same persistence. */
+	eventBus?: ZunoServerEventBus;
+	/** Stable identifier used to suppress event-bus loopback. */
+	instanceId?: string;
 };
 
 /**
@@ -24,10 +37,11 @@ export class ZunoServerState {
 	readonly maxEvents: number;
 	readonly maxStateBytes: number;
 	readonly maxSubscriberBuffer: number;
-	private readonly universeState = new Map<string, UniverseRecord>();
-	private readonly eventLog: ZunoStateEvent[] = [];
+	readonly persistence: ZunoServerPersistence;
+	readonly instanceId: string;
 	private readonly listeners = new Set<ZunoStateListener>();
-	private nextEventId = 1;
+	private readonly eventBus?: ZunoServerEventBus;
+	private unsubscribeFromEventBus?: () => void;
 
 	constructor(options: CreateZunoServerStateOptions = {}) {
 		const maxEvents = options.maxEvents ?? 1000;
@@ -45,46 +59,64 @@ export class ZunoServerState {
 		this.maxEvents = maxEvents;
 		this.maxStateBytes = maxStateBytes;
 		this.maxSubscriberBuffer = maxSubscriberBuffer;
+		this.persistence =
+			options.persistence ?? createMemoryZunoServerPersistence();
+		this.eventBus = options.eventBus;
+		this.instanceId = options.instanceId ?? crypto.randomUUID();
+		this.unsubscribeFromEventBus = this.eventBus?.subscribe((message) => {
+			if (message.source === this.instanceId) return;
+			this.notifyLocalListeners(message.event);
+		});
 	}
 
 	getUniverseRecord(storeKey: string): UniverseRecord | undefined {
-		return this.universeState.get(storeKey);
+		return this.persistence.load().universe[storeKey];
 	}
 
 	updateUniverseState(event: ZunoStateEvent): void {
-		const current = this.universeState.get(event.storeKey) ?? {
+		const persisted = this.persistence.load();
+		const current = persisted.universe[event.storeKey] ?? {
 			state: undefined,
 			version: 0,
 		};
 		const nextVersion =
 			typeof event.version === "number" ? event.version : current.version + 1;
-		this.universeState.set(event.storeKey, {
+		persisted.universe[event.storeKey] = {
 			state: event.state,
 			version: nextVersion,
-		});
+		};
+		this.persistence.save(persisted);
 	}
 
 	getUniverseState(): Record<string, UniverseRecord> {
-		return Object.fromEntries(this.universeState);
+		return this.persistence.load().universe;
 	}
 
 	appendEvent(event: ZunoStateEvent): ZunoStateEvent {
-		event.eventId = this.nextEventId++;
-		this.eventLog.push(event);
-		if (this.eventLog.length > this.maxEvents) {
-			this.eventLog.shift();
+		const persisted = this.persistence.load();
+		event.eventId = persisted.nextEventId++;
+		persisted.events.push(event);
+		if (persisted.events.length > this.maxEvents) {
+			persisted.events.splice(0, persisted.events.length - this.maxEvents);
 		}
+		this.persistence.save(persisted);
 		return event;
 	}
 
+	compareAndSet(event: ZunoStateEvent): ZunoCompareAndSetResult {
+		return this.persistence.compareAndSet(event, this.maxEvents);
+	}
+
 	getEventsAfter(lastEventId: number): ZunoStateEvent[] {
-		return this.eventLog.filter((event) => (event.eventId ?? 0) > lastEventId);
+		return this.persistence
+			.load()
+			.events.filter((event) => (event.eventId ?? 0) > lastEventId);
 	}
 
 	canReplayAfter(lastEventId: number): boolean {
 		const latest = this.getLastEventId();
 		if (lastEventId === latest) return true;
-		const first = this.eventLog[0]?.eventId;
+		const first = this.persistence.load().events[0]?.eventId;
 		return (
 			typeof first === "number" &&
 			lastEventId >= first - 1 &&
@@ -93,7 +125,8 @@ export class ZunoServerState {
 	}
 
 	getLastEventId(): number {
-		return this.eventLog[this.eventLog.length - 1]?.eventId ?? 0;
+		const events = this.persistence.load().events;
+		return events[events.length - 1]?.eventId ?? 0;
 	}
 
 	subscribeToStateEvents(listener: ZunoStateListener): () => void {
@@ -104,15 +137,24 @@ export class ZunoServerState {
 	}
 
 	publishToStateEvent(event: ZunoStateEvent): void {
+		this.notifyLocalListeners(event);
+		this.eventBus?.publish({ source: this.instanceId, event });
+	}
+
+	private notifyLocalListeners(event: ZunoStateEvent): void {
 		this.listeners.forEach((listener) => {
 			listener(event);
 		});
 	}
 
 	clear(): void {
-		this.universeState.clear();
-		this.eventLog.length = 0;
-		this.nextEventId = 1;
+		this.persistence.save(createEmptyPersistedServerState());
+	}
+
+	dispose(): void {
+		this.unsubscribeFromEventBus?.();
+		this.unsubscribeFromEventBus = undefined;
+		this.listeners.clear();
 	}
 }
 

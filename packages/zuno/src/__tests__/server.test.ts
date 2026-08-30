@@ -1,8 +1,14 @@
 import { EventEmitter } from "node:events";
+import { mkdirSync, readFileSync, rmSync, utimesSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	applyStateEvent,
+	createFileZunoServerPersistence,
+	createMemoryZunoServerEventBus,
+	createMemoryZunoServerPersistence,
 	createSSEConnection,
 	createZunoServerRegistry,
 	createZunoServerState,
@@ -179,5 +185,136 @@ describe("Zuno server state", () => {
 
 		expect(responseMock.write).toHaveBeenCalledTimes(writesBeforeClose);
 		expect(responseMock.end).toHaveBeenCalledOnce();
+	});
+
+	it("restores authoritative state and replay events from durable storage", () => {
+		const directory = join(tmpdir(), `zuno-restart-${crypto.randomUUID()}`);
+		const filePath = join(directory, "server.json");
+		try {
+			const firstServer = createZunoServerState({
+				persistence: createFileZunoServerPersistence(filePath),
+			});
+			applyStateEvent(
+				{ storeKey: "counter", state: 1, baseVersion: 0 },
+				firstServer,
+			);
+			applyStateEvent(
+				{ storeKey: "counter", state: 2, baseVersion: 1 },
+				firstServer,
+			);
+
+			const restartedServer = createZunoServerState({
+				persistence: createFileZunoServerPersistence(filePath),
+			});
+
+			expect(restartedServer.getUniverseRecord("counter")).toEqual({
+				state: 2,
+				version: 2,
+			});
+			expect(
+				restartedServer.getEventsAfter(0).map((event) => event.eventId),
+			).toEqual([1, 2]);
+			expect(restartedServer.canReplayAfter(1)).toBe(true);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("leaves durable storage unchanged after a compare-and-set conflict", () => {
+		const directory = join(tmpdir(), `zuno-conflict-${crypto.randomUUID()}`);
+		const filePath = join(directory, "server.json");
+		try {
+			const server = createZunoServerState({
+				persistence: createFileZunoServerPersistence(filePath),
+			});
+			applyStateEvent(
+				{ storeKey: "counter", state: 1, baseVersion: 0 },
+				server,
+			);
+			const beforeConflict = readFileSync(filePath, "utf8");
+
+			const result = applyStateEvent(
+				{ storeKey: "counter", state: 99, baseVersion: 0 },
+				server,
+			);
+
+			expect(result).toMatchObject({
+				ok: false,
+				reason: "VERSION_CONFLICT",
+			});
+			expect(readFileSync(filePath, "utf8")).toBe(beforeConflict);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("recovers from a lock abandoned by a crashed process", () => {
+		const directory = join(tmpdir(), `zuno-stale-lock-${crypto.randomUUID()}`);
+		const filePath = join(directory, "server.json");
+		try {
+			const persistence = createFileZunoServerPersistence(filePath, {
+				staleLockMs: 10,
+			});
+			mkdirSync(`${filePath}.lock`);
+			const staleTime = new Date(Date.now() - 1000);
+			utimesSync(`${filePath}.lock`, staleTime, staleTime);
+			const server = createZunoServerState({ persistence });
+
+			const result = applyStateEvent(
+				{ storeKey: "counter", state: 1, baseVersion: 0 },
+				server,
+			);
+
+			expect(result.ok).toBe(true);
+			expect(server.getLastEventId()).toBe(1);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("preserves conflict semantics across server instances sharing authority", () => {
+		const persistence = createMemoryZunoServerPersistence();
+		const eventBus = createMemoryZunoServerEventBus();
+		const serverA = createZunoServerState({
+			persistence,
+			eventBus,
+			instanceId: "server-a",
+		});
+		const serverB = createZunoServerState({
+			persistence,
+			eventBus,
+			instanceId: "server-b",
+		});
+		const listenerA = vi.fn();
+		const listenerB = vi.fn();
+		serverA.subscribeToStateEvents(listenerA);
+		serverB.subscribeToStateEvents(listenerB);
+
+		const accepted = applyStateEvent(
+			{ storeKey: "counter", state: "from-a", baseVersion: 0 },
+			serverA,
+		);
+		const rejected = applyStateEvent(
+			{ storeKey: "counter", state: "from-b", baseVersion: 0 },
+			serverB,
+		);
+
+		expect(accepted.ok).toBe(true);
+		expect(rejected).toMatchObject({
+			ok: false,
+			reason: "VERSION_CONFLICT",
+			current: { state: "from-a", version: 1 },
+		});
+		expect(serverA.getUniverseState()).toEqual(serverB.getUniverseState());
+		expect(listenerA).toHaveBeenCalledOnce();
+		expect(listenerB).toHaveBeenCalledOnce();
+
+		serverB.dispose();
+		applyStateEvent(
+			{ storeKey: "counter", state: "from-a-again", baseVersion: 1 },
+			serverA,
+		);
+		expect(listenerB).toHaveBeenCalledOnce();
+		serverA.dispose();
 	});
 });

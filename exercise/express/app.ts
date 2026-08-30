@@ -1,4 +1,8 @@
-import { applyStateEvent } from "@iadev93/zuno/server";
+import {
+	applyStateEvent,
+	createFileZunoServerPersistence,
+	createZunoServerState,
+} from "@iadev93/zuno/server";
 import { createZunoExpress /*, mountZuno*/ } from "@iadev93/zuno-express";
 import cors from "cors";
 import express from "express";
@@ -8,7 +12,10 @@ app.use(express.json());
 app.use(cors());
 
 // --- Zuno Setup ---
-const zuno = createZunoExpress();
+const server = createZunoServerState({
+	persistence: createFileZunoServerPersistence("./.data/zuno.json"),
+});
+const zuno = createZunoExpress({ server });
 
 // Option 1: Granular control (Good for custom paths or middleware)
 app.get("/zuno/sse", zuno.sse);

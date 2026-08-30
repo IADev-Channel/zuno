@@ -1,6 +1,26 @@
 # Zuno Exercises
 
-The React, Angular, and Basic HTML clients share the Elysia server at `http://localhost:3002`. The Express server on port 3003 is an independent adapter exercise with its own in-memory universe.
+The React, Angular, and Basic HTML clients share the Elysia server at `http://localhost:3002`. The Express server on port 3003 is an independent adapter exercise with its own durable universe.
+
+## Tutorials and recommended learning path
+
+Each exercise contains a standalone guide explaining how it is built, which
+Zuno features it uses, how state moves through it, and how to extend it:
+
+1. [Basic HTML](./basic-html/README.md) — learn core stores, subscriptions,
+   optimistic updates, batching, SSE, BroadcastChannel, and IndexedDB queues.
+2. [React](./react/README.md) — add React hooks, selectors, middleware, and
+   conflict resolution.
+3. [Angular](./angular/README.md) — use dependency injection, Signals, and RxJS.
+4. [Raw Node HTTP](./http-server/README.md) — understand low-level SSE, sync,
+   snapshot, validation, and routing helpers.
+5. [Express](./express/README.md) — mount adapter handlers and durable authority
+   in an Express application.
+6. [Elysia](./elysia/README.md) — run the shared demo server, persistence, replay,
+   snapshot fallback, and server-originated events.
+
+For the fastest end-to-end introduction, start with Basic HTML and Elysia, then
+open React or Angular to observe the same stores synchronize across frameworks.
 
 ## Run the demos
 
@@ -9,6 +29,18 @@ pnpm start
 ```
 
 Open the React, Angular, and Basic HTML URLs printed by Vite. Updating the counter or todo list in one client should update the others.
+
+## Durable server persistence exercise
+
+Both server exercises configure `createFileZunoServerPersistence()`:
+
+- Elysia stores the shared browser-demo universe in `exercise/elysia/.data/zuno.json`.
+- Express stores its independent universe in `exercise/express/.data/zuno.json`.
+
+Change state through a browser or server endpoint, stop the server, and start it
+again. The snapshot and retained replay history should survive. The `.data`
+directories are ignored by Git. To reset an exercise, stop its server and delete
+that exercise's `.data` directory before restarting it.
 
 Each browser exercise uses an IndexedDB-backed offline queue. Because the Vite
 clients run on different origins, each origin has its own `zuno-exercises`

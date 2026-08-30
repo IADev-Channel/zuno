@@ -3,6 +3,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
+		"build": "tsup app.ts --format esm --platform node --out-dir dist",
 		"start": "bun run app.ts"
 	},
 	"dependencies": {

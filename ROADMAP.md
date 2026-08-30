@@ -12,7 +12,7 @@ Current verified releases:
 - `@iadev93/zuno-express@0.0.13`
 - `@iadev93/zuno-elysia@0.0.9`
 
-Current verification baseline: 61 tests pass, Biome passes, and all five packages build with TypeScript declarations.
+Current verification baseline: 65 tests pass, Biome passes, and all five packages build with TypeScript declarations.
 
 ## Status Legend
 
@@ -75,14 +75,14 @@ Delivered in the `0.0.13` core release: replay-gap snapshot recovery, event-ID s
 
 Completion criteria: interruption and recovery scenarios converge deterministically without leaking listeners or silently losing retryable mutations.
 
-## Milestone 5: Persistence and Multi-Process Operation
+## Milestone 5: Persistence and Multi-Process Operation — Complete
 
-- [ ] Define persistence and event-log adapter contracts.
-- [ ] Ship an in-memory adapter for development and tests.
-- [ ] Add at least one durable reference adapter.
-- [ ] Define atomic compare-and-set requirements for version updates.
-- [ ] Support multiple server processes through a shared event bus.
-- [ ] Add crash/restart and concurrent-server integration tests.
+- [x] Define persistence and event-log adapter contracts.
+- [x] Ship an in-memory adapter for development and tests.
+- [x] Add at least one durable reference adapter.
+- [x] Define atomic compare-and-set requirements for version updates.
+- [x] Support multiple server processes through a shared event bus.
+- [x] Add crash/restart and concurrent-server integration tests.
 
 Completion criteria: state and replay survive restarts, and multiple server processes preserve the documented conflict semantics.
 

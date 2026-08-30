@@ -102,6 +102,7 @@ app.listen(3000);
 - [**Roadmap**](./ROADMAP.md) — Completed milestones and the path to production readiness.
 - [**Changelog**](./CHANGELOG.md) — Project history and release notes.
 - [**Conflict Resolution**](./docs/conflict-resolution.md) — Strategies for merging state.
+- [**Server Persistence**](./docs/server-persistence.md) — Atomic storage and multi-process fan-out contracts.
 - [**Protocol Truth Table**](./docs/protocol-truth-table.md) — Offline/Sync behavior matrix.
 - [**Contributing**](./CONTRIBUTING.md) — How to help build Zuno.
 - [**Code of Conduct**](./CODE_OF_CONDUCT.md) — Our community standards.

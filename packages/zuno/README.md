@@ -214,6 +214,28 @@ The original module-level helpers remain available and use `defaultZunoServerSta
 
 `maxSubscriberBuffer` bounds pending messages per SSE subscriber. A slow subscriber that exhausts its buffer is disconnected and can recover through replay or snapshot fallback on reconnect.
 
+### Persistence and multiple server instances
+
+Server state accepts a `ZunoServerPersistence` adapter for authoritative state
+and replay history, plus a `ZunoServerEventBus` for live fan-out between server
+instances. All instances for one namespace must share both resources.
+
+```ts
+import {
+  createFileZunoServerPersistence,
+  createZunoServerState,
+} from "@iadev93/zuno/server";
+
+const server = createZunoServerState({
+  persistence: createFileZunoServerPersistence("./data/zuno.json"),
+});
+```
+
+Persistence adapters must implement `compareAndSet()` atomically so two server
+processes cannot accept mutations based on the same version. See the
+[server persistence guide](../../docs/server-persistence.md) for the complete
+contract, shared-bus example, and production guidance.
+
 ### Snapshot handler
 
 The snapshot handler returns the current universe/store snapshot for new clients.

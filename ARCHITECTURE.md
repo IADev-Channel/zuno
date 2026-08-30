@@ -61,6 +61,13 @@ Zuno uses a multi-layered transport strategy to balance latency and reliability:
 
 SSE recovery is event-ID based. A reconnecting replica receives the complete retained range after its last event ID; if that range has been truncated, the server sends a full authoritative snapshot instead. Client mutation queues, conflict retries, and server subscriber buffers are bounded so disconnections and slow consumers cannot grow memory or retry indefinitely. Before an offline queue flushes, state snapshots are coalesced by store key: the first authoritative base version is preserved while only the latest proposed state is sent.
 
+Authoritative server storage is pluggable. A persistence adapter atomically
+compares the proposed base version, updates the universe, assigns an event ID,
+and appends the replay log. Multiple server instances share that authority and
+use an event-bus adapter to fan accepted events out to their local SSE clients.
+This keeps conflict decisions in storage rather than relying on process-local
+maps.
+
 ### Consistency Model: "Optimistic Convergent Consistency"
 
 Zuno favors simplicity and predictability over complex conflict resolution like CRDTs.

@@ -1,9 +1,16 @@
 import cors from "@elysiajs/cors";
-import { applyStateEvent } from "@iadev93/zuno/server";
+import {
+	applyStateEvent,
+	createFileZunoServerPersistence,
+	createZunoServerState,
+} from "@iadev93/zuno/server";
 import { createZunoElysia } from "@iadev93/zuno-elysia";
 import { Elysia } from "elysia";
 
-const zuno = createZunoElysia();
+const server = createZunoServerState({
+	persistence: createFileZunoServerPersistence("./.data/zuno.json"),
+});
+const zuno = createZunoElysia({ server });
 
 const app = new Elysia()
 	.use(cors({ origin: "*" }))

@@ -4,6 +4,7 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
+		"build": "tsup app.ts --format esm --platform node --out-dir dist",
 		"start": "tsx app.ts",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},

@@ -126,22 +126,16 @@ export function applyStateEvent(
 		return { ok: false, reason: "INVALID_EVENT", errors };
 	}
 
-	const event = incoming as ZunoStateEvent;
-	const current = server.getUniverseRecord(event.storeKey) ?? {
-		state: undefined,
-		version: 0,
-	};
-
-	if (
-		typeof event.baseVersion === "number" &&
-		event.baseVersion !== current.version
-	) {
-		return { ok: false, reason: "VERSION_CONFLICT", current };
+	const result = server.compareAndSet(incoming as ZunoStateEvent);
+	if (!result.ok) {
+		return {
+			ok: false,
+			reason: "VERSION_CONFLICT",
+			current: result.current,
+		};
 	}
 
-	const authoritativeEvent = { ...event, version: current.version + 1 };
-	server.updateUniverseState(authoritativeEvent);
-	server.appendEvent(authoritativeEvent);
+	const authoritativeEvent = result.event;
 	server.publishToStateEvent(authoritativeEvent);
 
 	return { ok: true, event: authoritativeEvent };

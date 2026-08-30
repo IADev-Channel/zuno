@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added authoritative `ZunoServerPersistence` and `ZunoServerEventBus` contracts.
+- Added in-memory persistence/bus adapters and a durable atomic file reference adapter.
+- Added restart, replay restoration, abandoned-lock recovery, and concurrent-server conflict tests.
+- Added durable file persistence to the Express and Elysia server exercises.
+
+### Changed
+- Server mutations now perform version validation, state updates, event-ID assignment, and replay-log appends through one atomic `compareAndSet` operation.
+
 ## [0.0.13] - 2026-08-30
 
 ### Added

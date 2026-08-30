@@ -6,4 +6,4 @@
 "@iadev93/zuno-elysia": patch
 ---
 
-Normalize ESM and CommonJS exports, declare supported Node.js versions, and verify the packed packages in clean consumer projects.
+Normalize ESM and CommonJS exports, declare Node.js 22 and later support, and verify the packed packages in clean consumer projects.

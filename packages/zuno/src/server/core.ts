@@ -1,4 +1,5 @@
 import type { ZunoStateEvent } from "../sync";
+import { parseScopedStoreKey } from "../sync";
 import type { ZunoServerEventBus } from "./event-bus";
 import {
 	createEmptyPersistedServerState,
@@ -7,58 +8,49 @@ import {
 	type ZunoServerPersistence,
 } from "./persistence";
 
-export type UniverseRecord = {
-	state: unknown;
-	version: number;
+export type UniverseRecord = { state: unknown; version: number };
+export type ZunoStateListener = (event: ZunoStateEvent) => void;
+export type ZunoScopedStateListener = ZunoStateListener & {
+	partition?: string;
+	topics?: ReadonlySet<string>;
 };
 
-export type ZunoStateListener = (event: ZunoStateEvent) => void;
-
 export type CreateZunoServerStateOptions = {
-	/** Maximum number of authoritative events retained for SSE replay. */
 	maxEvents?: number;
-	/** Maximum serialized state size accepted per event. */
 	maxStateBytes?: number;
-	/** Maximum events buffered for a slow SSE subscriber. */
 	maxSubscriberBuffer?: number;
-	/** Authoritative state and replay-log persistence. */
 	persistence?: ZunoServerPersistence;
-	/** Shared fan-out bus for other server instances using the same persistence. */
 	eventBus?: ZunoServerEventBus;
-	/** Stable identifier used to suppress event-bus loopback. */
 	instanceId?: string;
 };
 
-/**
- * Isolated authoritative state used by server adapters.
- * Create one instance per application, namespace, or tenant boundary.
- */
 export class ZunoServerState {
 	readonly maxEvents: number;
 	readonly maxStateBytes: number;
 	readonly maxSubscriberBuffer: number;
 	readonly persistence: ZunoServerPersistence;
 	readonly instanceId: string;
-	private readonly listeners = new Set<ZunoStateListener>();
+	private readonly listeners = new Set<ZunoScopedStateListener>();
+	private readonly scopedListeners = new Map<
+		string,
+		Set<ZunoScopedStateListener>
+	>();
 	private readonly eventBus?: ZunoServerEventBus;
 	private unsubscribeFromEventBus?: () => void;
 
 	constructor(options: CreateZunoServerStateOptions = {}) {
-		const maxEvents = options.maxEvents ?? 1000;
-		const maxStateBytes = options.maxStateBytes ?? 512 * 1024;
-		const maxSubscriberBuffer = options.maxSubscriberBuffer ?? 1000;
-		if (!Number.isInteger(maxEvents) || maxEvents < 1) {
+		this.maxEvents = options.maxEvents ?? 1000;
+		this.maxStateBytes = options.maxStateBytes ?? 512 * 1024;
+		this.maxSubscriberBuffer = options.maxSubscriberBuffer ?? 1000;
+		if (!Number.isInteger(this.maxEvents) || this.maxEvents < 1)
 			throw new TypeError("maxEvents must be a positive integer");
-		}
-		if (!Number.isInteger(maxStateBytes) || maxStateBytes < 1) {
+		if (!Number.isInteger(this.maxStateBytes) || this.maxStateBytes < 1)
 			throw new TypeError("maxStateBytes must be a positive integer");
-		}
-		if (!Number.isInteger(maxSubscriberBuffer) || maxSubscriberBuffer < 1) {
+		if (
+			!Number.isInteger(this.maxSubscriberBuffer) ||
+			this.maxSubscriberBuffer < 1
+		)
 			throw new TypeError("maxSubscriberBuffer must be a positive integer");
-		}
-		this.maxEvents = maxEvents;
-		this.maxStateBytes = maxStateBytes;
-		this.maxSubscriberBuffer = maxSubscriberBuffer;
 		this.persistence =
 			options.persistence ?? createMemoryZunoServerPersistence();
 		this.eventBus = options.eventBus;
@@ -72,47 +64,61 @@ export class ZunoServerState {
 	getUniverseRecord(storeKey: string): UniverseRecord | undefined {
 		return this.persistence.load().universe[storeKey];
 	}
-
 	updateUniverseState(event: ZunoStateEvent): void {
 		const persisted = this.persistence.load();
 		const current = persisted.universe[event.storeKey] ?? {
 			state: undefined,
 			version: 0,
 		};
-		const nextVersion =
-			typeof event.version === "number" ? event.version : current.version + 1;
 		persisted.universe[event.storeKey] = {
 			state: event.state,
-			version: nextVersion,
+			version:
+				typeof event.version === "number" ? event.version : current.version + 1,
 		};
 		this.persistence.save(persisted);
 	}
-
 	getUniverseState(): Record<string, UniverseRecord> {
 		return this.persistence.load().universe;
 	}
-
+	getScopedUniverseState(
+		partition: string,
+		topics: ReadonlySet<string>,
+	): Record<string, UniverseRecord> {
+		const state: Record<string, UniverseRecord> = {};
+		for (const [key, value] of Object.entries(this.getUniverseState())) {
+			const scope = parseScopedStoreKey(key);
+			if (scope?.partition === partition && topics.has(scope.topic))
+				state[key] = value;
+		}
+		return state;
+	}
 	appendEvent(event: ZunoStateEvent): ZunoStateEvent {
 		const persisted = this.persistence.load();
 		event.eventId = persisted.nextEventId++;
 		persisted.events.push(event);
-		if (persisted.events.length > this.maxEvents) {
+		if (persisted.events.length > this.maxEvents)
 			persisted.events.splice(0, persisted.events.length - this.maxEvents);
-		}
 		this.persistence.save(persisted);
 		return event;
 	}
-
 	compareAndSet(event: ZunoStateEvent): ZunoCompareAndSetResult {
 		return this.persistence.compareAndSet(event, this.maxEvents);
 	}
-
 	getEventsAfter(lastEventId: number): ZunoStateEvent[] {
 		return this.persistence
 			.load()
 			.events.filter((event) => (event.eventId ?? 0) > lastEventId);
 	}
-
+	getScopedEventsAfter(
+		lastEventId: number,
+		partition: string,
+		topics: ReadonlySet<string>,
+	): ZunoStateEvent[] {
+		return this.getEventsAfter(lastEventId).filter((event) => {
+			const scope = parseScopedStoreKey(event.storeKey);
+			return scope?.partition === partition && topics.has(scope.topic);
+		});
+	}
 	canReplayAfter(lastEventId: number): boolean {
 		const latest = this.getLastEventId();
 		if (lastEventId === latest) return true;
@@ -123,7 +129,6 @@ export class ZunoServerState {
 			lastEventId < latest
 		);
 	}
-
 	getLastEventId(): number {
 		const events = this.persistence.load().events;
 		return events[events.length - 1]?.eventId ?? 0;
@@ -135,45 +140,67 @@ export class ZunoServerState {
 			this.listeners.delete(listener);
 		};
 	}
-
+	subscribeToScopedStateEvents(
+		partition: string,
+		topics: ReadonlySet<string>,
+		listener: ZunoStateListener,
+	): () => void {
+		const scoped = listener as ZunoScopedStateListener;
+		scoped.partition = partition;
+		scoped.topics = topics;
+		for (const topic of topics) {
+			const key = `${partition}\u0000${topic}`;
+			let listeners = this.scopedListeners.get(key);
+			if (!listeners) {
+				listeners = new Set();
+				this.scopedListeners.set(key, listeners);
+			}
+			listeners.add(scoped);
+		}
+		return () => {
+			for (const topic of topics) {
+				const key = `${partition}\u0000${topic}`;
+				const listeners = this.scopedListeners.get(key);
+				listeners?.delete(scoped);
+				if (listeners?.size === 0) this.scopedListeners.delete(key);
+			}
+		};
+	}
 	publishToStateEvent(event: ZunoStateEvent): void {
 		this.notifyLocalListeners(event);
 		this.eventBus?.publish({ source: this.instanceId, event });
 	}
-
 	private notifyLocalListeners(event: ZunoStateEvent): void {
-		this.listeners.forEach((listener) => {
-			listener(event);
-		});
+		for (const listener of this.listeners) listener(event);
+		const scope = parseScopedStoreKey(event.storeKey);
+		if (!scope) return;
+		const matches = this.scopedListeners.get(
+			`${scope.partition}\u0000${scope.topic}`,
+		);
+		if (matches) for (const listener of matches) listener(event);
 	}
-
 	clear(): void {
 		this.persistence.save(createEmptyPersistedServerState());
 	}
-
 	dispose(): void {
 		this.unsubscribeFromEventBus?.();
 		this.unsubscribeFromEventBus = undefined;
 		this.listeners.clear();
+		this.scopedListeners.clear();
 	}
 }
 
 export const createZunoServerState = (
 	options: CreateZunoServerStateOptions = {},
 ) => new ZunoServerState(options);
-
-/** Lazily creates isolated server states for application namespaces or tenants. */
 export class ZunoServerRegistry {
 	private readonly servers = new Map<string, ZunoServerState>();
-
 	constructor(
 		private readonly serverOptions: CreateZunoServerStateOptions = {},
 	) {}
-
 	get(namespace: string): ZunoServerState {
-		if (namespace.trim().length === 0) {
+		if (namespace.trim().length === 0)
 			throw new TypeError("namespace must be a non-empty string");
-		}
 		let server = this.servers.get(namespace);
 		if (!server) {
 			server = createZunoServerState(this.serverOptions);
@@ -181,23 +208,17 @@ export class ZunoServerRegistry {
 		}
 		return server;
 	}
-
 	delete(namespace: string): boolean {
 		return this.servers.delete(namespace);
 	}
-
 	clear(): void {
 		this.servers.clear();
 	}
 }
-
 export const createZunoServerRegistry = (
 	options: CreateZunoServerStateOptions = {},
 ) => new ZunoServerRegistry(options);
-
-/** Backward-compatible singleton used by the original module-level helpers. */
 export const defaultZunoServerState = createZunoServerState();
-
 export const getUniverseRecord = (storeKey: string) =>
 	defaultZunoServerState.getUniverseRecord(storeKey);
 export const updateUniverseState = (event: ZunoStateEvent) =>

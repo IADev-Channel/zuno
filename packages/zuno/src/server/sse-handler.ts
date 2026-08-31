@@ -1,36 +1,82 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ZunoStateEvent } from "../sync";
+import {
+	createZunoSubscription,
+	negotiateZunoProtocol,
+	validateSubscriptions,
+	type ZunoStateEvent,
+	type ZunoSubscriptionPolicy,
+	type ZunoSubscriptionPrincipal,
+} from "../sync";
 import { applyStateEvent } from "./apply-state-event";
 import { defaultZunoServerState, type ZunoServerState } from "./core";
 
 type IncomingHeaders = IncomingMessage["headers"];
+export type ZunoSSEAccess = {
+	principal: ZunoSubscriptionPrincipal;
+	policy?: ZunoSubscriptionPolicy;
+};
 
-/**
- * Creates a Server-Sent Events (SSE) connection for Zuno state updates.
- */
 export const createSSEConnection = (
 	req: IncomingMessage,
 	res: ServerResponse,
 	headers: IncomingHeaders,
 	server: ZunoServerState = defaultZunoServerState,
+	access?: ZunoSSEAccess,
 ) => {
+	const requestUrl = new URL(req.url || "", "http://localhost");
+	const requestedProtocol = Number.parseInt(
+		requestUrl.searchParams.get("zunoProtocol") ?? "0",
+		10,
+	);
+	const protocol = negotiateZunoProtocol(requestedProtocol);
+	const requestedTopics = requestUrl.searchParams.getAll("topic");
+	const requestedPartition = requestUrl.searchParams.get("partition") ?? "";
+	let scoped: { partition: string; topics: Set<string> } | undefined;
+
+	if (protocol.subscriptions) {
+		if (!access || !requestedPartition || requestedTopics.length === 0) {
+			res.writeHead(403, { "Content-Type": "application/json" });
+			res.end(
+				JSON.stringify({ ok: false, reason: "SUBSCRIPTION_CONTEXT_REQUIRED" }),
+			);
+			return;
+		}
+		const subscriptions = requestedTopics.map((topic, index) =>
+			createZunoSubscription({
+				id: `sse-${index}`,
+				partition: requestedPartition,
+				topic,
+			}),
+		);
+		const validation = validateSubscriptions(
+			subscriptions,
+			access.principal,
+			access.policy,
+		);
+		if (!validation.ok) {
+			res.writeHead(403, { "Content-Type": "application/json" });
+			res.end(JSON.stringify(validation));
+			return;
+		}
+		scoped = {
+			partition: requestedPartition,
+			topics: new Set(requestedTopics),
+		};
+	}
+
 	res.writeHead(200, {
 		"Cache-Control": "no-cache, no-transform",
 		"Content-Type": "text/event-stream; charset=utf-8",
 		Connection: "keep-alive",
 		"X-Accel-Buffering": "no",
+		"X-Zuno-Protocol": String(protocol.version),
 		...headers,
 	});
-
 	res.flushHeaders?.();
-
 	const raw =
-		req.headers["last-event-id"] ||
-		new URL(req.url || "", "http://localhost").searchParams.get("lastEventId");
+		req.headers["last-event-id"] || requestUrl.searchParams.get("lastEventId");
 	const lastEventId =
 		Number.parseInt(Array.isArray(raw) ? raw[0] : (raw ?? "0"), 10) || 0;
-
-	// 1. Subscribe FIRST and buffer events until snapshot/missed-events are sent
 	const buffer: ZunoStateEvent[] = [];
 	const pendingWrites: ZunoStateEvent[] = [];
 	let isSyncing = true;
@@ -38,7 +84,6 @@ export const createSSEConnection = (
 	let closed = false;
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
 	let unsubscribe = () => {};
-
 	const closeConnection = () => {
 		if (closed) return;
 		closed = true;
@@ -46,27 +91,24 @@ export const createSSEConnection = (
 		unsubscribe();
 		res.end();
 	};
+	const formatStateEvent = (event: ZunoStateEvent) =>
+		`id: ${event.eventId}\nevent: state\ndata: ${JSON.stringify(event)}\n\n`;
 	const flushPendingWrites = () => {
 		backpressured = false;
 		while (!closed && pendingWrites.length > 0) {
 			const event = pendingWrites.shift();
-			if (!event) continue;
-			if (!res.write(formatStateEvent(event))) {
+			if (event && !res.write(formatStateEvent(event))) {
 				backpressured = true;
 				res.once("drain", flushPendingWrites);
 				break;
 			}
 		}
 	};
-	const formatStateEvent = (event: ZunoStateEvent) =>
-		`id: ${event.eventId}\nevent: state\ndata: ${JSON.stringify(event)}\n\n`;
 	const writeEvent = (event: ZunoStateEvent) => {
 		if (closed) return;
 		if (backpressured) {
-			if (pendingWrites.length >= server.maxSubscriberBuffer) {
-				closeConnection();
-				return;
-			}
+			if (pendingWrites.length >= server.maxSubscriberBuffer)
+				return closeConnection();
 			pendingWrites.push(event);
 			return;
 		}
@@ -76,64 +118,57 @@ export const createSSEConnection = (
 		}
 	};
 	const writeSnapshot = () => {
+		const state = scoped
+			? server.getScopedUniverseState(scoped.partition, scoped.topics)
+			: server.getUniverseState();
 		res.write(`id: ${server.getLastEventId()}\n`);
 		res.write("event: snapshot\n");
-		res.write(`data: ${JSON.stringify(server.getUniverseState())}\n\n`);
+		res.write(`data: ${JSON.stringify(state)}\n\n`);
 	};
-
-	unsubscribe = server.subscribeToStateEvents((event: ZunoStateEvent) => {
+	const listener = (event: ZunoStateEvent) => {
 		if (isSyncing) {
-			if (buffer.length >= server.maxSubscriberBuffer) {
-				closeConnection();
-				return;
-			}
+			if (buffer.length >= server.maxSubscriberBuffer) return closeConnection();
 			buffer.push(event);
-		} else {
-			writeEvent(event);
-		}
-	});
-
-	// 2. Send missed events or snapshot
+		} else writeEvent(event);
+	};
+	unsubscribe = scoped
+		? server.subscribeToScopedStateEvents(
+				scoped.partition,
+				scoped.topics,
+				listener,
+			)
+		: server.subscribeToStateEvents(listener);
 	if (lastEventId > 0 && server.canReplayAfter(lastEventId)) {
-		const missed = server.getEventsAfter(lastEventId);
-		for (const event of missed) {
-			writeEvent(event);
-		}
-	} else {
-		writeSnapshot();
-	}
-
-	// 3. Flush buffer and switch to live mode
+		const missed = scoped
+			? server.getScopedEventsAfter(
+					lastEventId,
+					scoped.partition,
+					scoped.topics,
+				)
+			: server.getEventsAfter(lastEventId);
+		for (const event of missed) writeEvent(event);
+	} else writeSnapshot();
 	isSyncing = false;
 	while (buffer.length > 0) {
 		const event = buffer.shift();
 		if (event) writeEvent(event);
 	}
 	if (closed) return;
-
 	heartbeat = setInterval(() => {
-		if (closed) return;
-		res.write(`: ping ${Date.now()}\n\n`);
+		if (!closed) res.write(`: ping ${Date.now()}\n\n`);
 	}, 15000);
-
 	res.write(": connected \n\n");
-
-	req.on("close", () => {
-		closeConnection();
-	});
+	req.on("close", closeConnection);
 };
 
-/**
- * Synchronizes the Zuno universe state by applying an incoming event.
- */
 export const syncUniverseState = (
 	req: IncomingMessage,
 	res: ServerResponse,
 	server: ZunoServerState = defaultZunoServerState,
+	principal?: ZunoSubscriptionPrincipal,
 ) => {
-	const MAX_BODY_BYTES = 512 * 1024; // 512KB safety
+	const MAX_BODY_BYTES = 512 * 1024;
 	let body = "";
-
 	req.on("data", (chunk: Buffer) => {
 		body += chunk.toString("utf8");
 		if (body.length > MAX_BODY_BYTES) {
@@ -142,26 +177,24 @@ export const syncUniverseState = (
 			req.destroy();
 		}
 	});
-
 	req.on("end", () => {
 		try {
-			const incoming: ZunoStateEvent = JSON.parse(
-				body || "{}",
-			) as unknown as ZunoStateEvent;
-			const result = applyStateEvent(incoming, server);
-
+			const incoming = JSON.parse(body || "{}") as unknown as ZunoStateEvent;
+			const result = applyStateEvent(incoming, server, principal);
 			if (!result.ok) {
 				if (result.reason === "VERSION_CONFLICT") {
 					res.writeHead(409, { "Content-Type": "application/json" });
 					res.end(
 						JSON.stringify({
 							ok: false,
-							reason: "VERSION_CONFLICT",
+							reason: result.reason,
 							current: result.current,
 						}),
 					);
 				} else {
-					res.writeHead(400, { "Content-Type": "application/json" });
+					res.writeHead(result.reason === "FORBIDDEN_SCOPE" ? 403 : 400, {
+						"Content-Type": "application/json",
+					});
 					res.end(
 						JSON.stringify({
 							ok: false,
@@ -172,7 +205,6 @@ export const syncUniverseState = (
 				}
 				return;
 			}
-
 			res.writeHead(200, { "Content-Type": "application/json" });
 			res.end(JSON.stringify({ ok: true, event: result.event }));
 		} catch {
@@ -186,6 +218,5 @@ export const setUniverseState = (
 	req: IncomingMessage,
 	res: ServerResponse,
 	server: ZunoServerState = defaultZunoServerState,
-) => {
-	return syncUniverseState(req, res, server);
-};
+	principal?: ZunoSubscriptionPrincipal,
+) => syncUniverseState(req, res, server, principal);

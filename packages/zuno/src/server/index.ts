@@ -5,3 +5,4 @@ export * from "./file-persistence";
 export * from "./persistence";
 export * from "./snapshot-handler";
 export * from "./sse-handler";
+export * from "./subscriptions";

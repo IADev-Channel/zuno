@@ -21,7 +21,10 @@ export type ZunoSubscription = {
 export type ZunoSubscriptionOperation =
 	| { type: "subscribe"; subscriptions: readonly ZunoSubscription[] }
 	| { type: "unsubscribe"; subscriptionIds: readonly ZunoSubscriptionId[] }
-	| { type: "replace-subscriptions"; subscriptions: readonly ZunoSubscription[] };
+	| {
+			type: "replace-subscriptions";
+			subscriptions: readonly ZunoSubscription[];
+	  };
 
 export type ZunoSubscriptionTransportStatus = {
 	ok: boolean;
@@ -66,7 +69,8 @@ const nonEmpty = (value: string, name: string): string => {
 	return normalized;
 };
 
-export const zunoTopic = (value: string) => nonEmpty(value, "topic") as ZunoTopic;
+export const zunoTopic = (value: string) =>
+	nonEmpty(value, "topic") as ZunoTopic;
 export const zunoPartitionKey = (value: string) =>
 	nonEmpty(value, "partition") as ZunoPartitionKey;
 export const zunoSubscriptionId = (value: string) =>
@@ -126,7 +130,12 @@ export const scopedStoreKey = (
 
 export const parseScopedStoreKey = (storeKey: string) => {
 	const [partition, topic, ...rest] = storeKey.split(":");
-	if (!partition || !topic || rest.length === 0 || rest.join(":").length === 0) {
+	if (
+		!partition ||
+		!topic ||
+		rest.length === 0 ||
+		rest.join(":").length === 0
+	) {
 		return undefined;
 	}
 	return {

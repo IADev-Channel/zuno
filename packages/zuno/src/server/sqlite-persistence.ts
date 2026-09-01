@@ -1,4 +1,6 @@
+import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname } from "node:path";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
 import { parseScopedStoreKey, type ZunoStateEvent } from "../sync";
 import type { UniverseRecord } from "./core";
@@ -32,6 +34,7 @@ export class SQLiteZunoServerPersistence implements ZunoServerPersistence {
 		path: string,
 		private readonly options: SQLiteZunoServerPersistenceOptions = {},
 	) {
+		if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
 		this.database = new DatabaseSync(path);
 		this.database.exec(
 			"PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;",

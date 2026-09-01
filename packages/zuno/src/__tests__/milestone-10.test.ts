@@ -21,6 +21,21 @@ const withDatabase = (run: (path: string) => void) => {
 };
 
 describe("milestone 10 durable authority", () => {
+	it("creates a missing database parent directory", () => {
+		const directory = join(tmpdir(), `zuno-parent-${crypto.randomUUID()}`);
+		const path = join(directory, "nested", "zuno.sqlite");
+		try {
+			const persistence = createSQLiteZunoServerPersistence(path);
+			const server = createZunoServerState({ persistence });
+			expect(
+				applyStateEvent({ storeKey: "tenant-a:cart:1", state: 1 }, server).ok,
+			).toBe(true);
+			persistence.close();
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
 	it("survives restart with authoritative state and ranged replay", () =>
 		withDatabase((path) => {
 			const firstPersistence = createSQLiteZunoServerPersistence(path);

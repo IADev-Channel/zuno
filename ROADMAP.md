@@ -44,17 +44,19 @@ Delivered with Protocol v1 subscription negotiation, branded partition/topic ide
 
 Completion criteria: delivery work for Protocol v1 scales with matching recipients rather than all connected clients, and focused tests prove partitions cannot observe each other's scoped state or events.
 
-## Milestone 10: Production Authority and Durable Event Log
+## Milestone 10: Production Authority and Durable Event Log — Complete
 
-- [ ] Add a production database persistence adapter with transactional compare-and-set semantics.
-- [ ] Store state by partition and store key with a database-enforced version constraint.
-- [ ] Add idempotency keys so retried mutation batches cannot be applied twice.
-- [ ] Replace whole-log load/save operations with append, ranged replay, snapshot, and compaction methods.
-- [ ] Define retention, tombstone, compaction, and partition-migration behavior.
-- [ ] Separate ephemeral presence/cursor events from durable authoritative state mutations.
-- [ ] Add a partition-aware event-bus contract with consumer offsets and duplicate-delivery handling.
-- [ ] Add database and event-bus failure-injection tests, including partial failure and restart recovery.
-- [ ] Benchmark realistic payload sizes and hot-partition contention against the production adapter.
+- [x] Add a production database persistence adapter with transactional compare-and-set semantics.
+- [x] Store state by partition and store key with a database-enforced version constraint.
+- [x] Add idempotency keys so retried mutation batches cannot be applied twice.
+- [x] Replace whole-log load/save operations with append, ranged replay, snapshot, and compaction methods.
+- [x] Define retention, tombstone, compaction, and partition-migration behavior.
+- [x] Separate ephemeral presence/cursor events from durable authoritative state mutations.
+- [x] Add a partition-aware event-bus contract with consumer offsets and duplicate-delivery handling.
+- [x] Add database and event-bus failure-injection tests, including partial failure and restart recovery.
+- [x] Benchmark realistic payload sizes and hot-partition contention against the production adapter.
+
+Delivered with a SQLite WAL authority adapter, atomic state-and-log transactions, partition-scoped idempotency, granular replay/snapshot/compaction APIs, durable tombstones, live-only ephemeral events, partition offsets, injected failure recovery tests, and a realistic hot-partition benchmark. Operational retention and partition-migration rules are documented in `docs/durable-authority.md`.
 
 Completion criteria: authoritative state and replay survive process or node loss, duplicate delivery is safe, and no mutation relies on process-local memory for correctness.
 

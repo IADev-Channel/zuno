@@ -4,7 +4,7 @@ import { defaultZunoServerState, type ZunoServerState } from "./core";
 
 export type EventValidationError = { field: string; message: string };
 export type ApplyResult =
-	| { ok: true; event: ZunoStateEvent }
+	| { ok: true; event: ZunoStateEvent; duplicate?: boolean }
 	| {
 			ok: false;
 			reason: "VERSION_CONFLICT";
@@ -69,6 +69,33 @@ export function validateStateEvent(
 				message: `${field} must be a non-negative integer when provided`,
 			});
 	}
+	if (
+		input.idempotencyKey !== undefined &&
+		(typeof input.idempotencyKey !== "string" ||
+			input.idempotencyKey.trim().length === 0)
+	)
+		errors.push({
+			field: "idempotencyKey",
+			message: "idempotencyKey must be a non-empty string when provided",
+		});
+	if (
+		input.durability !== undefined &&
+		input.durability !== "durable" &&
+		input.durability !== "ephemeral"
+	)
+		errors.push({
+			field: "durability",
+			message: "durability must be durable or ephemeral",
+		});
+	if (
+		input.operation !== undefined &&
+		input.operation !== "upsert" &&
+		input.operation !== "delete"
+	)
+		errors.push({
+			field: "operation",
+			message: "operation must be upsert or delete",
+		});
 	if (input.origin !== undefined && typeof input.origin !== "string")
 		errors.push({
 			field: "origin",
@@ -134,9 +161,18 @@ export function applyStateEvent(
 				errors: authorizationErrors,
 			};
 	}
+	if ((incoming as ZunoStateEvent).durability === "ephemeral") {
+		const event = {
+			...(incoming as ZunoStateEvent),
+			durability: "ephemeral" as const,
+			eventId: undefined,
+		};
+		server.publishToStateEvent(event);
+		return { ok: true, event };
+	}
 	const result = server.compareAndSet(incoming as ZunoStateEvent);
 	if (!result.ok)
 		return { ok: false, reason: "VERSION_CONFLICT", current: result.current };
-	server.publishToStateEvent(result.event);
-	return { ok: true, event: result.event };
+	if (!result.duplicate) server.publishToStateEvent(result.event);
+	return { ok: true, event: result.event, duplicate: result.duplicate };
 }

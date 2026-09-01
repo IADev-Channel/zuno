@@ -2,9 +2,15 @@ import http from "node:http";
 import {
 	applyStateEvent,
 	createSSEConnection,
+	createZunoServerState,
 	sendSnapshot,
 	setUniverseState,
 } from "@iadev93/zuno/server";
+import { createSQLiteZunoServerPersistence } from "@iadev93/zuno/server/sqlite";
+
+const zunoServer = createZunoServerState({
+	persistence: createSQLiteZunoServerPersistence("./.data/zuno.sqlite"),
+});
 
 const server = http.createServer((req, res) => {
 	// CORS Headers
@@ -19,15 +25,18 @@ const server = http.createServer((req, res) => {
 	}
 
 	if (req.url === "/zuno/sse") {
-		createSSEConnection(req, res, {
-			"Access-Control-Allow-Origin": "*",
-		});
+		createSSEConnection(
+			req,
+			res,
+			{ "Access-Control-Allow-Origin": "*" },
+			zunoServer,
+		);
 	}
 	// Optional for listing internally
 	else if (req.url === "/zuno/listing" && req.method === "GET") {
-		sendSnapshot(req, res);
+		sendSnapshot(req, res, zunoServer);
 	} else if (req.url === "/zuno/sync" && req.method === "POST") {
-		setUniverseState(req, res);
+		setUniverseState(req, res, zunoServer);
 	} else if (req.url?.startsWith("/zuno/counter/") && req.method === "GET") {
 		const counter = req.url.split("/").pop();
 		const counterValue = Number(counter);
@@ -38,10 +47,10 @@ const server = http.createServer((req, res) => {
 			return;
 		}
 
-		const result = applyStateEvent({
-			storeKey: "counter",
-			state: counterValue,
-		});
+		const result = applyStateEvent(
+			{ storeKey: "counter", state: counterValue },
+			zunoServer,
+		);
 
 		res.writeHead(200, { "Content-Type": "application/json" });
 		res.end(

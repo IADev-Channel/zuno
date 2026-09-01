@@ -32,12 +32,18 @@ Open the React, Angular, and Basic HTML URLs printed by Vite. Updating the count
 Each browser client shows its SSE connection, durable queue depth, reconnect
 attempt, and detected-conflict count above the demo controls.
 
-## Durable server persistence exercise
+## Durable server persistence exercises
 
-Both server exercises configure `createFileZunoServerPersistence()`:
+The server exercises demonstrate both persistence adapters:
 
 - Elysia stores the shared browser-demo universe in `exercise/elysia/.data/zuno.json`.
-- Express stores its independent universe in `exercise/express/.data/zuno.json`.
+- Express stores its independent SQLite universe in `exercise/express/.data/zuno.sqlite`.
+- Raw Node HTTP stores its independent SQLite universe in `exercise/http-server/.data/zuno.sqlite`.
+
+Express and Raw Node import `createSQLiteZunoServerPersistence()` from
+`@iadev93/zuno/server/sqlite`. Elysia runs on Bun, which does not currently
+provide `node:sqlite`, so it intentionally demonstrates the durable JSON file
+adapter instead.
 
 Change state through a browser or server endpoint, stop the server, and start it
 again. The snapshot and retained replay history should survive. The `.data`

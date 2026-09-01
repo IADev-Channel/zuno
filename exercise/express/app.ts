@@ -1,8 +1,5 @@
-import {
-	applyStateEvent,
-	createFileZunoServerPersistence,
-	createZunoServerState,
-} from "@iadev93/zuno/server";
+import { applyStateEvent, createZunoServerState } from "@iadev93/zuno/server";
+import { createSQLiteZunoServerPersistence } from "@iadev93/zuno/server/sqlite";
 import { createZunoExpress /*, mountZuno*/ } from "@iadev93/zuno-express";
 import cors from "cors";
 import express from "express";
@@ -13,7 +10,7 @@ app.use(cors());
 
 // --- Zuno Setup ---
 const server = createZunoServerState({
-	persistence: createFileZunoServerPersistence("./.data/zuno.json"),
+	persistence: createSQLiteZunoServerPersistence("./.data/zuno.sqlite"),
 });
 const zuno = createZunoExpress({ server });
 

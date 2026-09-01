@@ -26,6 +26,11 @@
 			"types": "./dist/server/index.d.ts",
 			"import": "./dist/server/index.js",
 			"require": "./dist/server/index.cjs"
+		},
+		"./server/sqlite": {
+			"types": "./dist/server/sqlite-persistence.d.ts",
+			"import": "./dist/server/sqlite-persistence.js",
+			"require": "./dist/server/sqlite-persistence.cjs"
 		}
 	},
 	"scripts": {

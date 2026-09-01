@@ -2,6 +2,8 @@
 
 Milestone 10 makes the database, rather than a server process, authoritative.
 
+Import the Node SQLite adapter from `@iadev93/zuno/server/sqlite`. It is isolated from the general server entry so Bun and other runtimes can use non-SQLite adapters without loading `node:sqlite`.
+
 - Durable mutations are atomic state-and-log transactions. A version mismatch changes neither table.
 - Idempotency keys are unique within a partition. Retrying a committed key returns the original event and does not publish it again.
 - Deletes are durable tombstones. Their replay retention is configured independently from ordinary events so disconnected consumers can observe deletion.

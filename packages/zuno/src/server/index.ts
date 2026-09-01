@@ -4,6 +4,5 @@ export * from "./event-bus";
 export * from "./file-persistence";
 export * from "./persistence";
 export * from "./snapshot-handler";
-export * from "./sqlite-persistence";
 export * from "./sse-handler";
 export * from "./subscriptions";

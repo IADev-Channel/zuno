@@ -5,9 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	applyStateEvent,
 	createMemoryZunoServerEventBus,
-	createSQLiteZunoServerPersistence,
 	createZunoServerState,
 } from "../server";
+import { createSQLiteZunoServerPersistence } from "../server/sqlite-persistence";
 
 const withDatabase = (run: (path: string) => void) => {
 	const path = join(tmpdir(), `zuno-${crypto.randomUUID()}.sqlite`);

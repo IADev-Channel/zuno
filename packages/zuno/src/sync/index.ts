@@ -525,13 +525,11 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		es.addEventListener("state", (e: any) => {
 			try {
 				const event = JSON.parse(e.data) as ZunoStateEvent;
-				// If server didn't provide an origin (e.g. manual server-side trigger),
-				// we treat it as authoritative "server" origin.
-				if (!event.origin) {
-					event.origin = "server";
-				}
-
+				// Preserve origin only long enough to suppress our own loopback. Every
+				// event received over SSE was accepted by the authority and must be able
+				// to replace an offline replica's higher optimistic version.
 				if (event.origin === clientId) return;
+				event.origin = "server";
 
 				applyState(event);
 			} catch (err) {

@@ -12,7 +12,7 @@ Current verified package versions:
 - `@iadev93/zuno-express@0.0.17`
 - `@iadev93/zuno-elysia@0.0.13`
 
-Current verification baseline: 90 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
+Current verification baseline: 91 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
 
 ## Status Legend
 

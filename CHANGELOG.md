@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-03
+
+### Added
+- Added the Milestone 11 connection gateway contract with bounded connection and subscription indexes.
+- Added gateway health, registration, regional matching, admission limits, configurable heartbeats, and graceful draining.
+- Added typed `RESYNC_REQUIRED` control events, slow-consumer eviction, and jittered reconnect behavior.
+- Added shared gateway and authenticated principal configuration to the Express and Elysia adapters.
+
+### Changed
+- Shared event-bus delivery now targets only gateways with matching partition/topic subscribers.
+- Server-approved SSE events are treated as authoritative after same-client loopback suppression, allowing stale offline replicas to converge without refreshing.
+
+### Fixed
+- Fixed Angular and other offline-ahead replicas ignoring live updates from another framework client until page refresh.
+- Fixed release workflow detection for normally merged Changesets release pull requests.
+
+### Released
+- `@iadev93/zuno@0.3.0`
+- `@iadev93/zuno-react@0.0.18`
+- `@iadev93/zuno-angular@0.2.2`
+- `@iadev93/zuno-express@0.1.0`
+- `@iadev93/zuno-elysia@0.1.0`
+
+## [0.2.0] - 2026-09-02
+
 ### Added
 - Added the SQLite WAL production authority adapter with transactional compare-and-set, idempotency, durable replay, tombstones, and compaction.
 - Added partition-aware event-bus offsets, duplicate suppression, failure-injection coverage, restart recovery, and a hot-partition benchmark.

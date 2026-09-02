@@ -205,7 +205,7 @@ If you want to host Zuno sync endpoints yourself (without `@iadev93/zuno-express
 
 ### Isolated server state
 
-Create one server state instance per application or isolation boundary. State, replay events, and SSE listeners are private to that instance.
+Create one server state instance per application or isolation boundary. State and replay remain authoritative there; long-lived SSE connections belong to a gateway.
 
 ```ts
 import {
@@ -228,7 +228,25 @@ For multi-tenant routing, use `createZunoServerRegistry()` and select a namespac
 
 The original module-level helpers remain available and use `defaultZunoServerState` for backward compatibility. New applications should prefer explicit instances.
 
-`maxSubscriberBuffer` bounds pending messages per SSE subscriber. A slow subscriber that exhausts its buffer is disconnected and can recover through replay or snapshot fallback on reconnect.
+### Connection gateway
+
+```ts
+import {
+  createZunoConnectionGateway,
+  createZunoServerState,
+} from "@iadev93/zuno/server";
+
+const server = createZunoServerState(); // Supply shared persistence/eventBus in production.
+const gateway = createZunoConnectionGateway(server, {
+  region: "eu-west",
+  heartbeatIntervalMs: 15_000,
+  maxConnections: 10_000,
+  maxConnectionsPerPrincipal: 10,
+  maxPendingMessages: 1_000,
+});
+```
+
+Gateways retain only bounded connection and subscription indexes. They support health reporting, regional registration, admission limits, graceful draining, and typed `RESYNC_REQUIRED` eviction for slow consumers. See the [connection gateway guide](../../docs/connection-gateways.md) for deployment and partition-leader policy.
 
 ### Persistence and multiple server instances
 
@@ -262,13 +280,18 @@ import { /* snapshot handler export */ } from "@iadev93/zuno/server";
 
 ### SSE connection + state publishing
 
-Zuno’s SSE utilities typically do two jobs:
+Zuno’s SSE utilities and gateway split three responsibilities:
 
-* register a client connection
-* broadcast state events to connected clients
+* handlers authenticate and establish the HTTP stream;
+* gateways own bounded connections, heartbeats, and subscriptions;
+* authoritative server state publishes accepted events through the shared bus.
 
 ```ts
-import { createSSEConnection, setUniverseState } from "@iadev93/zuno/server";
+import {
+  createSSEConnection,
+  createZunoConnectionGateway,
+  setUniverseState,
+} from "@iadev93/zuno/server";
 ```
 
 ### Applying incoming events

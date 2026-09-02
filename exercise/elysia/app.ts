@@ -6,6 +6,7 @@ import {
 } from "@iadev93/zuno/server";
 import { createZunoElysia } from "@iadev93/zuno-elysia";
 import { Elysia } from "elysia";
+import { EXERCISE_SERVER_PORTS } from "../config";
 
 const server = createZunoServerState({
 	persistence: createFileZunoServerPersistence("./.data/zuno.json"),
@@ -75,7 +76,7 @@ const app = new Elysia()
 
 		return { ok: true, event: result.ok ? result.event : null };
 	})
-	.listen(3002);
+	.listen(EXERCISE_SERVER_PORTS.elysia);
 
 console.log(
 	`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,

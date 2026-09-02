@@ -8,14 +8,14 @@ Angular components, Signals, RxJS-compatible stores, and durable synchronization
 - A counter exposed as an Angular Signal.
 - A typed todo-list store exposed as a Signal.
 - A standalone component using Angular control flow and FormsModule.
-- A globally provided Zuno client connected to the shared Elysia server.
+- A globally provided Zuno client connected to the shared configured server.
 
 ## Run it
 
 From the repository root, start the shared server and Angular client:
 
 ```bash
-pnpm start-elysia
+pnpm start-express
 pnpm start-angular
 ```
 
@@ -38,9 +38,11 @@ pnpm --filter exercise-angular build
 `provideZuno()` registers one configured `ZunoService`:
 
 ```ts
+import { ZUNO_SERVER_URL } from "../../../config";
+
 provideZuno({
-  syncUrl: "http://localhost:3002/zuno/sync",
-  sseUrl: "http://localhost:3002/zuno/sse",
+  syncUrl: `${ZUNO_SERVER_URL}/zuno/sync`,
+  sseUrl: `${ZUNO_SERVER_URL}/zuno/sse`,
   channelName: "zuno-demo",
   clientId: `angular-client-${Math.random().toString(36).slice(2)}`,
   offlineQueue: createIndexedDBOfflineQueue({

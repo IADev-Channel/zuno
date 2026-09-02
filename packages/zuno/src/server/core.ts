@@ -2,7 +2,6 @@ import type { ZunoStateEvent } from "../sync";
 import { parseScopedStoreKey } from "../sync";
 import type { ZunoServerEventBus } from "./event-bus";
 import {
-	createEmptyPersistedServerState,
 	createMemoryZunoServerPersistence,
 	type ZunoCompareAndSetResult,
 	type ZunoServerPersistence,
@@ -57,72 +56,63 @@ export class ZunoServerState {
 		this.instanceId = options.instanceId ?? crypto.randomUUID();
 		this.unsubscribeFromEventBus = this.eventBus?.subscribe((message) => {
 			if (message.source === this.instanceId) return;
+			const consumed =
+				this.eventBus?.getConsumerOffset(this.instanceId, message.partition) ??
+				0;
+			if (message.offset <= consumed) return;
 			this.notifyLocalListeners(message.event);
+			this.eventBus?.commitConsumerOffset(
+				this.instanceId,
+				message.partition,
+				message.offset,
+			);
 		});
 	}
 
 	getUniverseRecord(storeKey: string): UniverseRecord | undefined {
-		return this.persistence.load().universe[storeKey];
+		return this.persistence.getRecord(storeKey);
 	}
+	/** @deprecated Apply mutations through compareAndSet/applyStateEvent. */
 	updateUniverseState(event: ZunoStateEvent): void {
-		const persisted = this.persistence.load();
-		const current = persisted.universe[event.storeKey] ?? {
-			state: undefined,
-			version: 0,
-		};
-		persisted.universe[event.storeKey] = {
-			state: event.state,
-			version:
-				typeof event.version === "number" ? event.version : current.version + 1,
-		};
-		this.persistence.save(persisted);
+		const current = this.persistence.getRecord(event.storeKey);
+		this.persistence.compareAndSet(
+			{ ...event, baseVersion: current?.version ?? 0 },
+			this.maxEvents,
+		);
 	}
 	getUniverseState(): Record<string, UniverseRecord> {
-		return this.persistence.load().universe;
+		return this.persistence.getSnapshot();
 	}
 	getScopedUniverseState(
 		partition: string,
 		topics: ReadonlySet<string>,
 	): Record<string, UniverseRecord> {
-		const state: Record<string, UniverseRecord> = {};
-		for (const [key, value] of Object.entries(this.getUniverseState())) {
-			const scope = parseScopedStoreKey(key);
-			if (scope?.partition === partition && topics.has(scope.topic))
-				state[key] = value;
-		}
-		return state;
+		return this.persistence.getSnapshot(partition, topics);
 	}
 	appendEvent(event: ZunoStateEvent): ZunoStateEvent {
-		const persisted = this.persistence.load();
-		event.eventId = persisted.nextEventId++;
-		persisted.events.push(event);
-		if (persisted.events.length > this.maxEvents)
-			persisted.events.splice(0, persisted.events.length - this.maxEvents);
-		this.persistence.save(persisted);
-		return event;
+		return this.persistence.appendEvent(event, this.maxEvents);
 	}
 	compareAndSet(event: ZunoStateEvent): ZunoCompareAndSetResult {
 		return this.persistence.compareAndSet(event, this.maxEvents);
 	}
 	getEventsAfter(lastEventId: number): ZunoStateEvent[] {
-		return this.persistence
-			.load()
-			.events.filter((event) => (event.eventId ?? 0) > lastEventId);
+		return this.persistence.readEvents({ afterEventId: lastEventId });
 	}
 	getScopedEventsAfter(
 		lastEventId: number,
 		partition: string,
 		topics: ReadonlySet<string>,
 	): ZunoStateEvent[] {
-		return this.getEventsAfter(lastEventId).filter((event) => {
-			const scope = parseScopedStoreKey(event.storeKey);
-			return scope?.partition === partition && topics.has(scope.topic);
+		return this.persistence.readEvents({
+			afterEventId: lastEventId,
+			partition,
+			topics,
 		});
 	}
 	canReplayAfter(lastEventId: number): boolean {
 		const latest = this.getLastEventId();
 		if (lastEventId === latest) return true;
-		const first = this.persistence.load().events[0]?.eventId;
+		const first = this.persistence.getReplayBounds().firstEventId;
 		return (
 			typeof first === "number" &&
 			lastEventId >= first - 1 &&
@@ -130,8 +120,7 @@ export class ZunoServerState {
 		);
 	}
 	getLastEventId(): number {
-		const events = this.persistence.load().events;
-		return events[events.length - 1]?.eventId ?? 0;
+		return this.persistence.getReplayBounds().lastEventId;
 	}
 
 	subscribeToStateEvents(listener: ZunoStateListener): () => void {
@@ -180,7 +169,7 @@ export class ZunoServerState {
 		if (matches) for (const listener of matches) listener(event);
 	}
 	clear(): void {
-		this.persistence.save(createEmptyPersistedServerState());
+		this.persistence.clear();
 	}
 	dispose(): void {
 		this.unsubscribeFromEventBus?.();

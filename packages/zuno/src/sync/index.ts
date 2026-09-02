@@ -27,6 +27,12 @@ export type ConflictResolver<T = unknown> = (
 export type ZunoStateEvent = {
 	storeKey: string;
 	state: unknown; // Was 'any', now strictly 'unknown'
+	/** Stable retry key. Durable adapters deduplicate it within a partition. */
+	idempotencyKey?: string;
+	/** Ephemeral events are delivered live but never mutate authoritative state. */
+	durability?: "durable" | "ephemeral";
+	/** Tombstones delete materialized state while remaining replayable. */
+	operation?: "upsert" | "delete";
 	intent?: { type: string; payload?: unknown };
 	version?: number;
 	baseVersion?: number;

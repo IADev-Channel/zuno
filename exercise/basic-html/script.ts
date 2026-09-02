@@ -1,4 +1,5 @@
 import { createIndexedDBOfflineQueue, createZuno } from "@iadev93/zuno";
+import { ZUNO_SERVER_URL } from "../config";
 
 type Todo = {
 	id: string;
@@ -23,8 +24,8 @@ const initiate = () => {
 	// Initialize Zuno
 	const zuno = createZuno({
 		channelName: "zuno-todos",
-		sseUrl: "http://localhost:3002/zuno/sse",
-		syncUrl: "http://localhost:3002/zuno/sync",
+		sseUrl: `${ZUNO_SERVER_URL}/zuno/sse`,
+		syncUrl: `${ZUNO_SERVER_URL}/zuno/sync`,
 		optimistic: true,
 		batchSync: true,
 		offlineQueue: createIndexedDBOfflineQueue({

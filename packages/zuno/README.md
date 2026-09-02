@@ -237,20 +237,20 @@ and replay history, plus a `ZunoServerEventBus` for live fan-out between server
 instances. All instances for one namespace must share both resources.
 
 ```ts
-import {
-  createFileZunoServerPersistence,
-  createZunoServerState,
-} from "@iadev93/zuno/server";
+import { createZunoServerState } from "@iadev93/zuno/server";
+import { createSQLiteZunoServerPersistence } from "@iadev93/zuno/server/sqlite";
 
 const server = createZunoServerState({
-  persistence: createFileZunoServerPersistence("./data/zuno.json"),
+  persistence: createSQLiteZunoServerPersistence("./data/zuno.sqlite"),
 });
 ```
 
 Persistence adapters must implement `compareAndSet()` atomically so two server
 processes cannot accept mutations based on the same version. See the
 [server persistence guide](../../docs/server-persistence.md) for the complete
-contract, shared-bus example, and production guidance.
+contract, shared-bus example, and production guidance. See
+[durable authority](../../docs/durable-authority.md) for SQLite inspection,
+idempotency, tombstones, retention, and recovery.
 
 ### Snapshot handler
 

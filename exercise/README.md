@@ -1,6 +1,17 @@
 # Zuno Exercises
 
-The React, Angular, and Basic HTML clients share the Elysia server at `http://localhost:3002`. The Express server on port 3003 is an independent adapter exercise with its own durable universe.
+## One-place server configuration
+
+Edit [`config.ts`](./config.ts) to change exercise ports or select which backend
+the React, Angular, and Basic HTML clients use:
+
+```ts
+export const ACTIVE_EXERCISE_SERVER = "express";
+```
+
+Set it to `"express"`, `"elysia"`, or `"http"`. Every browser client derives
+its SSE and sync URLs from this selection, so client files do not need edits.
+The default is the SQLite-backed Express server.
 
 ## Tutorials and recommended learning path
 
@@ -32,12 +43,18 @@ Open the React, Angular, and Basic HTML URLs printed by Vite. Updating the count
 Each browser client shows its SSE connection, durable queue depth, reconnect
 attempt, and detected-conflict count above the demo controls.
 
-## Durable server persistence exercise
+## Durable server persistence exercises
 
-Both server exercises configure `createFileZunoServerPersistence()`:
+The server exercises demonstrate both persistence adapters:
 
 - Elysia stores the shared browser-demo universe in `exercise/elysia/.data/zuno.json`.
-- Express stores its independent universe in `exercise/express/.data/zuno.json`.
+- Express stores its independent SQLite universe in `exercise/express/.data/zuno.sqlite`.
+- Raw Node HTTP stores its independent SQLite universe in `exercise/http-server/.data/zuno.sqlite`.
+
+Express and Raw Node import `createSQLiteZunoServerPersistence()` from
+`@iadev93/zuno/server/sqlite`. Elysia runs on Bun, which does not currently
+provide `node:sqlite`, so it intentionally demonstrates the durable JSON file
+adapter instead.
 
 Change state through a browser or server endpoint, stop the server, and start it
 again. The snapshot and retained replay history should survive. The `.data`
@@ -55,7 +72,7 @@ database and a framework-specific queue key.
 3. Reload the page while it is still offline.
 4. Restore the Network profile to **Online**.
 5. The new client instance loads the queued mutation, sends it to the shared
-   Elysia server, and clears the durable queue after acknowledgement.
+   selected server, and clears the durable queue after acknowledgement.
 
 Multiple offline changes to the same store are coalesced when the queue flushes.
 Only that store's latest state is sent; changes for different stores are retained
@@ -68,6 +85,10 @@ and inspect the `offline-queues` store inside `zuno-exercises`.
 ## Missed-event replay exercise
 
 This exercise verifies that an SSE client receives events it missed during a short disconnection.
+
+The replay-generator route belongs to Elysia. First set
+`ACTIVE_EXERCISE_SERVER` to `"elysia"` in `exercise/config.ts`, then restart the
+browser client and Elysia server.
 
 1. Open one of the browser clients and note its counter value.
 2. In browser developer tools, switch the Network profile to **Offline**.

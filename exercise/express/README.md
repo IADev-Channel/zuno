@@ -21,7 +21,7 @@ pnpm --filter exercise-express build
 ## Files and storage
 
 - `app.ts`: Express middleware, persistence, Zuno handlers, and custom route.
-- `.data/zuno.json`: generated authoritative state and retained replay events.
+- `.data/zuno.sqlite`: generated SQLite authority and retained replay events.
 - `tsconfig.json`: Node/Express TypeScript configuration.
 
 The `.data` directory is ignored. Stop the server and delete it to reset this
@@ -41,7 +41,7 @@ Create durable authority and pass it to the adapter:
 
 ```ts
 const server = createZunoServerState({
-  persistence: createFileZunoServerPersistence("./.data/zuno.json"),
+  persistence: createSQLiteZunoServerPersistence("./.data/zuno.sqlite"),
 });
 
 const zuno = createZunoExpress({ server });
@@ -83,7 +83,7 @@ authoritative version/event ID, persist to disk, and publish to SSE subscribers.
 - Express JSON and CORS integration.
 - Granular and convenience route mounting.
 - Isolated `ZunoServerState` ownership.
-- Durable restart-safe file persistence.
+- Durable restart-safe SQLite persistence using WAL transactions.
 - Atomic version conflict detection.
 - Retained SSE replay and snapshot fallback.
 - Direct server-side authoritative mutations.
@@ -92,7 +92,7 @@ authoritative version/event ID, persist to disk, and publish to SSE subscribers.
 
 - Configure `authorize` for request-level read/write policy.
 - Restrict CORS instead of using the permissive demo default.
-- Replace file persistence with PostgreSQL, Redis, or another transactional store.
+- Replace SQLite with PostgreSQL or another transactional store for distributed deployment.
 - Add a shared event bus when running multiple Express processes.
 - Route tenants to separate server states/persistence namespaces.
 

@@ -69,17 +69,13 @@ Returns the current authoritative universe and replay position.
 Allows trusted server code to create an authoritative mutation through the same
 validation, versioning, persistence, replay, and fan-out path.
 
-## Important default behavior
+## SQLite persistence
 
-This minimal exercise omits an explicit `server` argument, so the helpers use
-`defaultZunoServerState`, which is in-memory and process-local. State disappears
-when this server restarts.
-
-To make it durable, create an explicit server and pass it to every helper:
+The exercise creates one SQLite-backed server and passes it to every helper:
 
 ```ts
 const zunoServer = createZunoServerState({
-  persistence: createFileZunoServerPersistence("./.data/zuno.json"),
+  persistence: createSQLiteZunoServerPersistence("./.data/zuno.sqlite"),
 });
 
 createSSEConnection(req, res, headers, zunoServer);
@@ -87,8 +83,10 @@ setUniverseState(req, res, zunoServer);
 sendSnapshot(req, res, zunoServer);
 ```
 
-Using the same instance for every route is essential. For multiple processes,
-all instances must share authoritative persistence and an event bus.
+Using the same instance for every route is essential. Stop and restart the
+exercise to confirm state and replay survive. Inspect the database with
+`sqlite3 exercise/http-server/.data/zuno.sqlite`. For multiple processes, all
+instances must share authoritative persistence and an event bus.
 
 See [server persistence](../../docs/server-persistence.md) and
 [Protocol v1](../../docs/protocol-v1.md).

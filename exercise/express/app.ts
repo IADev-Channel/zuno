@@ -1,11 +1,9 @@
-import {
-	applyStateEvent,
-	createFileZunoServerPersistence,
-	createZunoServerState,
-} from "@iadev93/zuno/server";
+import { applyStateEvent, createZunoServerState } from "@iadev93/zuno/server";
+import { createSQLiteZunoServerPersistence } from "@iadev93/zuno/server/sqlite";
 import { createZunoExpress /*, mountZuno*/ } from "@iadev93/zuno-express";
 import cors from "cors";
 import express from "express";
+import { EXERCISE_SERVER_PORTS } from "../config";
 
 const app = express();
 app.use(express.json());
@@ -13,7 +11,7 @@ app.use(cors());
 
 // --- Zuno Setup ---
 const server = createZunoServerState({
-	persistence: createFileZunoServerPersistence("./.data/zuno.json"),
+	persistence: createSQLiteZunoServerPersistence("./.data/zuno.sqlite"),
 });
 const zuno = createZunoExpress({ server });
 
@@ -41,7 +39,7 @@ app.get("/zuno/counter/:value", (req, res) => {
 	res.status(200).json({ ok: true, event: result.ok ? result.event : null });
 });
 
-const PORT = 3003;
+const PORT = EXERCISE_SERVER_PORTS.express;
 app.listen(PORT).addListener("listening", () => {
 	console.log(`Server started on port ${PORT}`);
 });

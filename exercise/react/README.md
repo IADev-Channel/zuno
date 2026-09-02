@@ -10,8 +10,8 @@ middleware, conflict resolution, batching, and durable offline synchronization.
 - React components that rerender only when their selected store state changes.
 - A console logger middleware showing each mutation and transport result.
 
-The client shares the Elysia universe on port `3002` with the Basic HTML and
-Angular exercises.
+The client shares the backend selected in `exercise/config.ts` with the Basic
+HTML and Angular exercises. SQLite-backed Express is the default.
 
 ## Run it
 
@@ -19,7 +19,7 @@ From the repository root:
 
 ```bash
 pnpm install
-pnpm start-elysia
+pnpm start-express
 ```
 
 In another terminal:
@@ -45,10 +45,12 @@ pnpm --filter exercise-react build
 ## Creating a React-enabled client
 
 ```ts
+import { ZUNO_SERVER_URL } from "../config";
+
 const z = createZunoReact({
   channelName: "zuno-demo",
-  sseUrl: "http://localhost:3002/zuno/sse",
-  syncUrl: "http://localhost:3002/zuno/sync",
+  sseUrl: `${ZUNO_SERVER_URL}/zuno/sse`,
+  syncUrl: `${ZUNO_SERVER_URL}/zuno/sync`,
   optimistic: true,
   batchSync: true,
   offlineQueue: createIndexedDBOfflineQueue({

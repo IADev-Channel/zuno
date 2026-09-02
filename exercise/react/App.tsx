@@ -1,6 +1,7 @@
 import { createIndexedDBOfflineQueue } from "@iadev93/zuno";
 import { createZunoReact } from "@iadev93/zuno-react";
 import { useState, useSyncExternalStore } from "react";
+import { ZUNO_SERVER_URL } from "../config";
 import { loggerMiddleware } from "./logger";
 import "./App.css";
 
@@ -15,8 +16,8 @@ type Todo = {
 // --- Zuno Setup ---
 const z = createZunoReact({
 	channelName: "zuno-demo",
-	sseUrl: "http://localhost:3002/zuno/sse",
-	syncUrl: "http://localhost:3002/zuno/sync",
+	sseUrl: `${ZUNO_SERVER_URL}/zuno/sse`,
+	syncUrl: `${ZUNO_SERVER_URL}/zuno/sync`,
 	optimistic: true,
 	batchSync: true,
 	offlineQueue: createIndexedDBOfflineQueue({

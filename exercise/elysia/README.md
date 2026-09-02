@@ -93,7 +93,7 @@ Connected browsers receive the accepted event through SSE.
 ## Production extension points
 
 - Pass `authorize` to protect reads and writes.
-- Replace file persistence with a transactional database adapter.
+- Replace file persistence with a Bun-compatible transactional database adapter.
 - Provide a shared `ZunoServerEventBus` for multiple server processes.
 - Set tenant-specific server instances through trusted routing context.
 - Configure state, replay, and subscriber-buffer limits.

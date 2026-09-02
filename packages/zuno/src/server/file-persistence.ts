@@ -8,11 +8,15 @@ import {
 } from "node:fs";
 import { dirname } from "node:path";
 import type { ZunoStateEvent } from "../sync";
+import type { UniverseRecord } from "./core";
 import {
 	applyCompareAndSet,
 	createEmptyPersistedServerState,
+	type ZunoCompactionPolicy,
 	type ZunoCompareAndSetResult,
 	type ZunoPersistedServerState,
+	type ZunoReplayBounds,
+	type ZunoReplayQuery,
 	type ZunoServerPersistence,
 } from "./persistence";
 
@@ -45,7 +49,9 @@ export class FileZunoServerPersistence implements ZunoServerPersistence {
 
 	private read(): ZunoPersistedServerState {
 		try {
-			return JSON.parse(readFileSync(this.filePath, "utf8"));
+			const state = JSON.parse(readFileSync(this.filePath, "utf8"));
+			state.idempotency ??= {};
+			return state;
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code === "ENOENT") {
 				return createEmptyPersistedServerState();
@@ -99,6 +105,87 @@ export class FileZunoServerPersistence implements ZunoServerPersistence {
 
 	load(): ZunoPersistedServerState {
 		return structuredClone(this.read());
+	}
+
+	getRecord(storeKey: string): UniverseRecord | undefined {
+		const record = this.read().universe[storeKey];
+		return record ? structuredClone(record) : undefined;
+	}
+
+	getSnapshot(
+		partition?: string,
+		topics?: ReadonlySet<string>,
+	): Record<string, UniverseRecord> {
+		const snapshot: Record<string, UniverseRecord> = {};
+		for (const [key, record] of Object.entries(this.read().universe)) {
+			const [keyPartition, topic] = key.split(":");
+			if (
+				(!partition || partition === keyPartition) &&
+				(!topics || topics.has(topic))
+			)
+				snapshot[key] = record;
+		}
+		return structuredClone(snapshot);
+	}
+
+	readEvents(query: ZunoReplayQuery): ZunoStateEvent[] {
+		return this.read()
+			.events.filter((event) => {
+				if ((event.eventId ?? 0) <= query.afterEventId) return false;
+				const [partition, topic] = event.storeKey.split(":");
+				return (
+					(!query.partition || partition === query.partition) &&
+					(!query.topics || query.topics.has(topic))
+				);
+			})
+			.slice(0, query.limit);
+	}
+
+	getReplayBounds(): ZunoReplayBounds {
+		const events = this.read().events;
+		return {
+			firstEventId: events[0]?.eventId,
+			lastEventId: events.at(-1)?.eventId ?? 0,
+		};
+	}
+
+	appendEvent(event: ZunoStateEvent, maxEvents: number): ZunoStateEvent {
+		return this.withLock(() => {
+			const state = this.read();
+			const authoritative = {
+				...structuredClone(event),
+				eventId: state.nextEventId++,
+				ts: event.ts ?? Date.now(),
+			};
+			state.events.push(authoritative);
+			state.events = state.events.slice(-maxEvents);
+			this.write(state);
+			return authoritative;
+		});
+	}
+
+	compact(policy: ZunoCompactionPolicy, now = Date.now()): number {
+		return this.withLock(() => {
+			const state = this.read();
+			const before = state.events.length;
+			state.events = state.events
+				.filter((event) => {
+					const retention =
+						event.operation === "delete"
+							? policy.tombstoneRetentionMs
+							: policy.retentionMs;
+					return (
+						retention === undefined || now - (event.ts ?? now) <= retention
+					);
+				})
+				.slice(-policy.maxEvents);
+			this.write(state);
+			return before - state.events.length;
+		});
+	}
+
+	clear(): void {
+		this.save(createEmptyPersistedServerState());
 	}
 
 	save(state: ZunoPersistedServerState): void {

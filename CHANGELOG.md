@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added the SQLite WAL production authority adapter with transactional compare-and-set, idempotency, durable replay, tombstones, and compaction.
+- Added partition-aware event-bus offsets, duplicate suppression, failure-injection coverage, restart recovery, and a hot-partition benchmark.
+- Added SQLite-backed Node exercises and centralized exercise server configuration.
+
+### Changed
+- Separated ephemeral presence/cursor delivery from durable authoritative mutations.
+- Isolated the Node SQLite entry point from the Bun-compatible general server entry.
+
 ## [0.1.0] - 2026-08-31
 
 ### Added

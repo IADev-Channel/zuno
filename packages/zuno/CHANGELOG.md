@@ -1,5 +1,11 @@
 # @iadev93/zuno
 
+## 0.3.0
+
+### Minor Changes
+
+- df3e736: Add the Milestone 11 connection gateway contract, bounded horizontal fan-out, graceful draining, authenticated connection limits, configurable heartbeats, slow-consumer resynchronization, and jittered reconnect behavior. Express and Elysia can now share a gateway and authenticated principal resolver.
+
 ## 0.2.0
 
 ### Minor Changes

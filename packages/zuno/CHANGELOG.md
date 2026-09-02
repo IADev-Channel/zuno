@@ -1,5 +1,11 @@
 # @iadev93/zuno
 
+## 0.2.0
+
+### Minor Changes
+
+- Add the Milestone 10 durable-authority APIs: SQLite WAL persistence, atomic idempotent mutations, granular replay and compaction, tombstones, ephemeral events, and partition-aware event-bus offsets.
+
 ## 0.1.0
 
 ### Minor Changes

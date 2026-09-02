@@ -1,6 +1,6 @@
 {
 	"name": "@iadev93/zuno-react",
-	"version": "0.0.16",
+	"version": "0.0.17",
 	"type": "module",
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",

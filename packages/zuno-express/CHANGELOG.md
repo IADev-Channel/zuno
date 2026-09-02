@@ -1,5 +1,12 @@
 # @iadev93/zuno-express
 
+## 0.0.17
+
+### Patch Changes
+
+- Updated dependencies
+  - @iadev93/zuno@0.2.0
+
 ## 0.0.16
 
 ### Patch Changes

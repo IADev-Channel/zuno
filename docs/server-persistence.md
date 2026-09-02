@@ -2,8 +2,8 @@
 
 Zuno server instances separate authoritative storage from live event delivery:
 
-- `ZunoServerPersistence` owns the current universe, retained replay log, and
-  next event ID.
+- `ZunoServerPersistence` owns current state and replay through granular record,
+  snapshot, replay, append, and compaction operations.
 - `ZunoServerEventBus` fans accepted authoritative events out to other server
   instances so their connected SSE clients receive live updates.
 
@@ -18,8 +18,9 @@ implementation must perform these operations atomically:
 1. Read the current record for `storeKey`.
 2. Compare the mutation's `baseVersion` with the current version.
 3. Reject a mismatch without changing state or the replay log.
-4. Assign the next store version and global event ID.
-5. Update the universe and append/truncate the replay log in one commit.
+4. Deduplicate a supplied idempotency key within its partition.
+5. Assign the next store version and event ID.
+6. Update state and append/compact the replay log in one commit.
 
 This requirement prevents two processes from both accepting mutations based on
 the same version. A database adapter should implement it with a transaction,
@@ -44,9 +45,26 @@ const serverA = createZunoServerState({ persistence, eventBus });
 const serverB = createZunoServerState({ persistence, eventBus });
 ```
 
-These adapters do not cross an operating-system process boundary. Production
-deployments should provide a database-backed persistence adapter and a shared
-bus such as Redis or NATS.
+These adapters do not cross an operating-system process boundary.
+
+## SQLite production authority
+
+```ts
+import { createZunoServerState } from "@iadev93/zuno/server";
+import { createSQLiteZunoServerPersistence } from "@iadev93/zuno/server/sqlite";
+
+const persistence = createSQLiteZunoServerPersistence("./data/zuno.sqlite");
+const server = createZunoServerState({ persistence });
+```
+
+The adapter creates missing parent directories and uses SQLite WAL transactions
+and constraints for state/version updates, event append, and idempotency. Close
+it during graceful shutdown with `persistence.close()`.
+
+`node:sqlite` requires Node.js 22 or newer. Bun does not currently provide that
+built-in module; use the file adapter or another Bun-compatible adapter there.
+SQLite is suitable for a single authority host. Distributed deployments should
+use a shared transactional database and shared event bus.
 
 ## Durable file reference adapter
 
@@ -71,3 +89,6 @@ single-host workloads, not a replacement for a transactional database.
 
 Call `server.dispose()` during shutdown to unsubscribe the instance from its
 event bus and release local listeners.
+
+See [Durable authority](./durable-authority.md) for idempotency, tombstones,
+retention, ephemeral events, offsets, recovery, inspection, and migration rules.

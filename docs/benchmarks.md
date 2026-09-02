@@ -14,6 +14,12 @@ in-memory result measures protocol and compare-and-set overhead; production
 persistence, network latency, serialization size, subscribers, and event-bus
 fan-out must be benchmarked in the deployment environment.
 
+Milestone 10 also runs a SQLite hot-partition benchmark in
+`packages/zuno/src/__tests__/milestone-10.test.ts`. It performs 250 sequential
+transactional updates with realistic ~1 KB state, version checks, idempotency,
+and durable event append. Its generous 10-second guard detects severe
+regressions without presenting development-machine results as an SLA.
+
 ## Reference run
 
 Recorded on 2026-08-30 with Node.js 24.13.0 on the development machine:

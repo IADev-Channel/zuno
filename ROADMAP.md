@@ -12,7 +12,7 @@ Current verified package versions:
 - `@iadev93/zuno-express@0.0.16`
 - `@iadev93/zuno-elysia@0.0.12`
 
-Current verification baseline: 67 tests pass, Biome passes, and all five packages build with TypeScript declarations. Milestone 9 adds focused subscription/partition protocol coverage; branch CI is the authoritative verification record.
+Current verification baseline: 83 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
 
 ## Status Legend
 

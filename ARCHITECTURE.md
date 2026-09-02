@@ -67,10 +67,12 @@ SSE recovery is event-ID based. A reconnecting replica receives the complete ret
 
 Authoritative server storage is pluggable. A persistence adapter atomically
 compares the proposed base version, updates the universe, assigns an event ID,
-and appends the replay log. Multiple server instances share that authority and
-use an event-bus adapter to fan accepted events out to their local SSE clients.
-This keeps conflict decisions in storage rather than relying on process-local
-maps.
+and appends the replay log. The SQLite WAL adapter also provides partitioned
+idempotency, ranged replay, snapshots, tombstones, and compaction. Ephemeral
+events bypass durable state. Multiple server instances share authority and use
+a partition-aware event bus with consumer offsets to fan accepted events out to
+local SSE clients without redelivering consumed offsets. This keeps conflict
+and retry decisions in storage rather than process-local maps.
 
 ### Consistency Model: "Optimistic Convergent Consistency"
 

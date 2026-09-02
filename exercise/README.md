@@ -72,7 +72,7 @@ database and a framework-specific queue key.
 3. Reload the page while it is still offline.
 4. Restore the Network profile to **Online**.
 5. The new client instance loads the queued mutation, sends it to the shared
-   Elysia server, and clears the durable queue after acknowledgement.
+   selected server, and clears the durable queue after acknowledgement.
 
 Multiple offline changes to the same store are coalesced when the queue flushes.
 Only that store's latest state is sent; changes for different stores are retained
@@ -85,6 +85,10 @@ and inspect the `offline-queues` store inside `zuno-exercises`.
 ## Missed-event replay exercise
 
 This exercise verifies that an SSE client receives events it missed during a short disconnection.
+
+The replay-generator route belongs to Elysia. First set
+`ACTIVE_EXERCISE_SERVER` to `"elysia"` in `exercise/config.ts`, then restart the
+browser client and Elysia server.
 
 1. Open one of the browser clients and note its counter value.
 2. In browser developer tools, switch the Network profile to **Offline**.

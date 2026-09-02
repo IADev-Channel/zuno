@@ -106,6 +106,7 @@ app.listen(3000);
 - [**Changelog**](./CHANGELOG.md) — Project history and release notes.
 - [**Conflict Resolution**](./docs/conflict-resolution.md) — Strategies for merging state.
 - [**Server Persistence**](./docs/server-persistence.md) — Atomic storage and multi-process fan-out contracts.
+- [**Durable Authority**](./docs/durable-authority.md) — SQLite, idempotency, tombstones, retention, offsets, and recovery.
 - [**Operations**](./docs/operations.md) — Status, logging, metrics, and demo topology.
 - [**Compatibility**](./docs/compatibility.md) — Supported runtimes and framework versions.
 - [**Benchmarks**](./docs/benchmarks.md) — Reproducible multi-client workload results.

@@ -4,6 +4,11 @@ Zuno packages support maintained Node.js releases starting with Node.js 22. The
 consumer verification matrix covers Node.js 22 and 24, plus Bun 1.2 and the
 latest Bun release.
 
+The optional `@iadev93/zuno/server/sqlite` entry uses Node's built-in
+`node:sqlite` and therefore requires Node.js 22 or newer. It is intentionally
+isolated from `@iadev93/zuno/server`; Bun applications can use the general
+server APIs with memory, file, or a custom Bun-compatible persistence adapter.
+
 ## Framework and toolchain ranges
 
 | Integration | Supported range | Verified development stack |

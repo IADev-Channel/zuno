@@ -1,18 +1,18 @@
 # Zuno Roadmap
 
-Last reviewed: 2026-08-31
+Last reviewed: 2026-09-02
 
 This roadmap tracks Zuno's path from an experimental distributed-state engine to a production-ready library. Update the checkboxes and review date whenever a milestone changes.
 
 Current verified package versions:
 
-- `@iadev93/zuno@0.1.0`
-- `@iadev93/zuno-react@0.0.16`
-- `@iadev93/zuno-angular@0.2.0`
-- `@iadev93/zuno-express@0.0.16`
-- `@iadev93/zuno-elysia@0.0.12`
+- `@iadev93/zuno@0.2.0`
+- `@iadev93/zuno-react@0.0.17`
+- `@iadev93/zuno-angular@0.2.1`
+- `@iadev93/zuno-express@0.0.17`
+- `@iadev93/zuno-elysia@0.0.13`
 
-Current verification baseline: 83 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
+Current verification baseline: 90 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
 
 ## Status Legend
 
@@ -60,18 +60,22 @@ Delivered with a SQLite WAL authority adapter, atomic state-and-log transactions
 
 Completion criteria: authoritative state and replay survive process or node loss, duplicate delivery is safe, and no mutation relies on process-local memory for correctness.
 
-## Milestone 11: Connection Gateway and Horizontal Fan-Out
+## Milestone 11: Connection Gateway and Horizontal Fan-Out — Complete
 
-- [ ] Extract SSE connection ownership from framework request handlers into a gateway contract.
-- [ ] Make gateways stateless apart from bounded connection/subscription indexes.
-- [ ] Route accepted events from the shared bus only to gateways with matching subscribers.
-- [ ] Add gateway registration, health, draining, and graceful deployment behavior.
-- [ ] Add per-principal connection limits and authenticated connection metadata.
-- [ ] Add configurable heartbeat intervals aligned with proxy/load-balancer idle timeouts.
-- [ ] Implement slow-consumer eviction with a typed `RESYNC_REQUIRED` control event.
-- [ ] Add reconnect jitter and admission control to prevent reconnect storms.
-- [ ] Add regional routing and document the single-writer/partition-leader policy.
-- [ ] Prove that adding gateways increases connection capacity without changing conflict semantics.
+- [x] Extract SSE connection ownership from framework request handlers into a gateway contract.
+- [x] Make gateways stateless apart from bounded connection/subscription indexes.
+- [x] Route accepted events from the shared bus only to gateways with matching subscribers.
+- [x] Add gateway registration, health, draining, and graceful deployment behavior.
+- [x] Add per-principal connection limits and authenticated connection metadata.
+- [x] Add configurable heartbeat intervals aligned with proxy/load-balancer idle timeouts.
+- [x] Implement slow-consumer eviction with a typed `RESYNC_REQUIRED` control event.
+- [x] Add reconnect jitter and admission control to prevent reconnect storms.
+- [x] Add regional routing and document the single-writer/partition-leader policy.
+- [x] Prove that adding gateways increases connection capacity without changing conflict semantics.
+
+Delivered with a framework-neutral connection gateway, dynamically partition-filtered shared-bus consumption, bounded backpressure queues, typed resynchronization, authenticated connection metadata and limits, configurable health and heartbeat behavior, graceful draining, reconnect jitter, regional discovery primitives, and scale-out conflict-invariance tests. Operational guidance is documented in `docs/connection-gateways.md`.
+
+Completion criteria: gateway instances can be added or drained without moving authoritative state into the connection tier, shared-bus work is limited to subscribed partitions/topics, and overload recovers through authoritative replay or snapshot without changing compare-and-set semantics.
 
 ## Milestone 12: Traffic and Connection Efficiency
 

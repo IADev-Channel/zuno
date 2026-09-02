@@ -350,7 +350,11 @@ describe("Zuno Sync", () => {
 			addEventListener() {}
 		}
 		global.EventSource = ReconnectEventSource as unknown as typeof EventSource;
-		const transport = startSSE({ ...opts, getLastEventId: () => 7 });
+		const transport = startSSE({
+			...opts,
+			getLastEventId: () => 7,
+			reconnectJitterRatio: 0,
+		});
 
 		instances[0].onerror?.();
 		await vi.advanceTimersByTimeAsync(1000);

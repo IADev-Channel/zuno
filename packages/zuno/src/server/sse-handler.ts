@@ -8,6 +8,12 @@ import {
 	type ZunoSubscriptionPrincipal,
 } from "../sync";
 import { applyStateEvent } from "./apply-state-event";
+import {
+	createZunoConnectionGateway,
+	type ZunoConnectionAdmission,
+	type ZunoConnectionGateway,
+	type ZunoGatewayMessage,
+} from "./connection-gateway";
 import { defaultZunoServerState, type ZunoServerState } from "./core";
 
 type IncomingHeaders = IncomingMessage["headers"];
@@ -16,12 +22,23 @@ export type ZunoSSEAccess = {
 	policy?: ZunoSubscriptionPolicy;
 };
 
+const defaultGateways = new WeakMap<ZunoServerState, ZunoConnectionGateway>();
+const gatewayFor = (server: ZunoServerState) => {
+	let gateway = defaultGateways.get(server);
+	if (!gateway) {
+		gateway = createZunoConnectionGateway(server);
+		defaultGateways.set(server, gateway);
+	}
+	return gateway;
+};
+
 export const createSSEConnection = (
 	req: IncomingMessage,
 	res: ServerResponse,
 	headers: IncomingHeaders,
 	server: ZunoServerState = defaultZunoServerState,
 	access?: ZunoSSEAccess,
+	gateway: ZunoConnectionGateway = gatewayFor(server),
 ) => {
 	const requestUrl = new URL(req.url || "", "http://localhost");
 	const requestedProtocol = Number.parseInt(
@@ -64,58 +81,25 @@ export const createSSEConnection = (
 		};
 	}
 
-	res.writeHead(200, {
-		"Cache-Control": "no-cache, no-transform",
-		"Content-Type": "text/event-stream; charset=utf-8",
-		Connection: "keep-alive",
-		"X-Accel-Buffering": "no",
-		"X-Zuno-Protocol": String(protocol.version),
-		...headers,
-	});
-	res.flushHeaders?.();
 	const raw =
 		req.headers["last-event-id"] || requestUrl.searchParams.get("lastEventId");
 	const lastEventId =
 		Number.parseInt(Array.isArray(raw) ? raw[0] : (raw ?? "0"), 10) || 0;
-	const buffer: ZunoStateEvent[] = [];
-	const pendingWrites: ZunoStateEvent[] = [];
+	const buffer: ZunoGatewayMessage[] = [];
 	let isSyncing = true;
-	let backpressured = false;
 	let closed = false;
-	let heartbeat: ReturnType<typeof setInterval> | null = null;
-	let unsubscribe = () => {};
+	let admission: ZunoConnectionAdmission | undefined;
 	const closeConnection = () => {
 		if (closed) return;
 		closed = true;
-		if (heartbeat) clearInterval(heartbeat);
-		unsubscribe();
+		if (admission?.ok) admission.close();
 		res.end();
 	};
 	const formatStateEvent = (event: ZunoStateEvent) =>
 		`id: ${event.eventId}\nevent: state\ndata: ${JSON.stringify(event)}\n\n`;
-	const flushPendingWrites = () => {
-		backpressured = false;
-		while (!closed && pendingWrites.length > 0) {
-			const event = pendingWrites.shift();
-			if (event && !res.write(formatStateEvent(event))) {
-				backpressured = true;
-				res.once("drain", flushPendingWrites);
-				break;
-			}
-		}
-	};
 	const writeEvent = (event: ZunoStateEvent) => {
-		if (closed) return;
-		if (backpressured) {
-			if (pendingWrites.length >= server.maxSubscriberBuffer)
-				return closeConnection();
-			pendingWrites.push(event);
-			return;
-		}
-		if (!res.write(formatStateEvent(event))) {
-			backpressured = true;
-			res.once("drain", flushPendingWrites);
-		}
+		if (!closed) return res.write(formatStateEvent(event));
+		return false;
 	};
 	const writeSnapshot = () => {
 		const state = scoped
@@ -125,19 +109,61 @@ export const createSSEConnection = (
 		res.write("event: snapshot\n");
 		res.write(`data: ${JSON.stringify(state)}\n\n`);
 	};
-	const listener = (event: ZunoStateEvent) => {
+	const send = (message: ZunoGatewayMessage) => {
 		if (isSyncing) {
-			if (buffer.length >= server.maxSubscriberBuffer) return closeConnection();
-			buffer.push(event);
-		} else writeEvent(event);
+			if (buffer.length >= server.maxSubscriberBuffer) {
+				closeConnection();
+				return false;
+			}
+			buffer.push(message);
+			return true;
+		}
+		if (message.type === "state") return writeEvent(message.event);
+		if (message.type === "heartbeat")
+			return res.write(`: ping ${message.timestamp}\n\n`);
+		return res.write(
+			`event: control\ndata: ${JSON.stringify(message.event)}\n\n`,
+		);
 	};
-	unsubscribe = scoped
-		? server.subscribeToScopedStateEvents(
-				scoped.partition,
-				scoped.topics,
-				listener,
-			)
-		: server.subscribeToStateEvents(listener);
+	const connectionId = crypto.randomUUID();
+	const principal = access?.principal ?? {
+		id: `anonymous:${connectionId}`,
+		partitions: [],
+		topics: [],
+	};
+	admission = gateway.connect({
+		metadata: {
+			connectionId,
+			principal,
+			protocolVersion: protocol.version,
+			region: gateway.region,
+			remoteAddress: req.socket?.remoteAddress,
+			userAgent: req.headers["user-agent"],
+		},
+		partition: scoped?.partition,
+		topics: scoped?.topics,
+		send,
+		close: closeConnection,
+	});
+	if (!admission.ok) {
+		res.writeHead(503, {
+			"Content-Type": "application/json",
+			"Retry-After": String(Math.ceil(admission.retryAfterMs / 1000)),
+		});
+		res.end(JSON.stringify({ ok: false, reason: admission.reason }));
+		return;
+	}
+	res.writeHead(200, {
+		"Cache-Control": "no-cache, no-transform",
+		"Content-Type": "text/event-stream; charset=utf-8",
+		Connection: "keep-alive",
+		"X-Accel-Buffering": "no",
+		"X-Zuno-Gateway": gateway.id,
+		"X-Zuno-Protocol": String(protocol.version),
+		...headers,
+	});
+	res.flushHeaders?.();
+	res.on("drain", admission.writable);
 	if (lastEventId > 0 && server.canReplayAfter(lastEventId)) {
 		const missed = scoped
 			? server.getScopedEventsAfter(
@@ -150,13 +176,10 @@ export const createSSEConnection = (
 	} else writeSnapshot();
 	isSyncing = false;
 	while (buffer.length > 0) {
-		const event = buffer.shift();
-		if (event) writeEvent(event);
+		const message = buffer.shift();
+		if (message) send(message);
 	}
 	if (closed) return;
-	heartbeat = setInterval(() => {
-		if (!closed) res.write(`: ping ${Date.now()}\n\n`);
-	}, 15000);
 	res.write(": connected \n\n");
 	req.on("close", closeConnection);
 };

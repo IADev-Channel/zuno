@@ -1,4 +1,5 @@
 export * from "./apply-state-event";
+export * from "./apply-state-event-batch";
 export * from "./connection-gateway";
 export * from "./core";
 export * from "./event-bus";
@@ -7,3 +8,4 @@ export * from "./persistence";
 export * from "./snapshot-handler";
 export * from "./sse-handler";
 export * from "./subscriptions";
+export * from "./websocket-handler";

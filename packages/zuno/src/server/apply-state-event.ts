@@ -1,5 +1,9 @@
 import type { ZunoStateEvent } from "../sync";
-import { parseScopedStoreKey, type ZunoSubscriptionPrincipal } from "../sync";
+import {
+	applyZunoStateDelta,
+	parseScopedStoreKey,
+	type ZunoSubscriptionPrincipal,
+} from "../sync";
 import { defaultZunoServerState, type ZunoServerState } from "./core";
 
 export type EventValidationError = { field: string; message: string };
@@ -37,9 +41,9 @@ export function validateStateEvent(
 			field: "storeKey",
 			message: "storeKey must be a non-empty string of at most 256 characters",
 		});
-	if (!("state" in input))
-		errors.push({ field: "state", message: "state is required" });
-	else
+	if (!("state" in input) && !("delta" in input))
+		errors.push({ field: "state", message: "state or delta is required" });
+	else if ("state" in input)
 		try {
 			const serialized = JSON.stringify(input.state);
 			if (serialized === undefined)
@@ -58,6 +62,19 @@ export function validateStateEvent(
 				message: "state must be JSON-serializable",
 			});
 		}
+	if (
+		input.delta !== undefined &&
+		(!isRecord(input.delta) ||
+			input.delta.type !== "object" ||
+			!isRecord(input.delta.set) ||
+			(input.delta.unset !== undefined &&
+				(!Array.isArray(input.delta.unset) ||
+					!input.delta.unset.every((key) => typeof key === "string"))))
+	)
+		errors.push({
+			field: "delta",
+			message: "delta must be a valid object delta",
+		});
 	for (const field of ["version", "baseVersion", "eventId"] as const) {
 		const value = input[field];
 		if (
@@ -147,11 +164,41 @@ export function applyStateEvent(
 	server: ZunoServerState = defaultZunoServerState,
 	principal?: ZunoSubscriptionPrincipal,
 ): ApplyResult {
-	const errors = validateStateEvent(incoming, server.maxStateBytes);
-	if (errors.length > 0) return { ok: false, reason: "INVALID_EVENT", errors };
+	const incomingErrors = validateStateEvent(incoming, server.maxStateBytes);
+	if (incomingErrors.length > 0)
+		return { ok: false, reason: "INVALID_EVENT", errors: incomingErrors };
+	let candidate = incoming;
+	if (
+		isRecord(incoming) &&
+		incoming.delta !== undefined &&
+		!("state" in incoming)
+	) {
+		const current =
+			typeof incoming.storeKey === "string"
+				? server.getUniverseRecord(incoming.storeKey)?.state
+				: undefined;
+		const { delta, ...rest } = incoming;
+		candidate = {
+			...rest,
+			state: applyZunoStateDelta(
+				current,
+				delta as ZunoStateEvent["delta"] & { type: "object" },
+			),
+		};
+	}
+	const materializedErrors = validateStateEvent(
+		candidate,
+		server.maxStateBytes,
+	);
+	if (materializedErrors.length > 0)
+		return {
+			ok: false,
+			reason: "INVALID_EVENT",
+			errors: materializedErrors,
+		};
 	if (principal) {
 		const authorizationErrors = authorizeStateEvent(
-			incoming as ZunoStateEvent,
+			candidate as ZunoStateEvent,
 			principal,
 		);
 		if (authorizationErrors.length > 0)
@@ -161,16 +208,16 @@ export function applyStateEvent(
 				errors: authorizationErrors,
 			};
 	}
-	if ((incoming as ZunoStateEvent).durability === "ephemeral") {
+	if ((candidate as ZunoStateEvent).durability === "ephemeral") {
 		const event = {
-			...(incoming as ZunoStateEvent),
+			...(candidate as ZunoStateEvent),
 			durability: "ephemeral" as const,
 			eventId: undefined,
 		};
 		server.publishToStateEvent(event);
 		return { ok: true, event };
 	}
-	const result = server.compareAndSet(incoming as ZunoStateEvent);
+	const result = server.compareAndSet(candidate as ZunoStateEvent);
 	if (!result.ok)
 		return { ok: false, reason: "VERSION_CONFLICT", current: result.current };
 	if (!result.duplicate) server.publishToStateEvent(result.event);

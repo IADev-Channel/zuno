@@ -70,7 +70,10 @@ An async generator handler for Server-Sent Events. It automatically handles:
 - Typed `RESYNC_REQUIRED` recovery when a gateway drains or evicts a slow consumer.
 
 #### `sync` (POST)
-Validates and applies incoming state events to the Zuno universe. Handles version conflicts and broadcasts updates to all connected SSE clients.
+Validates and applies a single state event or an ordered `{ events: [...] }`
+batch. Processing stops at the first conflict; earlier accepted entries remain
+committed and `conflictIndex` identifies the rejected entry. Accepted updates
+are broadcast to connected clients.
 
 #### `snapshot` (GET)
 Returns the current full state of the universe, the current version, and the last event ID.

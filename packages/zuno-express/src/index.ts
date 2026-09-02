@@ -6,9 +6,11 @@ import type {
 } from "@iadev93/zuno";
 import {
 	applyStateEvent,
+	applyStateEventBatch,
 	createSSEConnection,
 	createZunoConnectionGateway,
 	createZunoServerState,
+	isZunoMutationBatch,
 	sendSnapshot,
 	type ZunoConnectionGateway,
 	type ZunoServerState,
@@ -99,6 +101,11 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 				return;
 			}
 			const identity = principal ? await principal(req) : undefined;
+			if (isZunoMutationBatch(incoming)) {
+				const result = applyStateEventBatch(incoming, server, identity);
+				res.status(result.ok ? 200 : 409).json(result);
+				return;
+			}
 			const result = applyStateEvent(incoming, server, identity);
 
 			if (!result.ok) {

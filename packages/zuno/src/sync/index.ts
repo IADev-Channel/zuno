@@ -26,7 +26,9 @@ export type ConflictResolver<T = unknown> = (
  */
 export type ZunoStateEvent = {
 	storeKey: string;
-	state: unknown; // Was 'any', now strictly 'unknown'
+	state?: unknown;
+	/** Optional compact object delta, resolved against authoritative state. */
+	delta?: import("./payload").ZunoStateDelta;
 	/** Stable retry key. Durable adapters deduplicate it within a partition. */
 	idempotencyKey?: string;
 	/** Ephemeral events are delivered live but never mutate authoritative state. */
@@ -78,7 +80,7 @@ export type ZunoLogEntry = {
 export type ZunoMetric = {
 	name: string;
 	value: number;
-	unit: "count" | "milliseconds";
+	unit: "count" | "milliseconds" | "bytes";
 	timestamp: number;
 	tags?: Record<string, string>;
 };
@@ -88,6 +90,9 @@ export type ZunoMetric = {
  */
 export interface ZunoTransport {
 	dispatch(event: ZunoStateEvent): Promise<TransportStatus>;
+	dispatchBatch?(events: readonly ZunoStateEvent[]): Promise<TransportStatus>;
+	pauseDownstream?(): void;
+	resumeDownstream?(): void;
 	unsubscribe?(): void;
 }
 
@@ -174,6 +179,10 @@ export type SSEOptions = {
 	reconnectJitterRatio?: number;
 	/** Maximum reconnect delay including admission backoff (default: 30 seconds). */
 	maxReconnectDelayMs?: number;
+	/** Gzip mutation requests at or above this encoded size (default: 16 KiB). */
+	compressionThresholdBytes?: number;
+	/** Start without opening EventSource; used by browser leader election. */
+	startPaused?: boolean;
 	/** Queue persistence provider (default: an in-memory provider). */
 	offlineQueue?: ZunoOfflineQueue;
 	onOpen?: () => void;
@@ -201,6 +210,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	const maxConflictRetries = opts.maxConflictRetries ?? 3;
 	const reconnectJitterRatio = opts.reconnectJitterRatio ?? 0.2;
 	const maxReconnectDelayMs = opts.maxReconnectDelayMs ?? 30_000;
+	const compressionThresholdBytes = opts.compressionThresholdBytes ?? 16 * 1024;
 	const offlineQueue = opts.offlineQueue ?? createMemoryOfflineQueue();
 	if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) {
 		throw new TypeError("maxQueueSize must be a positive integer");
@@ -212,9 +222,17 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		throw new TypeError("reconnectJitterRatio must be between 0 and 1");
 	if (!Number.isInteger(maxReconnectDelayMs) || maxReconnectDelayMs < 1)
 		throw new TypeError("maxReconnectDelayMs must be a positive integer");
+	if (
+		!Number.isInteger(compressionThresholdBytes) ||
+		compressionThresholdBytes < 0
+	)
+		throw new TypeError(
+			"compressionThresholdBytes must be a non-negative integer",
+		);
 	let es: EventSource | null = null;
 	let retryCount = 0;
 	let stopped = false;
+	let downstreamPaused = opts.startPaused ?? false;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	let flushTimer: ReturnType<typeof setTimeout> | null = null;
 	const updateStatus = (change: Partial<ZunoStatus>) => opts.onStatus?.(change);
@@ -241,6 +259,64 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		} catch (error) {
 			console.error("[Zuno] Metric hook failed", error);
 		}
+	};
+	const bytesMetric = (
+		name: string,
+		value: number,
+		tags?: Record<string, string>,
+	) => {
+		try {
+			opts.onMetric?.({
+				name,
+				value,
+				unit: "bytes",
+				timestamp: Date.now(),
+				tags,
+			});
+		} catch (error) {
+			console.error("[Zuno] Metric hook failed", error);
+		}
+	};
+	const encodeMutationBody = async (value: unknown) => {
+		const json = JSON.stringify(value);
+		const input = new TextEncoder().encode(json);
+		if (
+			input.byteLength < compressionThresholdBytes ||
+			typeof CompressionStream === "undefined"
+		)
+			return {
+				body: json as BodyInit,
+				headers: { "Content-Type": "application/json" } as Record<
+					string,
+					string
+				>,
+				bytes: input.byteLength,
+				compressed: false,
+			};
+		const stream = new Blob([input])
+			.stream()
+			.pipeThrough(new CompressionStream("gzip"));
+		const body = await new Response(stream).arrayBuffer();
+		return {
+			body,
+			headers: {
+				"Content-Encoding": "gzip",
+				"Content-Type": "application/json",
+			} as Record<string, string>,
+			bytes: body.byteLength,
+			compressed: true,
+		};
+	};
+	const postMutation = async (value: unknown) => {
+		const encoded = await encodeMutationBody(value);
+		bytesMetric("zuno.transport.bytes_sent", encoded.bytes, {
+			encoding: encoded.compressed ? "gzip" : "identity",
+		});
+		return fetch(syncUrl, {
+			method: "POST",
+			headers: encoded.headers,
+			body: encoded.body,
+		});
 	};
 
 	// Helper to apply state changes
@@ -376,11 +452,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			while (queue.length > 0) {
 				const event = queue[0];
 				try {
-					const res = await fetch(syncUrl, {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify(event),
-					});
+					const res = await postMutation(event);
 
 					if (!res.ok && res.status !== 409) {
 						if (res.status >= 400 && res.status < 500) {
@@ -469,7 +541,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		}
 	}
 	function scheduleReconnect(lastError: string) {
-		if (stopped || reconnectTimer) return;
+		if (stopped || downstreamPaused || reconnectTimer) return;
 		const baseDelay = Math.min(1000 * 2 ** retryCount, maxReconnectDelayMs);
 		const delay = Math.min(
 			maxReconnectDelayMs,
@@ -492,7 +564,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		}, delay);
 	}
 	function connect() {
-		if (stopped) return;
+		if (stopped || downstreamPaused || es) return;
 		updateStatus({ connection: "connecting" });
 		const lastId = getLastEventId();
 		const connectUrl = new URL(url, globalThis.location?.href);
@@ -553,6 +625,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 					reason: control.reason ?? "unknown",
 				});
 				es?.close();
+				es = null;
 				scheduleReconnect("RESYNC_REQUIRED");
 			} catch (err) {
 				log("warn", "connection.invalid_control", { error: String(err) });
@@ -575,6 +648,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 
 		es.onerror = () => {
 			es?.close();
+			es = null;
 			if (stopped) return;
 			opts.onClose?.();
 			scheduleReconnect("SSE_DISCONNECTED");
@@ -585,7 +659,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		window.addEventListener("online", flushQueue);
 	}
 
-	connect();
+	if (!downstreamPaused) connect();
 
 	const dispatchFn = async (
 		event: ZunoStateEvent,
@@ -612,11 +686,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 				};
 			}
 
-			const res = await fetch(syncUrl, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(event),
-			});
+			const res = await postMutation(event);
 
 			if (res.status === 409) {
 				metric("zuno.conflicts", 1, { storeKey: event.storeKey });
@@ -702,9 +772,58 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			};
 		}
 	};
+	const dispatchBatch = async (
+		events: readonly ZunoStateEvent[],
+	): Promise<TransportStatus> => {
+		if (events.length === 0)
+			return { ok: true, status: 200, json: { ok: true, results: [] } };
+		if (events.length === 1) return dispatchFn(events[0]);
+		try {
+			const res = await postMutation({ events });
+			const json = await res.json();
+			for (const [index, result] of (json.results ?? []).entries()) {
+				if (result.ok && typeof result.event?.version === "number")
+					versions.set(result.event.storeKey, result.event.version);
+				else if (result.current)
+					applyState({
+						storeKey: events[index]?.storeKey ?? "",
+						state: result.current.state,
+						version: result.current.version,
+						origin: "conflict-resolution",
+					});
+			}
+			if (res.ok) {
+				metric("zuno.batch.requests");
+				metric("zuno.batch.mutations", events.length);
+				return { ok: true, status: res.status, json };
+			}
+			return {
+				ok: false,
+				status: res.status,
+				json,
+				reason: res.status === 409 ? "BATCH_CONFLICT" : undefined,
+			};
+		} catch (error) {
+			for (const event of events) await enqueue(event);
+			return { ok: false, status: 500, json: error, reason: "BATCH_QUEUED" };
+		}
+	};
 
 	return {
 		dispatch: dispatchFn,
+		dispatchBatch,
+		pauseDownstream() {
+			downstreamPaused = true;
+			if (reconnectTimer) clearTimeout(reconnectTimer);
+			reconnectTimer = null;
+			es?.close();
+			es = null;
+		},
+		resumeDownstream() {
+			if (stopped || !downstreamPaused) return;
+			downstreamPaused = false;
+			connect();
+		},
 		unsubscribe: () => {
 			stopped = true;
 			updateStatus({ connection: "stopped", retryAttempt: 0 });
@@ -756,4 +875,6 @@ export function startBroadcastChannel(opts: BCOptions) {
 		stop: () => channel.close(),
 	};
 }
+export * from "./payload";
 export * from "./subscriptions";
+export * from "./websocket";

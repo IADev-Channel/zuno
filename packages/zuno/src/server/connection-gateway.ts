@@ -1,4 +1,8 @@
-import type { ZunoStateEvent, ZunoSubscriptionPrincipal } from "../sync";
+import type {
+	ZunoMetric,
+	ZunoStateEvent,
+	ZunoSubscriptionPrincipal,
+} from "../sync";
 import type { ZunoServerState } from "./core";
 
 export type ZunoGatewayStatus = "healthy" | "draining" | "stopped";
@@ -48,6 +52,7 @@ export type CreateZunoConnectionGatewayOptions = {
 	maxConnectionsPerPrincipal?: number;
 	maxPendingMessages?: number;
 	now?: () => number;
+	onMetric?: (metric: ZunoMetric) => void;
 };
 
 type ActiveConnection = {
@@ -93,7 +98,7 @@ export class DefaultZunoConnectionGateway implements ZunoConnectionGateway {
 
 	constructor(
 		private readonly server: ZunoServerState,
-		options: CreateZunoConnectionGatewayOptions = {},
+		private readonly options: CreateZunoConnectionGatewayOptions = {},
 	) {
 		this.id = options.id ?? crypto.randomUUID();
 		this.region = options.region;
@@ -120,6 +125,20 @@ export class DefaultZunoConnectionGateway implements ZunoConnectionGateway {
 			this.heartbeatIntervalMs,
 		);
 		this.heartbeatTimer.unref?.();
+	}
+	private metric(
+		name: string,
+		value: number,
+		unit: ZunoMetric["unit"] = "count",
+		tags?: Record<string, string>,
+	) {
+		this.options.onMetric?.({
+			name,
+			value,
+			unit,
+			timestamp: this.now(),
+			tags: { gatewayId: this.id, ...tags },
+		});
 	}
 
 	get status() {
@@ -181,6 +200,9 @@ export class DefaultZunoConnectionGateway implements ZunoConnectionGateway {
 			principalId,
 			(this.principalConnections.get(principalId) ?? 0) + 1,
 		);
+		this.metric("zuno.gateway.connections", 1, "count", {
+			operation: "opened",
+		});
 		return {
 			ok: true,
 			connectionId: connection.metadata.connectionId,
@@ -232,6 +254,7 @@ export class DefaultZunoConnectionGateway implements ZunoConnectionGateway {
 	private deliver(active: ActiveConnection, message: ZunoGatewayMessage): void {
 		if (active.backpressured) {
 			if (active.pending.length >= this.maxPendingMessages) {
+				this.metric("zuno.gateway.slow_consumer_evictions", 1);
 				active.connection.send({
 					type: "control",
 					event: { type: "RESYNC_REQUIRED", reason: "SLOW_CONSUMER" },
@@ -241,6 +264,14 @@ export class DefaultZunoConnectionGateway implements ZunoConnectionGateway {
 			}
 			active.pending.push(message);
 			return;
+		}
+		if (message.type === "state") {
+			this.metric("zuno.gateway.fanout_deliveries", 1);
+			this.metric(
+				"zuno.gateway.bytes_sent",
+				new TextEncoder().encode(JSON.stringify(message)).byteLength,
+				"bytes",
+			);
 		}
 		active.backpressured = !active.connection.send(message);
 	}
@@ -265,6 +296,9 @@ export class DefaultZunoConnectionGateway implements ZunoConnectionGateway {
 		if (count === 0) this.principalConnections.delete(principalId);
 		else this.principalConnections.set(principalId, count);
 		active.connection.close();
+		this.metric("zuno.gateway.connections", 1, "count", {
+			operation: "closed",
+		});
 	}
 }
 

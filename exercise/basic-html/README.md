@@ -43,10 +43,12 @@ Open the URL printed by Vite.
 `script.ts` calls `createZuno()` once:
 
 ```ts
+import { ZUNO_SERVER_URL } from "../config";
+
 const zuno = createZuno({
   channelName: "zuno-todos",
-  sseUrl: "http://localhost:3002/zuno/sse",
-  syncUrl: "http://localhost:3002/zuno/sync",
+  sseUrl: `${ZUNO_SERVER_URL}/zuno/sse`,
+  syncUrl: `${ZUNO_SERVER_URL}/zuno/sync`,
   optimistic: true,
   batchSync: true,
   offlineQueue: createIndexedDBOfflineQueue({

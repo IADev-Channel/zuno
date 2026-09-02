@@ -38,9 +38,11 @@ pnpm --filter exercise-angular build
 `provideZuno()` registers one configured `ZunoService`:
 
 ```ts
+import { ZUNO_SERVER_URL } from "../../../config";
+
 provideZuno({
-  syncUrl: "http://localhost:3002/zuno/sync",
-  sseUrl: "http://localhost:3002/zuno/sse",
+  syncUrl: `${ZUNO_SERVER_URL}/zuno/sync`,
+  sseUrl: `${ZUNO_SERVER_URL}/zuno/sse`,
   channelName: "zuno-demo",
   clientId: `angular-client-${Math.random().toString(36).slice(2)}`,
   offlineQueue: createIndexedDBOfflineQueue({

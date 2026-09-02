@@ -79,6 +79,19 @@ Only that store's latest state is sent; changes for different stores are retaine
 separately. You can confirm this by changing the counter several times offline
 and observing a single final counter mutation after reconnecting.
 
+### Cross-framework realtime recovery check
+
+This reproduces the stale-offline-replica case covered by Milestone 11:
+
+1. Open Angular, switch it offline, and add several todos.
+2. Restore Angular online and wait for its queue to settle.
+3. In React, add another todo while Angular remains open.
+4. Angular must display the React todo immediately without a refresh.
+
+Server-approved SSE events are authoritative even when an offline replica's
+optimistic version is numerically higher. The original event origin is used
+only to suppress delivery back to the client that proposed it.
+
 To inspect the queue, open the browser's Application panel, expand IndexedDB,
 and inspect the `offline-queues` store inside `zuno-exercises`.
 

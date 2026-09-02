@@ -16,14 +16,24 @@ pnpm add @iadev93/zuno-elysia
 import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { createZunoElysia } from '@iadev93/zuno-elysia'
-import { createZunoServerState } from '@iadev93/zuno/server'
+import {
+  createZunoConnectionGateway,
+  createZunoServerState,
+} from '@iadev93/zuno/server'
 
 const app = new Elysia()
   .use(cors())
   
 const server = createZunoServerState()
+const gateway = createZunoConnectionGateway(server, {
+  region: 'eu-west',
+  heartbeatIntervalMs: 15_000,
+  maxConnectionsPerPrincipal: 10,
+})
 const zuno = createZunoElysia({
   server,
+  gateway,
+  principal: (request) => authenticatedPrincipal(request),
   authorize: ({ request, action }) => {
     // Replace with your session, API-key, or tenant policy.
     return canAccessZuno(request, action)
@@ -44,7 +54,7 @@ app.listen(3002)
 
 Returns an object containing the following handlers:
 
-Each call creates isolated server state by default. Pass `server` when several handlers or custom endpoints must share one authoritative universe. The returned object exposes the selected instance as `zuno.server`.
+Each call creates isolated server state and a connection gateway by default. Pass `server` and `gateway` when several handlers must share one authoritative universe and connection policy. The returned object exposes them as `zuno.server` and `zuno.gateway`.
 
 The optional `authorize` hook runs before SSE/snapshot reads and mutation writes. Returning `false` produces a `403 FORBIDDEN` response without reading or mutating server state.
 
@@ -56,6 +66,8 @@ An async generator handler for Server-Sent Events. It automatically handles:
 - Retained-event replay after short interruptions.
 - Authoritative snapshot fallback when the requested replay range has expired.
 - Bounded per-subscriber buffering through the selected server state's `maxSubscriberBuffer` option.
+- Protocol v1 partition/topic subscription validation through authenticated principal metadata.
+- Typed `RESYNC_REQUIRED` recovery when a gateway drains or evicts a slow consumer.
 
 #### `sync` (POST)
 Validates and applies incoming state events to the Zuno universe. Handles version conflicts and broadcasts updates to all connected SSE clients.
@@ -67,6 +79,7 @@ Returns the current full state of the universe, the current version, and the las
 - **Native SSE**: Uses Elysia's optimized streaming capabilities with async generators.
 - **Resilient Recovery**: Replays missed events when retained and falls back to an event-ID-bearing snapshot after a replay gap.
 - **Backpressure Protection**: Disconnects subscribers that exceed the configured pending-message buffer so they can recover cleanly on reconnect.
+- **Gateway Lifecycle**: Supports health reporting, regional registration, admission limits, and graceful draining.
 - **Lightweight**: Zero runtime dependencies on Elysia itself (uses structural typing).
 - **Type Safe**: Fully written in TypeScript with comprehensive docstrings.
 

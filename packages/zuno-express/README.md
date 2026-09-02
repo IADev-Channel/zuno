@@ -22,14 +22,28 @@ Peer dependency:
 ```ts
 import express from "express";
 import { createZunoExpress } from "@iadev93/zuno-express";
-import { createZunoServerState } from "@iadev93/zuno/server";
+import {
+  createZunoConnectionGateway,
+  createZunoServerState,
+} from "@iadev93/zuno/server";
 
 const app = express();
 app.use(express.json());
 
 const server = createZunoServerState();
+const gateway = createZunoConnectionGateway(server, {
+  region: "eu-west",
+  heartbeatIntervalMs: 15_000,
+  maxConnectionsPerPrincipal: 10,
+});
 const zuno = createZunoExpress({
   server,
+  gateway,
+  principal: (request) => ({
+    id: request.user.id,
+    partitions: request.user.partitions,
+    topics: request.user.topics,
+  }),
   authorize: ({ request, action }) => {
     // Replace with your session, API-key, or tenant policy.
     return Boolean(request.user) && (action === "read" || request.user.canWrite);
@@ -52,12 +66,12 @@ app.listen(3000);
 
 Returns an object containing the following Express handlers:
 
-Each call creates isolated server state by default. Pass `server` when several routers or custom endpoints must share the same authoritative universe. The returned object exposes the selected instance as `zuno.server`.
+Each call creates isolated server state and a connection gateway by default. Pass `server` and `gateway` when several routers or custom endpoints must share the same authoritative universe and connection limits. The returned object exposes them as `zuno.server` and `zuno.gateway`.
 
 The optional `authorize` hook runs before SSE/snapshot reads and mutation writes. Returning `false` produces a `403 FORBIDDEN` response without reading or mutating server state.
 
 #### `sse` (GET)
-Handles persistent SSE connections, heartbeats, and initial synchronization. Reconnecting clients receive retained events after their last event ID; if that replay range is incomplete, the handler sends an authoritative snapshot carrying the current event ID. Pending writes are bounded by the selected server state's `maxSubscriberBuffer` option, and slow subscribers reconnect to recover.
+Hands the persistent SSE connection to the selected gateway. The gateway owns heartbeats, admission, subscription routing, bounded backpressure, and graceful draining. Reconnecting clients receive retained events after their last event ID; if that replay range is incomplete—or a slow consumer receives `RESYNC_REQUIRED`—the client recovers from an authoritative snapshot.
 
 #### `sync` (POST)
 Validates and applies incoming state events.

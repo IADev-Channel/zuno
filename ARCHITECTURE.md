@@ -12,10 +12,15 @@ Zuno is a **distributed state engine**. It treats state as a replicated, version
 
 ```mermaid
 graph TD
-    subgraph "Server (Autority)"
-        UniverseServer["Universe (Authoritative)"]
+    subgraph "Authority Tier"
+        Persistence["Durable state + replay"]
         SyncEndpoint["POST /zuno/sync"]
-        SSEStream["GET /zuno/sse"]
+        EventBus["Partition-aware event bus"]
+    end
+
+    subgraph "Stateless Connection Tier"
+        GatewayA["Gateway A"]
+        GatewayB["Gateway B"]
     end
 
     subgraph "Client A (Browser Tab 1)"
@@ -28,10 +33,12 @@ graph TD
         StoreB["Store 'counter'"]
     end
 
-    SyncEndpoint --> UniverseServer
-    UniverseServer --> SSEStream
-    SSEStream -- "State Events" --> UniverseA
-    SSEStream -- "State Events" --> UniverseB
+    SyncEndpoint --> Persistence
+    Persistence --> EventBus
+    EventBus -- "Matching partitions/topics" --> GatewayA
+    EventBus -- "Matching partitions/topics" --> GatewayB
+    GatewayA -- "SSE state/control events" --> UniverseA
+    GatewayB -- "SSE state/control events" --> UniverseB
     UniverseA -- "Propose Change" --> SyncEndpoint
     UniverseB -- "Propose Change" --> SyncEndpoint
     UniverseA <--> BC["BroadcastChannel"] <--> UniverseB
@@ -58,7 +65,7 @@ A replica is any participation point in the mesh. Replicas synchronize with the 
 
 Zuno uses a multi-layered transport strategy to balance latency and reliability:
 
-1.  **SSE (Server-Sent Events)**: The primary downstream channel. The server streams authoritative state changes to all connected clients.
+1.  **SSE (Server-Sent Events)**: The primary downstream channel. Stateless gateways stream accepted authoritative state changes only to matching subscribers.
 2.  **HTTP POST Sync**: The upstream channel. Clients "propose" state changes to the server.
 3.  **BroadcastChannel**: A local optimization. Same-origin browser tabs share state updates directly.
 4.  **Mutation Batching**: Multiple synchronous updates are coalesced into a single network payload to reduce chatter.
@@ -71,8 +78,16 @@ and appends the replay log. The SQLite WAL adapter also provides partitioned
 idempotency, ranged replay, snapshots, tombstones, and compaction. Ephemeral
 events bypass durable state. Multiple server instances share authority and use
 a partition-aware event bus with consumer offsets to fan accepted events out to
-local SSE clients without redelivering consumed offsets. This keeps conflict
-and retry decisions in storage rather than process-local maps.
+connection gateways without redelivering consumed offsets. Gateways retain only
+bounded connection/subscription indexes, enforce admission and per-principal
+limits, emit configurable heartbeats, and evict slow consumers with a typed
+`RESYNC_REQUIRED` event. This keeps conflict and retry decisions in storage
+rather than process-local maps.
+
+Every event received through SSE is server-approved and therefore authoritative.
+The original client origin is used only to suppress same-client loopback. This
+lets a live event replace a stale replica whose optimistic version moved ahead
+while offline; otherwise that replica would converge only after a refresh.
 
 ### Consistency Model: "Optimistic Convergent Consistency"
 

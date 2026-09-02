@@ -110,6 +110,24 @@ data: { "storeKey": "counter", "state": 6, "version": 4, "eventId": 5 }
 
 ```
 
+Every `state` event received through SSE has passed the authoritative mutation
+path. Clients may retain the proposal's original `origin` only for same-client
+loopback suppression; they must apply cross-client SSE state as authoritative,
+including when a local offline optimistic version is numerically higher.
+
+#### Gateway control message
+
+```text
+event: control
+data: { "type": "RESYNC_REQUIRED", "reason": "SLOW_CONSUMER" }
+
+```
+
+`reason` is `SLOW_CONSUMER` when the bounded pending-message limit is exceeded
+and `GATEWAY_DRAINING` during graceful deployment. The client clears its replay
+cursor, reconnects with exponential jitter, and accepts a fresh authoritative
+snapshot. Admission rejection uses HTTP `503` with `Retry-After`.
+
 ### Last Event ID & Reconnection
 
 To handle network interruptions, Zuno supports the standard SSE `Last-Event-ID` mechanism.
@@ -177,6 +195,7 @@ version-based conflict detection**, not strong or linearizable consistency.
 * SSE connections close when a tab closes; reconnect should request events after the last observed event ID.
 * The server replays a complete retained range, otherwise it sends a current snapshot so the replica still converges.
 * Implementations should bound offline queues, conflict retries, and pending subscriber messages to avoid unbounded memory or retry loops.
+* Heartbeats should be configured below the shortest proxy/load-balancer idle timeout on the connection path.
 * Zuno coalesces queued state snapshots per `storeKey` before flushing. The oldest `baseVersion` and newest state are retained so the replica proposes its final offline state with one request per affected store.
 * WebSocket support can mirror the same message shapes; SSE is the minimal baseline.
 

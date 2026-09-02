@@ -1,6 +1,9 @@
 import type { ZunoStateEvent } from "../sync";
 import { parseScopedStoreKey } from "../sync";
-import type { ZunoServerEventBus } from "./event-bus";
+import type {
+	ZunoServerBusSubscription,
+	ZunoServerEventBus,
+} from "./event-bus";
 import {
 	createMemoryZunoServerPersistence,
 	type ZunoCompareAndSetResult,
@@ -35,6 +38,9 @@ export class ZunoServerState {
 		Set<ZunoScopedStateListener>
 	>();
 	private readonly eventBus?: ZunoServerEventBus;
+	private readonly busPartitions = new Set<string>();
+	private readonly busSubscription: ZunoServerBusSubscription;
+	private legacyListenerCount = 0;
 	private unsubscribeFromEventBus?: () => void;
 
 	constructor(options: CreateZunoServerStateOptions = {}) {
@@ -54,6 +60,10 @@ export class ZunoServerState {
 			options.persistence ?? createMemoryZunoServerPersistence();
 		this.eventBus = options.eventBus;
 		this.instanceId = options.instanceId ?? crypto.randomUUID();
+		this.busSubscription = {
+			consumerId: this.instanceId,
+			partitions: this.busPartitions,
+		};
 		this.unsubscribeFromEventBus = this.eventBus?.subscribe((message) => {
 			if (message.source === this.instanceId) return;
 			const consumed =
@@ -66,7 +76,7 @@ export class ZunoServerState {
 				message.partition,
 				message.offset,
 			);
-		});
+		}, this.busSubscription);
 	}
 
 	getUniverseRecord(storeKey: string): UniverseRecord | undefined {
@@ -125,8 +135,13 @@ export class ZunoServerState {
 
 	subscribeToStateEvents(listener: ZunoStateListener): () => void {
 		this.listeners.add(listener);
+		this.legacyListenerCount++;
+		this.busSubscription.partitions = undefined;
 		return () => {
-			this.listeners.delete(listener);
+			if (!this.listeners.delete(listener)) return;
+			this.legacyListenerCount--;
+			if (this.legacyListenerCount === 0)
+				this.busSubscription.partitions = this.busPartitions;
 		};
 	}
 	subscribeToScopedStateEvents(
@@ -137,6 +152,7 @@ export class ZunoServerState {
 		const scoped = listener as ZunoScopedStateListener;
 		scoped.partition = partition;
 		scoped.topics = topics;
+		this.busPartitions.add(partition);
 		for (const topic of topics) {
 			const key = `${partition}\u0000${topic}`;
 			let listeners = this.scopedListeners.get(key);
@@ -153,6 +169,11 @@ export class ZunoServerState {
 				listeners?.delete(scoped);
 				if (listeners?.size === 0) this.scopedListeners.delete(key);
 			}
+			const prefix = `${partition}\u0000`;
+			if (
+				![...this.scopedListeners.keys()].some((key) => key.startsWith(prefix))
+			)
+				this.busPartitions.delete(partition);
 		};
 	}
 	publishToStateEvent(event: ZunoStateEvent): void {

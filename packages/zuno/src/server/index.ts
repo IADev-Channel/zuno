@@ -1,4 +1,5 @@
 export * from "./apply-state-event";
+export * from "./connection-gateway";
 export * from "./core";
 export * from "./event-bus";
 export * from "./file-persistence";

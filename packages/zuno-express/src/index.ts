@@ -1,10 +1,16 @@
 import type { IncomingHttpHeaders } from "node:http";
-import type { ZunoStateEvent } from "@iadev93/zuno";
+import type {
+	ZunoStateEvent,
+	ZunoSubscriptionPolicy,
+	ZunoSubscriptionPrincipal,
+} from "@iadev93/zuno";
 import {
 	applyStateEvent,
 	createSSEConnection,
+	createZunoConnectionGateway,
 	createZunoServerState,
 	sendSnapshot,
+	type ZunoConnectionGateway,
 	type ZunoServerState,
 } from "@iadev93/zuno/server";
 import type { Request, Response } from "express";
@@ -23,6 +29,13 @@ export type CreateZunoExpressOptions = {
 	headers?: IncomingHttpHeaders;
 	/** Isolated authoritative server state. A new instance is created by default. */
 	server?: ZunoServerState;
+	/** Shared connection gateway. Pass one instance to every framework mount in a process. */
+	gateway?: ZunoConnectionGateway;
+	/** Resolves authenticated subscription metadata for connection and write limits. */
+	principal?: (
+		request: Request,
+	) => ZunoSubscriptionPrincipal | Promise<ZunoSubscriptionPrincipal>;
+	subscriptionPolicy?: ZunoSubscriptionPolicy;
 	/** Provider-agnostic authorization hook for snapshots, SSE, and mutations. */
 	authorize?: (
 		context: ZunoExpressAuthorizationContext,
@@ -37,8 +50,12 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 	const {
 		headers = {},
 		server = createZunoServerState(),
+		gateway: suppliedGateway,
+		principal,
+		subscriptionPolicy,
 		authorize = () => true,
 	} = opts ?? {};
+	const gateway = suppliedGateway ?? createZunoConnectionGateway(server);
 	const forbidden = (res: Response) =>
 		res.status(403).json({ ok: false, reason: "FORBIDDEN" });
 
@@ -56,7 +73,17 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 				forbidden(res);
 				return;
 			}
-			createSSEConnection(req, res, headers, server);
+			const identity = principal ? await principal(req) : undefined;
+			createSSEConnection(
+				req,
+				res,
+				headers,
+				server,
+				identity
+					? { principal: identity, policy: subscriptionPolicy }
+					: undefined,
+				gateway,
+			);
 		},
 
 		/**
@@ -71,7 +98,8 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 				forbidden(res);
 				return;
 			}
-			const result = applyStateEvent(incoming, server);
+			const identity = principal ? await principal(req) : undefined;
+			const result = applyStateEvent(incoming, server, identity);
 
 			if (!result.ok) {
 				res.status(result.reason === "VERSION_CONFLICT" ? 409 : 400).json({
@@ -103,6 +131,7 @@ export function createZunoExpress(opts?: CreateZunoExpressOptions) {
 	return {
 		...handlers,
 		server,
+		gateway,
 		/**
 		 * Optional convenience method to mount all Zuno handlers at once.
 		 * @param app The Express App or Router to mount the handlers on.

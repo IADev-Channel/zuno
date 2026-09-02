@@ -2,6 +2,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createUniverse } from "../core";
 import {
+	applyIncomingEvent,
 	createIndexedDBOfflineQueue,
 	startSSE,
 	type ZunoStateEvent,
@@ -72,6 +73,54 @@ describe("Zuno Sync", () => {
 			}),
 		);
 		expect(universe.getStore("test", () => 0).get()).toBe(1); // Optimistic update
+	});
+
+	it("applies server-approved SSE state over a higher offline optimistic version", () => {
+		let stateListener: ((event: MessageEvent<string>) => void) | undefined;
+		class AuthoritativeEventSource {
+			onopen: (() => void) | null = null;
+			onerror: (() => void) | null = null;
+			constructor(readonly url: string) {}
+			close() {}
+			addEventListener(type: string, listener: EventListener) {
+				if (type === "state")
+					stateListener = listener as (event: MessageEvent<string>) => void;
+			}
+		}
+		global.EventSource =
+			AuthoritativeEventSource as unknown as typeof EventSource;
+		const offlineTodos = [{ id: "old", title: "offline", done: false }];
+		const serverTodos = [
+			{ id: "new", title: "from react", done: false },
+			...offlineTodos,
+		];
+		universe.getStore("todos", () => offlineTodos).set(offlineTodos);
+		versions.set("todos", 10);
+		const transport = startSSE({
+			...opts,
+			onEvent: (event) =>
+				applyIncomingEvent(universe, event, {
+					clientId: "angular-client",
+					localState: new Map(),
+					versions,
+				}),
+		});
+
+		stateListener?.(
+			new MessageEvent("state", {
+				data: JSON.stringify({
+					storeKey: "todos",
+					state: serverTodos,
+					version: 8,
+					origin: "react-client",
+				}),
+			}),
+		);
+
+		expect(universe.getStore("todos", () => []).get()).toEqual(serverTodos);
+		expect(versions.get("todos")).toBe(8);
+		transport.unsubscribe?.();
+		global.EventSource = MockEventSource as unknown as typeof EventSource;
 	});
 
 	it("should queue events when offline", async () => {
@@ -350,7 +399,11 @@ describe("Zuno Sync", () => {
 			addEventListener() {}
 		}
 		global.EventSource = ReconnectEventSource as unknown as typeof EventSource;
-		const transport = startSSE({ ...opts, getLastEventId: () => 7 });
+		const transport = startSSE({
+			...opts,
+			getLastEventId: () => 7,
+			reconnectJitterRatio: 0,
+		});
 
 		instances[0].onerror?.();
 		await vi.advanceTimersByTimeAsync(1000);

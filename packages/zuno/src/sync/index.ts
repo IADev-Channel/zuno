@@ -170,6 +170,10 @@ export type SSEOptions = {
 	maxQueueSize?: number;
 	/** Maximum automatic retries for a single conflict (default: 3). */
 	maxConflictRetries?: number;
+	/** Random reconnect spread as a fraction of exponential delay (default: 0.2). */
+	reconnectJitterRatio?: number;
+	/** Maximum reconnect delay including admission backoff (default: 30 seconds). */
+	maxReconnectDelayMs?: number;
 	/** Queue persistence provider (default: an in-memory provider). */
 	offlineQueue?: ZunoOfflineQueue;
 	onOpen?: () => void;
@@ -195,6 +199,8 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	} = opts;
 	const maxQueueSize = opts.maxQueueSize ?? 100;
 	const maxConflictRetries = opts.maxConflictRetries ?? 3;
+	const reconnectJitterRatio = opts.reconnectJitterRatio ?? 0.2;
+	const maxReconnectDelayMs = opts.maxReconnectDelayMs ?? 30_000;
 	const offlineQueue = opts.offlineQueue ?? createMemoryOfflineQueue();
 	if (!Number.isInteger(maxQueueSize) || maxQueueSize < 1) {
 		throw new TypeError("maxQueueSize must be a positive integer");
@@ -202,6 +208,10 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 	if (!Number.isInteger(maxConflictRetries) || maxConflictRetries < 0) {
 		throw new TypeError("maxConflictRetries must be a non-negative integer");
 	}
+	if (reconnectJitterRatio < 0 || reconnectJitterRatio > 1)
+		throw new TypeError("reconnectJitterRatio must be between 0 and 1");
+	if (!Number.isInteger(maxReconnectDelayMs) || maxReconnectDelayMs < 1)
+		throw new TypeError("maxReconnectDelayMs must be a positive integer");
 	let es: EventSource | null = null;
 	let retryCount = 0;
 	let stopped = false;
@@ -458,6 +468,29 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			isFlushing = false;
 		}
 	}
+	function scheduleReconnect(lastError: string) {
+		if (stopped || reconnectTimer) return;
+		const baseDelay = Math.min(1000 * 2 ** retryCount, maxReconnectDelayMs);
+		const delay = Math.min(
+			maxReconnectDelayMs,
+			Math.round(baseDelay + Math.random() * baseDelay * reconnectJitterRatio),
+		);
+		retryCount++;
+		updateStatus({
+			connection: "disconnected",
+			retryAttempt: retryCount,
+			lastError,
+		});
+		log("warn", "connection.retry_scheduled", {
+			delay,
+			retryAttempt: retryCount,
+		});
+		metric("zuno.connection.retries");
+		reconnectTimer = setTimeout(() => {
+			reconnectTimer = null;
+			connect();
+		}, delay);
+	}
 	function connect() {
 		if (stopped) return;
 		updateStatus({ connection: "connecting" });
@@ -492,17 +525,37 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 		es.addEventListener("state", (e: any) => {
 			try {
 				const event = JSON.parse(e.data) as ZunoStateEvent;
-				// If server didn't provide an origin (e.g. manual server-side trigger),
-				// we treat it as authoritative "server" origin.
-				if (!event.origin) {
-					event.origin = "server";
-				}
-
+				// Preserve origin only long enough to suppress our own loopback. Every
+				// event received over SSE was accepted by the authority and must be able
+				// to replace an offline replica's higher optimistic version.
 				if (event.origin === clientId) return;
+				event.origin = "server";
 
 				applyState(event);
 			} catch (err) {
 				console.error("[Zuno] Failed to parse SSE event", err);
+			}
+		});
+
+		// A gateway sends this before evicting a slow consumer or draining.
+		// Clearing the cursor forces the next gateway to send a fresh snapshot.
+		es.addEventListener("control", (e: MessageEvent<string>) => {
+			try {
+				const control = JSON.parse(e.data) as {
+					type?: string;
+					reason?: string;
+				};
+				if (control.type !== "RESYNC_REQUIRED") return;
+				setLastEventId?.(0);
+				updateStatus({ lastError: "RESYNC_REQUIRED" });
+				log("warn", "connection.resync_required", { reason: control.reason });
+				metric("zuno.connection.resync_required", 1, {
+					reason: control.reason ?? "unknown",
+				});
+				es?.close();
+				scheduleReconnect("RESYNC_REQUIRED");
+			} catch (err) {
+				log("warn", "connection.invalid_control", { error: String(err) });
 			}
 		});
 
@@ -524,22 +577,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			es?.close();
 			if (stopped) return;
 			opts.onClose?.();
-			const delay = Math.min(1000 * 2 ** retryCount, 30000);
-			retryCount++;
-			updateStatus({
-				connection: "disconnected",
-				retryAttempt: retryCount,
-				lastError: "SSE_DISCONNECTED",
-			});
-			log("warn", "connection.retry_scheduled", {
-				delay,
-				retryAttempt: retryCount,
-			});
-			metric("zuno.connection.retries");
-			reconnectTimer = setTimeout(() => {
-				reconnectTimer = null;
-				connect();
-			}, delay);
+			scheduleReconnect("SSE_DISCONNECTED");
 		};
 	}
 

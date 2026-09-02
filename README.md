@@ -103,6 +103,7 @@ app.listen(3000);
 - [**Why Zuno?**](./docs/why-zuno.md) — The philosophy and "The Mental Shift".
 - [**Architecture**](./ARCHITECTURE.md) — How Zuno works under the hood.
 - [**Roadmap**](./ROADMAP.md) — Completed milestones and the path to production readiness.
+- [**Connection gateways**](./docs/connection-gateways.md) — Horizontal fan-out, draining, limits, regional routing, and leader policy.
 - [**Changelog**](./CHANGELOG.md) — Project history and release notes.
 - [**Conflict Resolution**](./docs/conflict-resolution.md) — Strategies for merging state.
 - [**Server Persistence**](./docs/server-persistence.md) — Atomic storage and multi-process fan-out contracts.

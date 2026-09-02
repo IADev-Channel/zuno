@@ -7,6 +7,7 @@ import {
 	setUniverseState,
 } from "@iadev93/zuno/server";
 import { createSQLiteZunoServerPersistence } from "@iadev93/zuno/server/sqlite";
+import { EXERCISE_SERVER_PORTS } from "../config";
 
 const zunoServer = createZunoServerState({
 	persistence: createSQLiteZunoServerPersistence("./.data/zuno.sqlite"),
@@ -62,6 +63,6 @@ const server = http.createServer((req, res) => {
 	}
 });
 
-server.listen(3000, () => {
-	console.log("SSE server on http://localhost:3000");
+server.listen(EXERCISE_SERVER_PORTS.http, () => {
+	console.log(`SSE server on http://localhost:${EXERCISE_SERVER_PORTS.http}`);
 });

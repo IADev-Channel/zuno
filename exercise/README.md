@@ -1,6 +1,17 @@
 # Zuno Exercises
 
-The React, Angular, and Basic HTML clients share the Elysia server at `http://localhost:3002`. The Express server on port 3003 is an independent adapter exercise with its own durable universe.
+## One-place server configuration
+
+Edit [`config.ts`](./config.ts) to change exercise ports or select which backend
+the React, Angular, and Basic HTML clients use:
+
+```ts
+export const ACTIVE_EXERCISE_SERVER = "express";
+```
+
+Set it to `"express"`, `"elysia"`, or `"http"`. Every browser client derives
+its SSE and sync URLs from this selection, so client files do not need edits.
+The default is the SQLite-backed Express server.
 
 ## Tutorials and recommended learning path
 

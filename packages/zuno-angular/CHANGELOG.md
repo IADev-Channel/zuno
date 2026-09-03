@@ -1,5 +1,12 @@
 # @iadev93/zuno-angular
 
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [516cbdd]
+  - @iadev93/zuno@0.4.1
+
 ## 0.2.3
 
 ### Patch Changes

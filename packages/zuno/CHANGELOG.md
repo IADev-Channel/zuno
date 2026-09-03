@@ -1,5 +1,13 @@
 # @iadev93/zuno
 
+## 0.4.1
+
+### Patch Changes
+
+- 516cbdd: Add the Milestone 13 capacity-validation harness, versioned gateway workload
+  profiles, distributed report aggregation, SLO enforcement, and explicit
+  deployment-specific capacity guidance.
+
 ## 0.4.0
 
 ### Minor Changes

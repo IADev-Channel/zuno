@@ -6,11 +6,11 @@ This roadmap tracks Zuno's path from an experimental distributed-state engine to
 
 Current verified package versions:
 
-- `@iadev93/zuno@0.3.0`
-- `@iadev93/zuno-react@0.0.18`
-- `@iadev93/zuno-angular@0.2.2`
-- `@iadev93/zuno-express@0.1.0`
-- `@iadev93/zuno-elysia@0.1.0`
+- `@iadev93/zuno@0.4.0`
+- `@iadev93/zuno-react@0.0.19`
+- `@iadev93/zuno-angular@0.2.3`
+- `@iadev93/zuno-express@0.2.0`
+- `@iadev93/zuno-elysia@0.2.0`
 
 Current verification baseline: 100 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
 

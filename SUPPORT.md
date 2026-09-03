@@ -19,3 +19,5 @@ SSE/WebSocket settings, persistence, and event-bus infrastructure. Use the
 versioned profiles and SLO tooling in `docs/capacity-validation.md` against a
 production-like topology before setting an operational limit. Capacity reports
 from one topology must not be treated as guarantees for another.
+Use `docs/capacity-testing-runbook.md` to collect a reproducible, sanitized
+capacity issue or production-experience report.

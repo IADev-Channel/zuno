@@ -1,5 +1,8 @@
 # Capacity Validation
 
+For a step-by-step developer testing, diagnosis, and experience-reporting
+process, see the [Capacity Testing Runbook](./capacity-testing-runbook.md).
+
 Milestone 13 delivers versioned workload profiles, independently runnable
 load-generator shards, strict report aggregation, and machine-readable SLO
 checks. It intentionally separates repeatable gateway simulation from an

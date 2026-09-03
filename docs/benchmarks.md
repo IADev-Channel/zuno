@@ -1,5 +1,8 @@
 # Multi-client Benchmarks
 
+For sharded gateway-capacity profiles and the boundary around the 200,000
+connection target, see [Capacity Validation](./capacity-validation.md).
+
 Run the reproducible benchmark with `pnpm benchmark`.
 
 The workload models 100 clients producing 100 authoritative mutations each

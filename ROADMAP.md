@@ -12,7 +12,7 @@ Current verified package versions:
 - `@iadev93/zuno-express@0.2.0`
 - `@iadev93/zuno-elysia@0.2.0`
 
-Current verification baseline: 100 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
+Current verification baseline: 103 tests pass, the 1,000-connection capacity smoke profile passes, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
 
 ## Status Legend
 
@@ -94,9 +94,20 @@ Delivered with ordered server batch processing, configurable client coalescing, 
 
 Completion criteria: high-frequency mutations use fewer requests and bytes where beneficial, same-origin tabs can share one server stream, SSE and WebSocket clients retain the same HTTP mutation semantics, and operators can measure transport cost and fan-out.
 
-## Milestone 13: Capacity Validation and Operational Readiness
+## Milestone 13: Capacity Validation and Operational Readiness — In Progress
 
-- [ ] Add the distributed load-test harness and require the published 200k workload/SLO suite to pass before making a 200k support claim.
+- [x] Add versioned gateway workload and SLO profiles.
+- [x] Add independently runnable load-generator shards and strict report aggregation.
+- [x] Add a 1,000-connection smoke profile to `pnpm verify`.
+- [x] Add a manual 20-shard GitHub workflow for the 200,000-connection gateway profile.
+- [x] Reject incomplete, duplicate, or profile-mismatched distributed reports.
+- [ ] Run and publish a passing 200,000-connection gateway report.
+- [ ] Add and pass an end-to-end network profile covering TLS, proxy/load-balancer, SSE/WebSocket, persistence, and event-bus overhead.
+- [ ] Publish the supported deployment topology and SLO results before making a 200k production-support claim.
+
+The gateway harness and CI smoke gate are implemented. The production capacity
+claim remains intentionally blocked until both the distributed gateway run and
+an end-to-end deployment run produce retained, reviewable evidence.
 
 ## Later Product Expansion
 

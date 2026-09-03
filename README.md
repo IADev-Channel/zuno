@@ -112,6 +112,7 @@ app.listen(3000);
 - [**Operations**](./docs/operations.md) — Status, logging, metrics, and demo topology.
 - [**Compatibility**](./docs/compatibility.md) — Supported runtimes and framework versions.
 - [**Benchmarks**](./docs/benchmarks.md) — Reproducible multi-client workload results.
+- [**Capacity validation**](./docs/capacity-validation.md) — Sharded load profiles, SLO enforcement, and the 200k claim boundary.
 - [**Security Policy**](./SECURITY.md) — Reporting and supported versions.
 - [**Support Policy**](./SUPPORT.md) — Maintenance and support boundaries.
 - [**Protocol Truth Table**](./docs/protocol-truth-table.md) — Offline/Sync behavior matrix.

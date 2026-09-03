@@ -1,0 +1,59 @@
+name: Capacity validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gateway-shard:
+    name: Gateway shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build-core
+      - name: Run 10,000-connection shard
+        run: >-
+          node scripts/capacity/run.mjs
+          --profile benchmarks/profiles/200k-gateway.json
+          --shard-index ${{ matrix.shard }}
+          --shard-count 20
+          --output shard-${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capacity-shard-${{ matrix.shard }}
+          path: shard-${{ matrix.shard }}.json
+          retention-days: 30
+
+  aggregate:
+    name: Aggregate 200k gateway report
+    needs: gateway-shard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: capacity-shard-*
+          path: reports
+      - name: Enforce profile SLOs
+        run: >-
+          node scripts/capacity/aggregate.mjs
+          --profile benchmarks/profiles/200k-gateway.json
+          --reports reports/*/*.json
+          --output capacity-summary.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capacity-summary
+          path: capacity-summary.json
+          retention-days: 90

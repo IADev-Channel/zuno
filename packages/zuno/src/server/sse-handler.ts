@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { gunzipSync } from "node:zlib";
 import {
 	createZunoSubscription,
 	negotiateZunoProtocol,
@@ -8,6 +9,10 @@ import {
 	type ZunoSubscriptionPrincipal,
 } from "../sync";
 import { applyStateEvent } from "./apply-state-event";
+import {
+	applyStateEventBatch,
+	isZunoMutationBatch,
+} from "./apply-state-event-batch";
 import {
 	createZunoConnectionGateway,
 	type ZunoConnectionAdmission,
@@ -191,18 +196,42 @@ export const syncUniverseState = (
 	principal?: ZunoSubscriptionPrincipal,
 ) => {
 	const MAX_BODY_BYTES = 512 * 1024;
-	let body = "";
-	req.on("data", (chunk: Buffer) => {
-		body += chunk.toString("utf8");
-		if (body.length > MAX_BODY_BYTES) {
+	const chunks: Buffer[] = [];
+	let receivedBytes = 0;
+	let rejected = false;
+	req.on("data", (chunk: Buffer | string) => {
+		const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+		receivedBytes += bytes.byteLength;
+		if (receivedBytes > MAX_BODY_BYTES) {
+			rejected = true;
 			res.writeHead(413, { "Content-Type": "application/json" });
 			res.end(JSON.stringify({ ok: false, reason: "PAYLOAD_TOO_LARGE" }));
 			req.destroy();
-		}
+		} else chunks.push(bytes);
 	});
 	req.on("end", () => {
 		try {
-			const incoming = JSON.parse(body || "{}") as unknown as ZunoStateEvent;
+			if (rejected) return;
+			const encoded = Buffer.concat(chunks);
+			const decoded =
+				req.headers["content-encoding"] === "gzip"
+					? gunzipSync(encoded)
+					: encoded;
+			if (decoded.byteLength > MAX_BODY_BYTES) {
+				res.writeHead(413, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ ok: false, reason: "PAYLOAD_TOO_LARGE" }));
+				return;
+			}
+			const body = decoded.toString("utf8");
+			const incoming = JSON.parse(body || "{}") as unknown;
+			if (isZunoMutationBatch(incoming)) {
+				const result = applyStateEventBatch(incoming, server, principal);
+				res.writeHead(result.ok ? 200 : 409, {
+					"Content-Type": "application/json",
+				});
+				res.end(JSON.stringify(result));
+				return;
+			}
 			const result = applyStateEvent(incoming, server, principal);
 			if (!result.ok) {
 				if (result.reason === "VERSION_CONFLICT") {

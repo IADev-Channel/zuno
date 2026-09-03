@@ -1,6 +1,6 @@
 # Zuno Roadmap
 
-Last reviewed: 2026-09-02
+Last reviewed: 2026-09-03
 
 This roadmap tracks Zuno's path from an experimental distributed-state engine to a production-ready library. Update the checkboxes and review date whenever a milestone changes.
 
@@ -12,7 +12,7 @@ Current verified package versions:
 - `@iadev93/zuno-express@0.1.0`
 - `@iadev93/zuno-elysia@0.1.0`
 
-Current verification baseline: 91 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
+Current verification baseline: 100 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
 
 ## Status Legend
 
@@ -77,9 +77,22 @@ Delivered with a framework-neutral connection gateway, dynamically partition-fil
 
 Completion criteria: gateway instances can be added or drained without moving authoritative state into the connection tier, shared-bus work is limited to subscribed partitions/topics, and overload recovers through authoritative replay or snapshot without changing compare-and-set semantics.
 
-## Milestone 12: Traffic and Connection Efficiency
+## Milestone 12: Traffic and Connection Efficiency — Complete
 
-- [ ] Add mutation batching, configurable batching, delta/intent optimization, compression thresholds, browser connection sharing, optional WebSocket transport, SSE/HTTP interoperability, and byte/fan-out telemetry.
+- [x] Coalesce mutations by store and send ordered batches in one HTTP request.
+- [x] Make batch delay and maximum batch size configurable.
+- [x] Replace eligible object snapshots with smaller deltas and remove redundant `SET` intents.
+- [x] Compress HTTP mutation bodies with gzip above a configurable byte threshold.
+- [x] Elect one SSE owner across same-origin tabs while preserving BroadcastChannel delivery.
+- [x] Keep cross-tab snapshots server-authoritative and propagate conflict corrections without loops.
+- [x] Add optional WebSocket downstream transport with interoperable HTTP mutation upstream.
+- [x] Add framework-neutral WebSocket gateway integration.
+- [x] Emit transport byte and gateway fan-out metrics.
+- [x] Test batch ordering/conflicts, delta materialization, compression, shared ownership, WebSocket interoperability, and telemetry.
+
+Delivered with ordered server batch processing, configurable client coalescing, size-aware deltas, gzip request decoding, Web Locks connection ownership, an optional WebSocket downstream, and byte/fan-out metrics. Configuration and operational tradeoffs are documented in `docs/traffic-efficiency.md`.
+
+Completion criteria: high-frequency mutations use fewer requests and bytes where beneficial, same-origin tabs can share one server stream, SSE and WebSocket clients retain the same HTTP mutation semantics, and operators can measure transport cost and fan-out.
 
 ## Milestone 13: Capacity Validation and Operational Readiness
 

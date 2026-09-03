@@ -19,7 +19,7 @@ consistency.
 
 - ⛓️ **Deterministic Ordering**: Versioned events prevent stale overwrites and race conditions.
 - 🔄 **Multi-Runtime Sync**: Seamlessly sync state between Browser Tabs, Node.js, Express, and Elysia.
-- 📡 **Lightweight Transport**: Uses SSE (Server-Sent Events) and BroadcastChannel for low-latency, proxy-friendly updates. No WebSocket complexity or lock-in.
+- 📡 **Efficient Transport**: Uses SSE or optional WebSocket downstream, interoperable HTTP mutations, and BroadcastChannel tab sharing.
 - ⚛️ **React Ready**: First-class support for React with deep `useSyncExternalStore` integration.
 - 🔌 **Thin Adapters**: Transparent, lightweight adapters for your favorite frameworks.
 
@@ -104,6 +104,7 @@ app.listen(3000);
 - [**Architecture**](./ARCHITECTURE.md) — How Zuno works under the hood.
 - [**Roadmap**](./ROADMAP.md) — Completed milestones and the path to production readiness.
 - [**Connection gateways**](./docs/connection-gateways.md) — Horizontal fan-out, draining, limits, regional routing, and leader policy.
+- [**Traffic efficiency**](./docs/traffic-efficiency.md) — Batching, deltas, compression, shared connections, WebSockets, and telemetry.
 - [**Changelog**](./CHANGELOG.md) — Project history and release notes.
 - [**Conflict Resolution**](./docs/conflict-resolution.md) — Strategies for merging state.
 - [**Server Persistence**](./docs/server-persistence.md) — Atomic storage and multi-process fan-out contracts.

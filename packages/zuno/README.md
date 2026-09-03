@@ -33,8 +33,10 @@ npm install @iadev93/zuno
 import { createZuno } from "@iadev93/zuno";
 
 const zuno = createZuno({
-  // Optional: Enable batching for high-frequency updates
-  batchSync: true,
+  // Optional: batch for up to 5 ms or 50 distinct stores
+  batchSync: { waitMs: 5, maxSize: 50 },
+  // Optional: gzip mutation bodies of 16 KiB or larger
+  compressionThresholdBytes: 16 * 1024,
   // Bound offline work and automatic conflict resolution.
   maxQueueSize: 100,
   maxConflictRetries: 3,
@@ -123,6 +125,19 @@ SSE is ideal for:
 
 On reconnect, the client sends its last observed event ID. The server replays retained events after that ID. If the requested range is no longer complete, the server sends an authoritative snapshot with the current event ID instead. Calling `stop()` permanently cancels the active connection, scheduled reconnects, queue flush timers, and browser online listener.
 
+For applications with several same-origin tabs, set `channelName` and
+`shareConnection: true`. Web Locks elect one SSE owner and the existing
+BroadcastChannel distributes authoritative events to follower tabs. Browsers
+without Web Locks continue to use an independent SSE connection.
+Only server-confirmed state and versions are included in cross-tab snapshots;
+optimistic state remains local until the HTTP authority accepts it. Conflict
+corrections are propagated to peers without creating a rebroadcast loop.
+
+An optional `webSocketUrl` replaces only the downstream connection. Mutations,
+including ordered batches, still use `syncUrl` over HTTP so SSE and WebSocket
+clients share the same conflict and persistence behavior. See the
+[traffic-efficiency guide](../../docs/traffic-efficiency.md).
+
 Client recovery is bounded by default:
 
 * `maxQueueSize` limits mutations retained while offline (default: `100`)
@@ -150,6 +165,11 @@ Custom persistence providers can implement the exported `ZunoOfflineQueue`
 `load()`/`save()` contract. A failed durable write returns
 `QUEUE_STORAGE_ERROR` rather than claiming that the mutation was safely queued.
 
+Object state events are automatically sent as deltas when the delta is smaller
+than the full snapshot. Redundant `SET` intents are omitted because the state or
+delta already expresses the mutation. Set `optimizePayload: false` to preserve
+the full event payload.
+
 Before flushing, queued state snapshots are coalesced by `storeKey`: Zuno keeps
 the first mutation's `baseVersion` and sends only the latest state for that store.
 For example, offline counter states `1 → 2 → 3` produce one sync request carrying
@@ -168,8 +188,9 @@ const unsubscribe = zuno.status.subscribe((status) => {
 ```
 
 Use the `onLog` and `onMetric` creation options to forward structured transport
-events and counters to an application logger or metrics backend. See the
-repository operations guide for the stable event and status contract.
+events, byte counts, and gateway fan-out counters to an application logger or
+metrics backend. See the repository operations guide for the stable event and
+status contract.
 
 ---
 

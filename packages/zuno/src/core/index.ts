@@ -7,7 +7,13 @@ import type {
 	ZunoStateEvent,
 	ZunoStatus,
 } from "../sync";
-import { applyIncomingEvent, startBroadcastChannel, startSSE } from "../sync";
+import {
+	applyIncomingEvent,
+	optimizeZunoStateEvent,
+	startBroadcastChannel,
+	startSSE,
+	startWebSocket,
+} from "../sync";
 
 // --- Types ---
 
@@ -67,14 +73,22 @@ export type CreateZunoOptions = {
 	universe?: Universe;
 	/** BroadcastChannel name for local tab sync. */
 	channelName?: string;
+	/** Elect one SSE owner per same-origin browser profile (requires channelName). */
+	shareConnection?: boolean | { key?: string };
 	/** SSE endpoint URL. */
 	sseUrl?: string;
 	/** Sync endpoint URL (required if sseUrl is provided). */
 	syncUrl?: string;
+	/** Optional WebSocket downstream; mutations continue over syncUrl HTTP. */
+	webSocketUrl?: string;
 	/** Apply updates locally before server confirmation (default: true). */
 	optimistic?: boolean;
-	/** Batch multiple updates in the same microtask (default: false). */
-	batchSync?: boolean;
+	/** Batch mutations in one HTTP request. `true` uses a microtask and 50-event limit. */
+	batchSync?: boolean | { waitMs?: number; maxSize?: number };
+	/** Send compact object deltas when smaller than full state (default: true). */
+	optimizePayload?: boolean;
+	/** Gzip HTTP mutation bodies at or above this size (default: 16 KiB). */
+	compressionThresholdBytes?: number;
 	/** Unique client identifier (default: random UUID). */
 	clientId?: string;
 	/** Middleware chain. */
@@ -243,14 +257,31 @@ export const createUniverse = (): Universe => {
  */
 export const createZuno = (opts: CreateZunoOptions = {}) => {
 	const localState = new Map<string, unknown>();
+	const authoritativeVersions = new Map<string, number>();
 	const versions = new Map<string, number>();
+	const broadcastEvents = new WeakSet<object>();
 	const universe = opts.universe ?? createUniverse();
 	const clientId =
 		opts.clientId ?? globalThis.crypto?.randomUUID?.() ?? String(Math.random());
 	let _sseReady = false;
+	let sharedConnectionLeader = false;
+	let releaseSharedConnection: (() => void) | undefined;
+	let stopped = false;
+	const canShareConnection = Boolean(
+		opts.shareConnection &&
+			opts.sseUrl &&
+			!opts.webSocketUrl &&
+			opts.channelName &&
+			globalThis.navigator?.locks,
+	);
+	if (opts.shareConnection && !opts.channelName)
+		throw new TypeError("shareConnection requires channelName");
 	let lastEventId = 0;
 	let operationalStatus: ZunoStatus = {
-		connection: opts.sseUrl && opts.syncUrl ? "connecting" : "disabled",
+		connection:
+			(opts.sseUrl || opts.webSocketUrl) && opts.syncUrl
+				? "connecting"
+				: "disabled",
 		queuedMutations: 0,
 		retryAttempt: 0,
 		conflictCount: 0,
@@ -279,6 +310,8 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		for (const [k, rec] of Object.entries(snapshot.state)) {
 			plain[k] = rec.state;
 			versions.set(k, rec.version);
+			authoritativeVersions.set(k, rec.version);
+			localState.set(k, structuredClone(rec.state));
 		}
 		universe.restore(plain);
 		lastEventId = snapshot.lastEventId;
@@ -289,44 +322,82 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 			lastEventId = Math.max(lastEventId, event.eventId);
 		}
 		applyIncomingEvent(universe, event, { clientId, localState, versions });
+		if (
+			(event.origin === "server" || event.origin === "conflict-resolution") &&
+			event.state !== undefined
+		) {
+			localState.set(event.storeKey, structuredClone(event.state));
+			if (typeof event.version === "number")
+				authoritativeVersions.set(event.storeKey, event.version);
+		}
 	};
 
 	const sse =
-		opts.sseUrl && opts.syncUrl
-			? startSSE({
-					universe,
-					url: opts.sseUrl,
+		opts.webSocketUrl && opts.syncUrl
+			? startWebSocket({
+					url: opts.webSocketUrl,
 					syncUrl: opts.syncUrl,
-					optimistic: opts.optimistic ?? true,
 					clientId,
-					versions,
-					getLastEventId: () => lastEventId,
-					setLastEventId: (id) => {
-						lastEventId = id;
-					},
-					maxQueueSize: opts.maxQueueSize,
-					maxConflictRetries: opts.maxConflictRetries,
-					offlineQueue: opts.offlineQueue,
-					onOpen: () => {
-						_sseReady = true;
-					},
-					onClose: () => {
-						_sseReady = false;
-					},
-					onEvent: (e) => dispatch(e), // Route incoming SSE events through middleware
-					resolveConflict: opts.resolveConflict,
-					onStatus: updateStatus,
-					onLog: opts.onLog,
+					onEvent: (event) => void dispatch(event),
+					onSnapshot: (state, lastEventId) =>
+						hydrateSnapshot({ state, lastEventId }),
 					onMetric: opts.onMetric,
+					compressionThresholdBytes: opts.compressionThresholdBytes,
+					onOpen: () => updateStatus({ connection: "connected" }),
+					onClose: () => updateStatus({ connection: "disconnected" }),
 				})
-			: null;
+			: opts.sseUrl && opts.syncUrl
+				? startSSE({
+						universe,
+						url: opts.sseUrl,
+						syncUrl: opts.syncUrl,
+						optimistic: opts.optimistic ?? true,
+						clientId,
+						versions,
+						getLastEventId: () => lastEventId,
+						setLastEventId: (id) => {
+							lastEventId = id;
+						},
+						maxQueueSize: opts.maxQueueSize,
+						maxConflictRetries: opts.maxConflictRetries,
+						offlineQueue: opts.offlineQueue,
+						compressionThresholdBytes: opts.compressionThresholdBytes,
+						startPaused: canShareConnection,
+						onOpen: () => {
+							_sseReady = true;
+						},
+						onClose: () => {
+							_sseReady = false;
+						},
+						onEvent: (e) => dispatch(e), // Route incoming SSE events through middleware
+						resolveConflict: opts.resolveConflict,
+						onStatus: updateStatus,
+						onLog: opts.onLog,
+						onMetric: opts.onMetric,
+					})
+				: null;
 
 	const bc = opts.channelName
 		? startBroadcastChannel({
 				channelName: opts.channelName,
 				clientId,
-				onEvent: (e) => dispatch(e), // Route incoming BC events through middleware
+				onEvent: (e) => {
+					broadcastEvents.add(e);
+					return dispatch(e);
+				}, // Route incoming BC events through middleware
 				getSnapshot: () => {
+					if (sse) {
+						const authoritative: Record<
+							string,
+							{ state: unknown; version: number }
+						> = {};
+						for (const [storeKey, state] of localState)
+							authoritative[storeKey] = {
+								state,
+								version: authoritativeVersions.get(storeKey) ?? 0,
+							};
+						return authoritative;
+					}
 					const snap = universe.snapshot();
 					const out: Record<string, { state: unknown; version: number }> = {};
 					for (const [storeKey, state] of Object.entries(snap)) {
@@ -336,30 +407,68 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 				},
 				onSnapshot: (snap) => {
 					for (const [storeKey, rec] of Object.entries(snap)) {
-						apply({ storeKey, state: rec.state, version: rec.version });
+						apply({
+							storeKey,
+							state: rec.state,
+							version: rec.version,
+							...(sse ? { origin: "server" } : {}),
+						});
 					}
 				},
 			})
 		: null;
 
+	if (canShareConnection) {
+		const configuredKey =
+			typeof opts.shareConnection === "object"
+				? opts.shareConnection.key
+				: undefined;
+		const lockKey = `zuno:${configuredKey ?? opts.channelName}`;
+		void navigator.locks.request(lockKey, async () => {
+			if (stopped) return;
+			sharedConnectionLeader = true;
+			sse?.resumeDownstream?.();
+			await new Promise<void>((resolve) => {
+				releaseSharedConnection = resolve;
+			});
+			sharedConnectionLeader = false;
+			sse?.pauseDownstream?.();
+		});
+	}
+
 	setTimeout(() => bc?.hello(), 100);
 
 	// --- Sync Batching ---
 	const pendingSyncs = new Map<string, ZunoStateEvent>();
-	let batchPromise: Promise<void> | null = null;
+	let batchTimer: ReturnType<typeof setTimeout> | null = null;
+	let batchScheduled = false;
+	const batchOptions =
+		typeof opts.batchSync === "object" ? opts.batchSync : undefined;
+	const batchWaitMs = batchOptions?.waitMs ?? 0;
+	const batchMaxSize = batchOptions?.maxSize ?? 50;
+	if (!Number.isInteger(batchWaitMs) || batchWaitMs < 0)
+		throw new TypeError("batchSync.waitMs must be a non-negative integer");
+	if (!Number.isInteger(batchMaxSize) || batchMaxSize < 1)
+		throw new TypeError("batchSync.maxSize must be a positive integer");
 
 	const flushBatch = async () => {
 		const syncs = Array.from(pendingSyncs.values());
 		pendingSyncs.clear();
-		batchPromise = null;
+		if (batchTimer) clearTimeout(batchTimer);
+		batchTimer = null;
+		batchScheduled = false;
 
-		for (const event of syncs) {
-			if (sse) {
-				sse.dispatch(event).catch((err) => {
-					console.error("[Zuno] Batch sync failed", err);
-				});
-			}
-		}
+		if (!sse || syncs.length === 0) return;
+		const result = sse.dispatchBatch
+			? sse.dispatchBatch(syncs)
+			: Promise.all(syncs.map((event) => sse.dispatch(event)));
+		result.catch((err) => console.error("[Zuno] Batch sync failed", err));
+	};
+	const scheduleBatch = () => {
+		if (batchScheduled) return;
+		batchScheduled = true;
+		if (batchWaitMs === 0) queueMicrotask(() => void flushBatch());
+		else batchTimer = setTimeout(() => void flushBatch(), batchWaitMs);
 	};
 
 	const coreDispatch = async (
@@ -369,6 +478,13 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		if (event.origin) {
 			// Always call apply to let applyIncomingEvent handle version checks and application
 			apply(event);
+			if (
+				bc &&
+				!broadcastEvents.has(event) &&
+				(event.origin === "conflict-resolution" ||
+					(sharedConnectionLeader && event.origin === "server"))
+			)
+				bc.publish(event);
 
 			// If it's from another client, we are done
 			if (event.origin !== clientId) {
@@ -424,17 +540,20 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 
 		// 3. Remote Sync (SSE/HTTP) with Optional Batching
 		if (sse) {
+			const remoteEvent =
+				opts.optimizePayload === false
+					? event
+					: optimizeZunoStateEvent(event, localState.get(event.storeKey));
 			if (opts.batchSync) {
 				// Coalesce outgoing syncs for the same storeKey within the same microtask
 				const pending = pendingSyncs.get(event.storeKey);
 				pendingSyncs.set(event.storeKey, {
-					...event,
+					...remoteEvent,
 					baseVersion: pending?.baseVersion ?? event.baseVersion,
 				});
 
-				if (!batchPromise) {
-					batchPromise = Promise.resolve().then(flushBatch);
-				}
+				if (pendingSyncs.size >= batchMaxSize) void flushBatch();
+				else scheduleBatch();
 
 				// Note: Batched dispatch currently returns a "fake" OK immediately
 				// to avoid blocking the UI. Error handling is handled via console.error in flushBatch.
@@ -442,7 +561,7 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 				return { ok: true, status: 202, json: { batched: true } };
 			}
 
-			return await sse.dispatch(event);
+			return await sse.dispatch(remoteEvent);
 		}
 
 		return { ok: true, status: 200, json: null };
@@ -536,6 +655,10 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 			universe.getStore<T>(key, init).subscribe(cb),
 		dispatch,
 		stop: () => {
+			stopped = true;
+			releaseSharedConnection?.();
+			if (batchTimer) clearTimeout(batchTimer);
+			pendingSyncs.clear();
 			sse?.unsubscribe?.();
 			bc?.stop?.();
 		},

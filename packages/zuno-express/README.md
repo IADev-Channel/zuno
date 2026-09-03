@@ -74,7 +74,9 @@ The optional `authorize` hook runs before SSE/snapshot reads and mutation writes
 Hands the persistent SSE connection to the selected gateway. The gateway owns heartbeats, admission, subscription routing, bounded backpressure, and graceful draining. Reconnecting clients receive retained events after their last event ID; if that replay range is incomplete—or a slow consumer receives `RESYNC_REQUIRED`—the client recovers from an authoritative snapshot.
 
 #### `sync` (POST)
-Validates and applies incoming state events.
+Validates and applies a single state event or an ordered `{ events: [...] }`
+batch. Batch processing stops at the first conflict; earlier accepted events
+remain committed and `conflictIndex` identifies the rejected entry.
 
 #### `snapshot` (GET)
 Returns the current full state of the universe.
@@ -83,7 +85,8 @@ Returns the current full state of the universe.
 
 ## What It Does NOT Do
 
-* No WebSockets
+* Does not perform the HTTP-to-WebSocket protocol upgrade; use the exported
+  framework-neutral WebSocket connection helper with your server runtime.
 * No framework‑specific state
 * No persistence layer
 

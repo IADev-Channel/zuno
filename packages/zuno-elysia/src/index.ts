@@ -8,8 +8,10 @@ import {
 } from "@iadev93/zuno";
 import {
 	applyStateEvent,
+	applyStateEventBatch,
 	createZunoConnectionGateway,
 	createZunoServerState,
+	isZunoMutationBatch,
 	type ZunoConnectionGateway,
 	type ZunoGatewayMessage,
 	type ZunoServerState,
@@ -235,6 +237,11 @@ export function createZunoElysia(options: CreateZunoElysiaOptions = {}) {
 			const identity = options.principal
 				? await options.principal(request)
 				: undefined;
+			if (isZunoMutationBatch(incoming)) {
+				const result = applyStateEventBatch(incoming, server, identity);
+				set.status = result.ok ? 200 : 409;
+				return result;
+			}
 			const result = applyStateEvent(incoming, server, identity);
 
 			if (!result.ok) {

@@ -123,6 +123,51 @@ describe("milestone 12 traffic and connection efficiency", () => {
 		transport.unsubscribe?.();
 	});
 
+	it("shares authoritative state instead of a stale optimistic tab snapshot", async () => {
+		class Channel {
+			static instances: Channel[] = [];
+			onmessage: ((event: MessageEvent) => void) | null = null;
+			constructor(readonly name: string) {
+				Channel.instances.push(this);
+			}
+			postMessage(data: unknown) {
+				for (const peer of Channel.instances)
+					if (peer !== this && peer.name === this.name)
+						peer.onmessage?.({ data } as MessageEvent);
+			}
+			close() {
+				Channel.instances = Channel.instances.filter((peer) => peer !== this);
+			}
+		}
+		global.BroadcastChannel = Channel as unknown as typeof BroadcastChannel;
+		const options = {
+			sseUrl: "http://localhost/events",
+			syncUrl: "http://localhost/sync",
+			channelName: "authoritative-test",
+		};
+		const staleTab = createZuno(options);
+		staleTab.hydrateSnapshot({
+			state: { counter: { state: 70, version: 70 } },
+			lastEventId: 70,
+		});
+		await staleTab.set("counter", 201, () => 0);
+		expect(staleTab.get("counter", () => 0)).toBe(201);
+
+		const freshTab = createZuno(options);
+		await new Promise((resolve) => setTimeout(resolve, 110));
+		expect(freshTab.get("counter", () => 0)).toBe(70);
+
+		await staleTab.dispatch({
+			storeKey: "counter",
+			state: 70,
+			version: 70,
+			origin: "conflict-resolution",
+		});
+		expect(freshTab.get("counter", () => 0)).toBe(70);
+		staleTab.stop();
+		freshTab.stop();
+	});
+
 	it("elects only one browser SSE owner for a shared connection", async () => {
 		const pending: Array<() => Promise<void>> = [];
 		Object.defineProperty(navigator, "locks", {

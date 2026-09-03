@@ -757,6 +757,7 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 				if (typeof version === "number") {
 					versions.set(event.storeKey, version);
 				}
+				applyState({ ...json.event, origin: "server" });
 			}
 
 			return { ok: true, status: 200, json };
@@ -782,9 +783,10 @@ export function startSSE(opts: SSEOptions): ZunoTransport {
 			const res = await postMutation({ events });
 			const json = await res.json();
 			for (const [index, result] of (json.results ?? []).entries()) {
-				if (result.ok && typeof result.event?.version === "number")
+				if (result.ok && typeof result.event?.version === "number") {
 					versions.set(result.event.storeKey, result.event.version);
-				else if (result.current)
+					applyState({ ...result.event, origin: "server" });
+				} else if (result.current)
 					applyState({
 						storeKey: events[index]?.storeKey ?? "",
 						state: result.current.state,

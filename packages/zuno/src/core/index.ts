@@ -257,7 +257,9 @@ export const createUniverse = (): Universe => {
  */
 export const createZuno = (opts: CreateZunoOptions = {}) => {
 	const localState = new Map<string, unknown>();
+	const authoritativeVersions = new Map<string, number>();
 	const versions = new Map<string, number>();
+	const broadcastEvents = new WeakSet<object>();
 	const universe = opts.universe ?? createUniverse();
 	const clientId =
 		opts.clientId ?? globalThis.crypto?.randomUUID?.() ?? String(Math.random());
@@ -308,6 +310,8 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		for (const [k, rec] of Object.entries(snapshot.state)) {
 			plain[k] = rec.state;
 			versions.set(k, rec.version);
+			authoritativeVersions.set(k, rec.version);
+			localState.set(k, structuredClone(rec.state));
 		}
 		universe.restore(plain);
 		lastEventId = snapshot.lastEventId;
@@ -321,8 +325,11 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		if (
 			(event.origin === "server" || event.origin === "conflict-resolution") &&
 			event.state !== undefined
-		)
+		) {
 			localState.set(event.storeKey, structuredClone(event.state));
+			if (typeof event.version === "number")
+				authoritativeVersions.set(event.storeKey, event.version);
+		}
 	};
 
 	const sse =
@@ -374,8 +381,23 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		? startBroadcastChannel({
 				channelName: opts.channelName,
 				clientId,
-				onEvent: (e) => dispatch(e), // Route incoming BC events through middleware
+				onEvent: (e) => {
+					broadcastEvents.add(e);
+					return dispatch(e);
+				}, // Route incoming BC events through middleware
 				getSnapshot: () => {
+					if (sse) {
+						const authoritative: Record<
+							string,
+							{ state: unknown; version: number }
+						> = {};
+						for (const [storeKey, state] of localState)
+							authoritative[storeKey] = {
+								state,
+								version: authoritativeVersions.get(storeKey) ?? 0,
+							};
+						return authoritative;
+					}
 					const snap = universe.snapshot();
 					const out: Record<string, { state: unknown; version: number }> = {};
 					for (const [storeKey, state] of Object.entries(snap)) {
@@ -385,7 +407,12 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 				},
 				onSnapshot: (snap) => {
 					for (const [storeKey, rec] of Object.entries(snap)) {
-						apply({ storeKey, state: rec.state, version: rec.version });
+						apply({
+							storeKey,
+							state: rec.state,
+							version: rec.version,
+							...(sse ? { origin: "server" } : {}),
+						});
 					}
 				},
 			})
@@ -451,7 +478,12 @@ export const createZuno = (opts: CreateZunoOptions = {}) => {
 		if (event.origin) {
 			// Always call apply to let applyIncomingEvent handle version checks and application
 			apply(event);
-			if (sharedConnectionLeader && event.origin === "server" && bc)
+			if (
+				bc &&
+				!broadcastEvents.has(event) &&
+				(event.origin === "conflict-resolution" ||
+					(sharedConnectionLeader && event.origin === "server"))
+			)
 				bc.publish(event);
 
 			// If it's from another client, we are done

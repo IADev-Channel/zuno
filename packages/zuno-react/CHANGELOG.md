@@ -1,5 +1,12 @@
 # @iadev93/zuno-react
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies [52c911d]
+  - @iadev93/zuno@0.4.0
+
 ## 0.0.18
 
 ### Patch Changes

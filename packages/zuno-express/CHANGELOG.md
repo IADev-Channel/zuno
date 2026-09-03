@@ -1,5 +1,20 @@
 # @iadev93/zuno-express
 
+## 0.2.0
+
+### Minor Changes
+
+- 52c911d: Add configurable mutation batching, compact state deltas, gzip thresholds,
+  shared browser SSE ownership, optional WebSocket downstream support, and
+  transport byte and gateway fan-out telemetry. Cross-tab snapshots retain only
+  server-confirmed state and versions so stale optimistic tabs cannot overwrite a
+  fresh authoritative snapshot.
+
+### Patch Changes
+
+- Updated dependencies [52c911d]
+  - @iadev93/zuno@0.4.0
+
 ## 0.1.0
 
 ### Minor Changes

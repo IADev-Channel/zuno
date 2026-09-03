@@ -12,3 +12,10 @@ require upgrading to the latest release.
 A useful bug report includes package versions, runtime, a minimal reproduction,
 expected and actual behavior, and relevant structured Zuno status/log output.
 No response-time or uptime SLA is provided.
+
+Zuno does not guarantee a fixed concurrent-connection capacity. Limits depend
+on workload shape, gateway count, host resources, regions, load balancers,
+SSE/WebSocket settings, persistence, and event-bus infrastructure. Use the
+versioned profiles and SLO tooling in `docs/capacity-validation.md` against a
+production-like topology before setting an operational limit. Capacity reports
+from one topology must not be treated as guarantees for another.

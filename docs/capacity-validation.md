@@ -1,9 +1,9 @@
 # Capacity Validation
 
-Milestone 13 introduces versioned workload profiles, independently runnable
+Milestone 13 delivers versioned workload profiles, independently runnable
 load-generator shards, strict report aggregation, and machine-readable SLO
-checks. It intentionally separates repeatable gateway simulation from a future
-end-to-end network capacity claim.
+checks. It intentionally separates repeatable gateway simulation from an
+operator's end-to-end network capacity claim.
 
 ## CI smoke test
 
@@ -53,7 +53,10 @@ TLS, kernel socket limits, reverse proxies, load balancers, WebSocket/SSE framin
 or a production database/event bus. Passing it is required evidence for the
 gateway layer, but is not sufficient to claim 200,000 production connections.
 
-Before making that claim, add and pass a versioned end-to-end profile against a
-documented deployment topology. Record instance types, regions, gateway count,
-persistence/event-bus configuration, payload and mutation rates, subscription
-distribution, reconnect pattern, duration, and connection/fan-out latency SLOs.
+Zuno does not guarantee a fixed concurrent-connection count. Before setting an
+operational limit, add and pass a versioned end-to-end profile against the
+deployment topology that will carry the traffic. Record instance types, regions,
+gateway count, persistence/event-bus configuration, payload and mutation rates,
+subscription distribution, reconnect pattern, duration, and
+connection/fan-out latency SLOs. Production feedback and retained reports can
+then drive targeted improvements when an application approaches its limits.

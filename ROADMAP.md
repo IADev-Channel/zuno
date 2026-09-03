@@ -6,13 +6,13 @@ This roadmap tracks Zuno's path from an experimental distributed-state engine to
 
 Current verified package versions:
 
-- `@iadev93/zuno@0.4.0`
-- `@iadev93/zuno-react@0.0.19`
-- `@iadev93/zuno-angular@0.2.3`
-- `@iadev93/zuno-express@0.2.0`
-- `@iadev93/zuno-elysia@0.2.0`
+- `@iadev93/zuno@0.4.1`
+- `@iadev93/zuno-react@0.0.20`
+- `@iadev93/zuno-angular@0.2.4`
+- `@iadev93/zuno-express@0.2.1`
+- `@iadev93/zuno-elysia@0.2.1`
 
-Current verification baseline: 100 tests pass, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
+Current verification baseline: 103 tests pass, the 1,000-connection capacity smoke profile passes, Biome passes, and all five packages build with TypeScript declarations. Branch CI is the authoritative verification record.
 
 ## Status Legend
 
@@ -24,9 +24,9 @@ Current verification baseline: 100 tests pass, Biome passes, and all five packag
 
 Milestones 1–8 delivered the green release pipeline, synchronization correctness, server isolation/validation, replay/transport resilience, persistence/multi-process operation, packaging/release automation, framework upgrades, and product readiness. See git history for their detailed completion records.
 
-## Scale Objective: 200,000 Concurrent Connections
+## Optional Scale Target: 200,000 Concurrent Connections
 
-The target means 200,000 simultaneously connected clients across a distributed deployment, not 200,000 clients subscribed to one global event stream. Zuno must not claim this capacity until a versioned workload profile and repeatable load test demonstrate it.
+The reference target means 200,000 simultaneously connected clients across a distributed deployment, not 200,000 clients subscribed to one global event stream. It is not a package guarantee or a release blocker. Operators must validate their own topology and workload before stating a supported capacity.
 
 ## Milestone 9: Subscription and Partitioning Protocol — Complete
 
@@ -94,9 +94,26 @@ Delivered with ordered server batch processing, configurable client coalescing, 
 
 Completion criteria: high-frequency mutations use fewer requests and bytes where beneficial, same-origin tabs can share one server stream, SSE and WebSocket clients retain the same HTTP mutation semantics, and operators can measure transport cost and fan-out.
 
-## Milestone 13: Capacity Validation and Operational Readiness
+## Milestone 13: Capacity Validation and Operational Readiness — Complete
 
-- [ ] Add the distributed load-test harness and require the published 200k workload/SLO suite to pass before making a 200k support claim.
+- [x] Add versioned gateway workload and SLO profiles.
+- [x] Add independently runnable load-generator shards and strict report aggregation.
+- [x] Add a 1,000-connection smoke profile to `pnpm verify`.
+- [x] Add a manual 20-shard GitHub workflow for the 200,000-connection gateway profile.
+- [x] Reject incomplete, duplicate, or profile-mismatched distributed reports.
+- [x] Document that capacity is deployment-specific and no fixed connection count is guaranteed.
+- [x] Document how operators extend the harness with production-topology evidence.
+
+Delivered with a repeatable gateway harness, CI regression gate, optional
+distributed 200k simulation, strict report validation, SLO enforcement, and an
+explicit deployment-specific capacity policy. Production users can extend the
+versioned profiles as their real workloads grow without Zuno claiming an
+unverified universal limit.
+
+Completion criteria: every change runs a bounded connection/fan-out regression
+test, larger runs produce reviewable reports tied to an exact workload profile,
+and documentation prevents simulated gateway results from being presented as a
+production network guarantee.
 
 ## Later Product Expansion
 
@@ -110,6 +127,7 @@ Completion criteria: high-frequency mutations use fewer requests and bytes where
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-09-03 | Complete Milestone 13 around reusable validation rather than a fixed 200k guarantee. | Real capacity depends on application traffic, deployment topology, database, event bus, proxy, TLS, and regional design; operators should validate the workload they actually run. |
 | 2026-08-31 | Define 200k as a measured distributed-connection target, not one global broadcast domain. | Connection count alone is insufficient; fan-out, write rate, payload size, reconnects, and SLOs determine capacity. |
 | 2026-08-31 | Prioritize subscriptions, partitioning, durable authority, and gateways before adding transports or UI adapters. | WebSockets do not solve global fan-out, persistence contention, or single-process connection ownership. |
 | 2026-08-31 | Introduce Protocol v1 scoped subscriptions while retaining Protocol v0 compatibility. | New clients need partition/topic isolation without abruptly breaking existing consumers. |

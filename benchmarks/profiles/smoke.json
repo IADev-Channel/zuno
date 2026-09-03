@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"name": "gateway-smoke-v1",
+	"workloadType": "in-process-gateway",
+	"totalConnections": 1000,
+	"generators": 1,
+	"gateways": 2,
+	"partitions": 20,
+	"topicsPerPartition": 4,
+	"fanoutEventsPerGateway": 20,
+	"payloadBytes": 1024,
+	"reconnectPercent": 1,
+	"slo": {
+		"connectP95Ms": 5,
+		"fanoutP95Ms": 20,
+		"maxAdmissionErrorRate": 0,
+		"minFanoutDeliveryRatio": 1,
+		"maxHeapBytesPerConnection": 50000
+	}
+}

@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"name": "gateway-200k-v1",
+	"workloadType": "in-process-gateway",
+	"totalConnections": 200000,
+	"generators": 20,
+	"gateways": 40,
+	"partitions": 1000,
+	"topicsPerPartition": 4,
+	"fanoutEventsPerGateway": 100,
+	"payloadBytes": 1024,
+	"reconnectPercent": 1,
+	"slo": {
+		"connectP95Ms": 5,
+		"fanoutP95Ms": 20,
+		"maxAdmissionErrorRate": 0,
+		"minFanoutDeliveryRatio": 1,
+		"maxHeapBytesPerConnection": 50000
+	}
+}

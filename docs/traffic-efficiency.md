@@ -43,6 +43,12 @@ Locks, one same-origin tab owns the SSE connection and republishes authoritative
 events through BroadcastChannel. When its lock is released another tab may take
 ownership. Unsupported browsers safely retain one SSE connection per tab.
 
+Cross-tab snapshots contain only the last server-confirmed state and version,
+not a tab's newer optimistic view. Successful HTTP responses advance that
+authoritative baseline, and conflict corrections are sent to peer tabs once
+without being rebroadcast in a loop. This prevents an older open tab from
+overriding a fresh server snapshot and causing the next mutation to snap back.
+
 Do not reuse a channel name across users or tenants. Include the application and
 authenticated-principal namespace in both the channel and optional lock key.
 

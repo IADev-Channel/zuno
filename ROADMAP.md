@@ -84,6 +84,7 @@ Completion criteria: gateway instances can be added or drained without moving au
 - [x] Replace eligible object snapshots with smaller deltas and remove redundant `SET` intents.
 - [x] Compress HTTP mutation bodies with gzip above a configurable byte threshold.
 - [x] Elect one SSE owner across same-origin tabs while preserving BroadcastChannel delivery.
+- [x] Keep cross-tab snapshots server-authoritative and propagate conflict corrections without loops.
 - [x] Add optional WebSocket downstream transport with interoperable HTTP mutation upstream.
 - [x] Add framework-neutral WebSocket gateway integration.
 - [x] Emit transport byte and gateway fan-out metrics.

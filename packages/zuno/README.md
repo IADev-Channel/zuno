@@ -129,6 +129,9 @@ For applications with several same-origin tabs, set `channelName` and
 `shareConnection: true`. Web Locks elect one SSE owner and the existing
 BroadcastChannel distributes authoritative events to follower tabs. Browsers
 without Web Locks continue to use an independent SSE connection.
+Only server-confirmed state and versions are included in cross-tab snapshots;
+optimistic state remains local until the HTTP authority accepts it. Conflict
+corrections are propagated to peers without creating a rebroadcast loop.
 
 An optional `webSocketUrl` replaces only the downstream connection. Mutations,
 including ordered batches, still use `syncUrl` over HTTP so SSE and WebSocket

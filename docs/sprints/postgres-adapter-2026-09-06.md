@@ -5,42 +5,78 @@
 - Adapter/category: PostgreSQL / database & durable storage
 - Branch: `adapter/postgres-sprint-2026-09-06`
 - Sprint dates: 2026-09-06 through 2026-09-12
-- Status: blocked on prerequisite Core async-persistence milestone after Tuesday propagation review
+- Status: blocked on prerequisite Core async-persistence milestone; prerequisite contract specified Wednesday
 
 ## Objective / expected outcome
 
-Deliver a production-oriented PostgreSQL persistence adapter for Zuno that implements the durable-authority semantics already established by the SQLite reference adapter: transactional compare-and-set state updates, partition-scoped idempotency, durable replay/event-log operations, snapshots and compaction behavior, and restart-safe authoritative state.
+Deliver a production-oriented PostgreSQL persistence adapter for Zuno that preserves the durable-authority semantics established by the SQLite reference: transactional compare-and-set state updates, partition-scoped idempotency, durable replay/event-log operations, snapshots/compaction, and restart-safe authoritative state.
 
-The intended developer outcome is that teams already operating PostgreSQL can use their existing production database as Zuno's durable authority rather than introducing SQLite or building a custom persistence implementation.
+The developer outcome is that teams already operating PostgreSQL can use it as Zuno's durable authority without introducing SQLite or building custom persistence.
 
 ## Rationale / user impact
 
-PostgreSQL is the highest-impact conventional shared database target for multi-process Zuno deployments. It also provides a valuable pressure test of whether the current persistence boundary is truly database-neutral.
-
-This sprint deliberately does not add MongoDB, MySQL, Redis, Supabase, Firebase, or infrastructure adapters. One adapter remains the unit of delivery.
+PostgreSQL is a high-impact shared database target for multi-process Zuno deployments and pressure-tests whether the persistence boundary is truly database-neutral. This sprint does not add another adapter.
 
 ## Architecture and code impact
 
-Sunday expected PostgreSQL to fit the existing `ZunoServerPersistence` boundary. Monday's detailed contract review found a material architectural mismatch: every method on `ZunoServerPersistence` is synchronous (`getRecord`, `getSnapshot`, `readEvents`, `getReplayBounds`, `appendEvent`, `compact`, `clear`, and `compareAndSet`). The SQLite reference can satisfy that because `node:sqlite` exposes synchronous operations. Normal production PostgreSQL clients are networked/asynchronous, so a correct PostgreSQL implementation cannot honestly implement this interface without blocking hacks, subprocess indirection, or pretending asynchronous I/O is synchronous.
+The existing `ZunoServerPersistence` contract is synchronous. `ZunoServerState` exposes synchronous persistence-backed reads, replay helpers, append, CAS and clear; `applyStateEvent()` is synchronous and performs a persisted read while materializing deltas before CAS. Production PostgreSQL clients are asynchronous, so PostgreSQL cannot correctly implement the current contract without blocking/event-loop hacks or false synchronous abstractions.
 
-Tuesday traced the propagation beyond the persistence interface. `ZunoServerState` exposes synchronous reads, replay helpers, append, CAS, clear, and deprecated mutation helpers directly over persistence. `applyStateEvent()` is also synchronous and performs a persistence-backed read when materializing deltas before calling synchronous CAS. Existing benchmarks, capacity tooling, tests, and framework-facing mutation flows call these synchronous server APIs. Therefore adding only `Promise` return types to `ZunoServerPersistence` would not be a small adapter-local extension: correct remote persistence requires an explicit asynchronous server execution path and asynchronous mutation application, with deliberate compatibility semantics for existing synchronous Memory/SQLite users.
+Senior-dev decision: do not broaden this adapter sprint into an unplanned Core API migration. PostgreSQL is blocked on a generic async-persistence Core milestone. Existing synchronous Memory/SQLite APIs must remain intact until a deliberate compatibility path exists.
 
-Senior-dev architecture decision: do not broaden this adapter sprint into a Core API migration. PostgreSQL is formally blocked on a dedicated generic async-persistence Core milestone. That milestone should design async persistence/server interfaces, preserve the existing synchronous path for Memory/SQLite where practical, define async delta materialization/CAS/replay behavior, and provide migration/adapter guidance. PostgreSQL should resume only after that contract is tested independently.
+### Minimum Core async-persistence prerequisite
 
-Architectural rules remain:
+The prerequisite should introduce a separate explicit async contract rather than changing existing method return types in place. A suitable capability boundary must provide Promise-based equivalents for:
 
-- Preserve durable-authority semantics and atomic compare-and-set behavior.
-- Do not leak PostgreSQL-specific concepts into browser/core APIs.
-- Keep database drivers out of generic/browser entry points.
-- Do not add blocking/event-loop hacks to force PostgreSQL into a synchronous interface.
-- Any async persistence evolution must be generic enough for PostgreSQL and future remote adapters.
-- Preserve current synchronous APIs until a deliberate compatibility design exists.
+- `getRecord(storeKey)`
+- `getSnapshot(partition?, topics?)`
+- `readEvents(query)`
+- `getReplayBounds()`
+- `appendEvent(event, maxEvents)`
+- `compact(policy, now?)`
+- `clear()`
+- `compareAndSet(event, maxEvents)`
+
+Core must then provide an async server execution path whose reads/replay/CAS delegate to that contract. Async mutation application must preserve validation and authorization behavior, await delta source-state reads, await durable CAS, and publish a durable event only after the persistence transaction has committed successfully. Duplicate idempotent mutations must not republish.
+
+The prerequisite must not silently make current `ZunoServerState` methods or `applyStateEvent()` return Promises. Memory/SQLite users and current framework integrations need the existing synchronous path to remain source-compatible. The async path should be explicit in types/API naming or represented by a separate server type/factory so TypeScript prevents accidental sync/async mixing.
+
+A remote persistence implementation must own lifecycle explicitly. Connection/pool initialization and shutdown cannot be hidden in generic browser/core entry points. Database-driver types/dependencies must remain server-only.
+
+### Compatibility invariants
+
+1. Existing Memory and SQLite persistence behavior remains synchronous and source-compatible.
+2. The authoritative CAS result shape and version-conflict semantics remain equivalent across sync and async paths.
+3. Event publication occurs after successful durable commit, never before it.
+4. Failed/rejected CAS appends no replay event and changes no authoritative state.
+5. Idempotency remains partition-scoped and duplicate retries return the original authoritative event without republishing.
+6. Event IDs remain monotonically ordered for committed events and replay ordering is deterministic.
+7. Delta mutation materialization uses the authoritative persisted record and cannot race through an un-awaited read.
+8. Tombstone, replay-bound and compaction semantics remain persistence-neutral.
+9. PostgreSQL/database dependencies cannot leak into browser or generic package entry points.
+10. Async persistence failures reject explicitly; they must not be converted into apparent successful mutations.
+
+### Core prerequisite acceptance tests
+
+- Existing Memory/SQLite suites pass unchanged on the synchronous path.
+- Compile-time/API test proves existing sync methods retain non-Promise return types.
+- Async test persistence proves record/snapshot/replay operations are awaited correctly.
+- Async CAS success commits state and event before publication.
+- Async CAS conflict returns current authoritative record and produces no event/publication.
+- Async CAS persistence rejection produces no publication.
+- Async delta application awaits the authoritative record before materialization and CAS.
+- Two concurrent CAS attempts from the same base version produce exactly one successful authoritative version transition.
+- Concurrent retries with the same partition/idempotency key produce one durable event and one publication.
+- Same idempotency key in different partitions remains independent.
+- Replay after async commits is monotonically ordered and respects scope/limit semantics.
+- Delete/tombstone and compaction behavior matches sync reference semantics.
+- Async persistence initialization/disposal is deterministic and does not affect generic/browser bundles.
+- Framework-facing async integration tests verify responses are not emitted before durable commit.
+
+These tests are the gate for resuming PostgreSQL implementation; a type-only interface without the async server/application execution tests is insufficient.
 
 ## Compatibility and regression risks
 
-Confirmed primary risk is API propagation. Async persistence affects `ZunoServerState` reads/writes/replay, `applyStateEvent()` delta materialization and CAS, and consumers that currently assume immediate return values. A partial Promise-aware implementation could create races, accidentally publish before durable commit, or silently change framework behavior.
-
-Other PostgreSQL risks remain transaction boundaries, concurrent CAS/idempotency, replay ordering, JSON serialization, startup/schema races, lifecycle management, and driver bundling boundaries. These remain adapter work after the Core prerequisite.
+Primary risk is API propagation. A partial Promise-aware implementation could create races, publish before commit, or silently change framework behavior. PostgreSQL-specific risks remain transaction boundaries, concurrent CAS/idempotency, replay ordering, JSON serialization, startup/schema races, lifecycle management, and driver bundling boundaries.
 
 ## Weekly task breakdown
 
@@ -49,56 +85,55 @@ Other PostgreSQL risks remain transaction boundaries, concurrent CAS/idempotency
 - [x] Create sprint branch and source-of-truth document.
 - [x] Define scope, risks, QA strategy, and deadline assessment.
 
-### Monday — contract and skeleton
-- [x] Inspect persistence interface and SQLite implementation in detail.
-- [x] Assess PostgreSQL client/dependency strategy.
-- [x] Identify synchronous persistence contract as a hard architectural blocker for a production PostgreSQL client.
-- [x] Defer adapter skeleton rather than manufacture throwaway architecture.
+### Monday — contract review
+- [x] Inspect persistence interface and SQLite implementation.
+- [x] Identify synchronous persistence as a hard PostgreSQL blocker.
+- [x] Avoid throwaway adapter skeleton/blocking hacks.
 
-### Tuesday — architecture decision checkpoint
-- [x] Inspect server call sites to quantify async-persistence propagation precisely.
-- [x] Determine whether a small backward-compatible async extension is possible without redesigning existing synchronous persistence behavior.
-- [x] Conclude propagation is broad enough to require a dedicated Core milestone.
-- [x] Formally block PostgreSQL implementation rather than force unsafe scope expansion.
+### Tuesday — architecture checkpoint
+- [x] Trace async propagation through server state, mutation application, tooling and tests.
+- [x] Determine a small adapter-local extension is not safe.
+- [x] Formally block PostgreSQL on a dedicated Core milestone.
 
 ### Wednesday — blocker specification
-- [ ] Document the minimum Core async-persistence contract required to unblock PostgreSQL, including compatibility invariants and acceptance tests.
+- [x] Specify minimum generic async-persistence operations.
+- [x] Define sync compatibility and publish-after-commit invariants.
+- [x] Define acceptance-test gate for the Core prerequisite.
 
 ### Thursday — adapter design while blocked
-- [ ] Define PostgreSQL schema/transaction strategy against the proposed generic contract without committing implementation tied to an unapproved API.
+- [ ] Define PostgreSQL schema, transaction/CAS, idempotency, replay and compaction strategy against the proposed generic contract without committing implementation to an unapproved API.
 
 ### Friday — QA/design review
-- [ ] Review proposed Core prerequisite and PostgreSQL design for race, idempotency, replay, lifecycle, and packaging risks.
+- [ ] Review Core prerequisite and PostgreSQL design for races, idempotency, replay, lifecycle and packaging risks.
 
 ### Saturday — blocker closeout
-- [ ] Finalize exact prerequisite milestone and sprint report.
+- [ ] Finalize prerequisite milestone and sprint report.
 - [ ] Do not publish a fake/unsafe PostgreSQL adapter.
-- [ ] Do not create an implementation PR unless the prerequisite becomes valid and verified.
+- [ ] Do not create an implementation PR unless prerequisite becomes valid and verified.
 - [ ] Do not merge a PR.
 
 ## Daily progress log
 
 ### Sunday — 2026-09-06
-Planning completed. PostgreSQL selected as first additional persistence adapter. No implementation changes were made by design.
+Planning completed. PostgreSQL selected as the first additional persistence adapter. No implementation changes by design.
 
 ### Monday — 2026-09-07
-Performed detailed contract review of `packages/zuno/src/server/persistence.ts`, `packages/zuno/src/server/sqlite-persistence.ts`, and server persistence documentation. Confirmed `ZunoServerPersistence` is entirely synchronous and `compareAndSet()` is explicitly the atomic authoritative write boundary. SQLite fits because its current implementation uses synchronous `node:sqlite` transactions. A production PostgreSQL connection is remote/asynchronous, so it cannot implement the existing interface correctly without an architectural workaround that would harm event-loop behavior or correctness.
-
-Senior-dev decision: do not create a cosmetic PostgreSQL class or introduce blocking hacks merely to satisfy Monday's skeleton checkbox.
+Reviewed the persistence contract and SQLite reference. Confirmed the interface is synchronous and PostgreSQL cannot correctly satisfy it using normal production clients. Deferred a cosmetic skeleton.
 
 ### Tuesday — 2026-09-08
-Traced the synchronous contract through `ZunoServerState`, `applyStateEvent()`, benchmarks/capacity tooling, and tests. The mismatch is not isolated to `compareAndSet()`: state reads, snapshots, replay bounds/events, delta materialization, append/clear, and mutation application all assume immediate persistence results. A generic remote-database path therefore requires explicit async server/application APIs rather than changing the persistence interface alone.
+Traced the synchronous assumption through `ZunoServerState`, `applyStateEvent()`, benchmarks/capacity tooling and tests. Concluded a generic remote-database path requires explicit async server/application APIs. PostgreSQL formally blocked on a Core prerequisite.
 
-Decision checkpoint result: the safe change is too broad for an adapter-local compatibility patch. PostgreSQL is formally blocked on a dedicated Core async-persistence milestone. No adapter implementation was added, preventing throwaway code and preventing a hidden breaking change to existing Memory/SQLite and framework consumers.
+### Wednesday — 2026-09-09
+Specified the prerequisite contract and acceptance gate. The recommended compatibility shape is an explicit Promise-based persistence/server path alongside the existing synchronous path, not a union-return interface and not an in-place Promise migration. Defined ten behavioral invariants covering commit/publication ordering, CAS, idempotency, replay, delta materialization, failures, tombstones and package boundaries. Defined acceptance tests including concurrent CAS/idempotency races and compile-time sync compatibility. This makes the blocker implementation-ready enough for Thursday's PostgreSQL storage design without prematurely approving a Core API surface.
 
 ## QA / test checklist
 
 - [x] Existing persistence contract reviewed against PostgreSQL execution model.
 - [x] SQLite atomicity/reference implementation reviewed.
 - [x] Persistence call-site propagation through server state reviewed.
-- [x] Durable mutation path (`applyStateEvent`) reviewed for async impact.
-- [x] Tooling/tests reviewed for synchronous server API assumptions.
-- [ ] Core async-persistence compatibility acceptance tests specified.
+- [x] Durable mutation path reviewed for async impact.
+- [x] Tooling/tests reviewed for synchronous assumptions.
+- [x] Core async-persistence compatibility acceptance tests specified.
 - [ ] Existing SQLite persistence tests remain green after future Core changes.
 - [ ] PostgreSQL schema/bootstrap deterministic and repeatable.
 - [ ] Round-trip JSON state.
@@ -114,22 +149,20 @@ Decision checkpoint result: the safe change is too broad for an adapter-local co
 
 ## CI status
 
-No implementation code has been added, so adapter PR CI is not applicable. The branch currently contains architecture/planning documentation only. CI must not be represented as adapter validation while the prerequisite contract is unresolved.
+No implementation code exists, so adapter PR CI is not applicable. Documentation-only architecture work must not be represented as adapter validation.
 
 ## Documentation / versioning status
 
-Sprint source-of-truth updated through Tuesday with the propagation analysis and formal blocker decision. No README/API/version changes are justified yet because no supported adapter API exists.
+Sprint source-of-truth updated through Wednesday. No README/API/version changes are justified because no supported adapter API exists yet.
 
 ## Blockers
 
-**Confirmed architectural blocker:** `ZunoServerPersistence` and the server/application call chain are synchronous while production PostgreSQL I/O is asynchronous. Correct resolution requires a generic Core async-persistence/server capability, not a PostgreSQL-specific workaround.
-
-Minimum prerequisite direction: provide an explicit asynchronous persistence/server path with atomic async CAS, async record/snapshot/replay operations, async mutation application (including delta materialization), deterministic publish-after-commit behavior, and a compatibility strategy that does not silently turn today's synchronous Memory/SQLite APIs into Promises.
+**Confirmed architectural blocker:** the server persistence/application chain is synchronous while production PostgreSQL I/O is asynchronous. Resolution requires a generic Core async-persistence/server capability with the acceptance gate specified above.
 
 ## Deadline assessment
 
-A production PostgreSQL adapter by Saturday is **not realistic under senior-dev/QA standards without first completing the Core prerequisite**. The sprint will use the remaining days to make the prerequisite and PostgreSQL design implementation-ready rather than force unsafe code. This is a blocker closeout outcome, not a completed adapter release.
+A production PostgreSQL adapter by Saturday is **not realistic under senior-dev/QA standards without the Core prerequisite**. Remaining sprint work will make the prerequisite and PostgreSQL design implementation-ready rather than force unsafe code.
 
 ## Final outcome
 
-Pending Saturday closeout. As of Tuesday, PostgreSQL implementation is formally blocked on a dedicated Core async-persistence milestone. The sprint has validated that the blocker is systemic and has intentionally avoided adapter-specific hacks or a broad unplanned breaking migration.
+Pending Saturday closeout. As of Wednesday, PostgreSQL remains correctly blocked; the minimum Core prerequisite, compatibility invariants and acceptance tests are now specified.

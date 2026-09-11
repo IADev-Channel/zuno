@@ -5,7 +5,7 @@
 - Adapter/category: PostgreSQL / database & durable storage
 - Branch: `adapter/postgres-sprint-2026-09-06`
 - Sprint dates: 2026-09-06 through 2026-09-12
-- Status: blocked on prerequisite Core async-persistence milestone; PostgreSQL storage/transaction design completed Thursday
+- Status: blocked on prerequisite Core async-persistence milestone; Friday QA/design review completed
 
 ## Objective / expected outcome
 
@@ -25,121 +25,103 @@ Senior-dev decision: do not broaden this adapter sprint into an unplanned Core A
 
 ### Minimum Core async-persistence prerequisite
 
-The prerequisite should introduce a separate explicit async contract rather than changing existing method return types in place. A suitable capability boundary must provide Promise-based equivalents for:
+The prerequisite should introduce a separate explicit async contract rather than changing existing method return types in place. A suitable capability boundary must provide Promise-based equivalents for `getRecord`, `getSnapshot`, `readEvents`, `getReplayBounds`, `appendEvent`, `compact`, `clear`, and `compareAndSet`.
 
-- `getRecord(storeKey)`
-- `getSnapshot(partition?, topics?)`
-- `readEvents(query)`
-- `getReplayBounds()`
-- `appendEvent(event, maxEvents)`
-- `compact(policy, now?)`
-- `clear()`
-- `compareAndSet(event, maxEvents)`
-
-Core must then provide an async server execution path whose reads/replay/CAS delegate to that contract. Async mutation application must preserve validation and authorization behavior, await delta source-state reads, await durable CAS, and publish a durable event only after the persistence transaction has committed successfully. Duplicate idempotent mutations must not republish.
+Core must provide an async server execution path whose reads/replay/CAS delegate to that contract. Async mutation application must preserve validation and authorization behavior, await delta source-state reads, await durable CAS, and publish a durable event only after the persistence transaction commits. Duplicate idempotent mutations must not republish.
 
 The prerequisite must not silently make current `ZunoServerState` methods or `applyStateEvent()` return Promises. Memory/SQLite users and current framework integrations need the existing synchronous path to remain source-compatible. The async path should be explicit in types/API naming or represented by a separate server type/factory so TypeScript prevents accidental sync/async mixing.
 
-A remote persistence implementation must own lifecycle explicitly. Connection/pool initialization and shutdown cannot be hidden in generic browser/core entry points. Database-driver types/dependencies must remain server-only.
+Remote persistence lifecycle must be explicit. Connection/pool initialization and shutdown cannot be hidden in generic browser/core entry points. Database-driver dependencies remain server-only.
 
 ### Compatibility invariants
 
-1. Existing Memory and SQLite persistence behavior remains synchronous and source-compatible.
-2. The authoritative CAS result shape and version-conflict semantics remain equivalent across sync and async paths.
-3. Event publication occurs after successful durable commit, never before it.
-4. Failed/rejected CAS appends no replay event and changes no authoritative state.
-5. Idempotency remains partition-scoped and duplicate retries return the original authoritative event without republishing.
-6. Event IDs remain monotonically ordered for committed events and replay ordering is deterministic.
-7. Delta mutation materialization uses the authoritative persisted record and cannot race through an un-awaited read.
+1. Existing Memory and SQLite behavior remains synchronous and source-compatible.
+2. CAS result shape and version-conflict semantics remain equivalent across sync/async paths.
+3. Publication occurs only after successful durable commit.
+4. Failed/rejected CAS changes neither authoritative state nor replay log.
+5. Idempotency remains partition-scoped; duplicate retries return the original authoritative event without republishing.
+6. Committed event IDs are monotonically ordered and replay ordering deterministic.
+7. Delta materialization uses awaited authoritative persisted state.
 8. Tombstone, replay-bound and compaction semantics remain persistence-neutral.
-9. PostgreSQL/database dependencies cannot leak into browser or generic package entry points.
-10. Async persistence failures reject explicitly; they must not be converted into apparent successful mutations.
-
-### Core prerequisite acceptance tests
-
-- Existing Memory/SQLite suites pass unchanged on the synchronous path.
-- Compile-time/API test proves existing sync methods retain non-Promise return types.
-- Async test persistence proves record/snapshot/replay operations are awaited correctly.
-- Async CAS success commits state and event before publication.
-- Async CAS conflict returns current authoritative record and produces no event/publication.
-- Async CAS persistence rejection produces no publication.
-- Async delta application awaits the authoritative record before materialization and CAS.
-- Two concurrent CAS attempts from the same base version produce exactly one successful authoritative version transition.
-- Concurrent retries with the same partition/idempotency key produce one durable event and one publication.
-- Same idempotency key in different partitions remains independent.
-- Replay after async commits is monotonically ordered and respects scope/limit semantics.
-- Delete/tombstone and compaction behavior matches sync reference semantics.
-- Async persistence initialization/disposal is deterministic and does not affect generic/browser bundles.
-- Framework-facing async integration tests verify responses are not emitted before durable commit.
-
-These tests are the gate for resuming PostgreSQL implementation; a type-only interface without the async server/application execution tests is insufficient.
+9. PostgreSQL/database dependencies cannot leak into browser/generic package entry points.
+10. Async persistence failures reject explicitly rather than appearing successful.
 
 ## PostgreSQL adapter design
 
-This design intentionally targets the proposed generic async contract and does not commit code against an unapproved Core API.
+The design targets the proposed generic async contract and intentionally avoids committing code against an unapproved Core API.
 
 ### Tables and indexes
 
-Use a dedicated schema (default `public`, configurable later if justified) with three logical tables mirroring the persistence-neutral model rather than SQLite implementation details:
+Use three logical tables mirroring the persistence-neutral model:
 
 - `zuno_state(partition_key text, store_key text, state_json jsonb, version bigint, primary key(partition_key, store_key))`
 - `zuno_events(event_id bigint generated by default as identity primary key, partition_key text, topic text, store_key text, operation text, created_at bigint, payload_json jsonb)`
 - `zuno_idempotency(partition_key text, idempotency_key text, event_id bigint references zuno_events(event_id) on delete cascade, primary key(partition_key, idempotency_key))`
 
-Indexes: `(partition_key, topic, event_id)` for scoped replay and an event-age/operation index only if retention profiling proves it useful. Avoid speculative indexes in V1. `version > 0` and operation `upsert|delete` constraints should match SQLite semantics. JSONB is preferred for validation/storage ergonomics, but payloads must round-trip as Zuno JSON values without PostgreSQL-specific query semantics leaking into Core.
+Use `(partition_key, topic, event_id)` for scoped replay. Avoid speculative V1 indexes. JSONB storage must round-trip Zuno JSON values without PostgreSQL-specific semantics leaking into Core.
 
-### Bootstrap and lifecycle
+### Atomic CAS
 
-The adapter owns or receives a server-only PostgreSQL pool. Initialization executes idempotent `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` statements before the adapter is exposed as ready. Initialization must be explicit/awaitable; constructor side effects must not race first use. `close()`/`dispose()` only closes a pool the adapter owns; an injected external pool remains caller-owned. No `pg` import may appear in generic/browser entry points.
-
-### Atomic compare-and-set transaction
-
-Each CAS uses one checked-out client and one transaction.
-
-1. `BEGIN`.
-2. If `idempotencyKey` exists, check `(partition_key, idempotency_key)`. The unique primary key is the final concurrency authority; duplicate-key races are handled by re-reading the already committed authoritative event rather than producing a second event.
-3. Lock the target state row with `SELECT ... FOR UPDATE` when it exists.
-4. For an absent row, concurrent creation needs serialization. V1 should use a transaction-scoped PostgreSQL advisory lock derived deterministically from the full `storeKey` before re-reading the row. This avoids the classic two-writers-both-observe-missing race without creating placeholder state rows. The lock key function must be stable and collision-safe enough for correctness; if a collision occurs it may reduce concurrency but must not corrupt state.
-5. Compare `baseVersion` against the locked authoritative version (`0` when absent). On mismatch, `ROLLBACK` and return `{ ok: false, current }`.
-6. Compute next version. Upsert state with that version or delete the state row for tombstone operations.
-7. Insert the event and obtain identity `event_id` with `RETURNING event_id`.
-8. Build the authoritative event using that ID/version/timestamp and update/store its payload JSON.
-9. Insert the partition-scoped idempotency mapping when present.
-10. Apply bounded compaction inside the same transaction only when required by the existing persistence semantics.
-11. `COMMIT`.
-12. Return the authoritative event. Core publication occurs only after this Promise resolves successfully.
-
-No state mutation/event/idempotency mapping may survive a failed transaction.
+Each CAS uses one checked-out client and one transaction. Existing state rows are locked with `SELECT ... FOR UPDATE`. Missing-row creation is serialized using a deterministic transaction-scoped advisory lock derived from the full store key, followed by a re-read. Version mismatch rolls back with the current authoritative record. State/tombstone mutation, event insertion, idempotency mapping and bounded compaction happen in the same transaction. Core publishes only after successful commit.
 
 ### Idempotency race strategy
 
-The `(partition_key, idempotency_key)` primary key is authoritative. A pre-check is an optimization, not the concurrency guarantee. If two transactions race with the same idempotency key, only one mapping may commit. The loser must rollback its attempted state/event transaction, then outside that failed transaction read the winning mapping joined to `zuno_events` and return that authoritative event with `duplicate: true`. It must not publish. The same key in different partitions remains independent.
+`(partition_key, idempotency_key)` uniqueness is authoritative. A pre-check is only an optimization. Concurrent duplicate transactions may race; the loser must roll back its attempted state/event transaction and then read the winner's committed event, returning it as duplicate without publication. The same idempotency key in different partitions remains independent.
 
-This behavior needs an integration test with genuinely concurrent connections; a sequential unit test is insufficient.
+### Replay, compaction and lifecycle
 
-### Replay and event IDs
+Replay is ordered by identity `event_id ASC`; sequence gaps after rollbacks are legal because ordering, not gaplessness, is the invariant. Event deletion cascades idempotency rows. Compaction invoked by CAS must use the same transaction/client. Initialization is explicit and awaitable. Disposal closes only adapter-owned pools. `pg` remains server-only.
 
-Replay uses `event_id > $after` plus optional partition/topic predicates, ordered by `event_id ASC`, with a parameterized limit. Identity/sequence values can contain gaps after rolled-back transactions; Zuno must require monotonic ordering, not gap-free IDs. Replay bounds use `MIN/MAX(event_id)` and return the same empty-log semantics as SQLite.
+### Failure policy
 
-### Compaction and retention
+Do not silently retry a mutation after an ambiguous connection failure around `COMMIT`; the caller cannot know whether the transaction committed. Idempotency keys provide safe application-level retry where supplied. PostgreSQL deadlock/serialization retries should not be hidden in V1 unless retry safety is proven and bounded.
 
-Compaction preserves existing policy semantics: retention removes expired upserts, tombstone retention removes expired deletes, then `maxEvents` retains the newest event IDs. Deleting events cascades associated idempotency rows exactly as the SQLite foreign key does. V1 correctness is more important than optimizing a very large event log; performance-oriented chunked compaction can be a later measured improvement. Compaction called as part of CAS must use the same transaction/client, never acquire a second pool connection and accidentally escape atomicity.
+## Friday QA/design review
 
-### Snapshot and record reads
+Friday converted the architectural risks into executable acceptance scenarios. These scenarios are mandatory before a PostgreSQL adapter can be called production-ready.
 
-`getRecord` scopes by both parsed partition and full store key. `getSnapshot` optionally filters partition in SQL; topic filtering should also be SQL-side when topics are supplied to avoid transferring an entire partition unnecessarily. State/version conversion must guard against JavaScript unsafe integers if versions/event IDs can exceed `Number.MAX_SAFE_INTEGER`; V1 must either validate and fail explicitly at that boundary or establish a safe numeric contract before converting PostgreSQL `bigint` strings.
+### P0 correctness/concurrency integration scenarios
 
-### Failure and retry policy
+1. **Concurrent CAS, existing row:** seed version N, run two CAS calls from separate pooled connections with `baseVersion=N`; assert exactly one succeeds, final version is N+1, exactly one replay event is committed, loser returns the winning/current authoritative state, and exactly one publication occurs.
+2. **Concurrent CAS, absent row:** with no state row, run two `baseVersion=0` creates concurrently; assert advisory-lock/re-read serialization yields one version-1 transition and one conflict, never two version-1 events.
+3. **Concurrent same idempotency key:** run equivalent mutations concurrently on separate connections using the same partition/key; assert one durable event, one state transition, one idempotency row, both callers resolve to the same authoritative event, and only the winner publishes.
+4. **Cross-partition idempotency:** use the same idempotency key in two partitions concurrently; assert both commit independently.
+5. **Rollback after event insert:** inject failure after state/event work but before commit; assert state, event and idempotency mapping all roll back and no publication occurs.
+6. **Durability-before-publication:** delay COMMIT deliberately; assert subscribers/framework responses cannot observe the mutation until COMMIT resolves.
+7. **Delta materialization race:** delay async authoritative read and concurrently mutate from another connection; assert delta application is based on the correctly awaited/version-checked authoritative record and cannot publish a stale derived mutation.
 
-The persistence adapter must not silently retry an entire mutation after an ambiguous connection failure around `COMMIT`, because doing so can create uncertainty about whether the first transaction committed. Idempotency keys provide safe application-level retry when supplied. PostgreSQL serialization/deadlock errors may be candidates for bounded retry only if the operation can prove retry safety and the policy is explicit; V1 should prefer surfacing errors over hidden behavior.
+### P0 replay/retention scenarios
 
-### Packaging
+8. **Replay sequence gaps:** consume an identity value in a rolled-back transaction, then commit later events; assert replay accepts missing IDs while returning committed events strictly ascending.
+9. **Replay scope:** mix partitions/topics and assert `after`, partition, topic and limit filters exactly match persistence-neutral semantics.
+10. **Tombstone round trip:** upsert then delete; assert state disappears, delete event remains replayable, and restart/replay behavior matches SQLite semantics.
+11. **Compaction atomicity:** trigger bounded compaction during CAS and inject failure before commit; assert neither mutation nor compaction partially persists.
+12. **Idempotency retention:** when event compaction removes an event, assert its associated idempotency row is removed by the intended retention semantics/cascade.
 
-Preferred package shape is a dedicated server adapter package (for example `@iadev93/zuno-postgres`) depending on Zuno's server persistence types plus `pg`, rather than adding `pg` to the universal core package. Exports must be server-only and tree/bundle checks must prove browser consumers do not resolve PostgreSQL or Node networking dependencies.
+### P0 lifecycle/failure scenarios
+
+13. **Bootstrap race:** initialize multiple adapter instances against an empty database concurrently; schema/index creation must be idempotent and leave a usable schema.
+14. **Owned pool disposal:** adapter-created pool is closed exactly once and rejects subsequent use deterministically.
+15. **Injected pool disposal:** caller-provided pool is not closed by adapter disposal.
+16. **Connection failure before COMMIT:** assert Promise rejection, transaction cleanup where possible, and no publication.
+17. **Ambiguous COMMIT outcome:** simulate connection loss at commit boundary; assert adapter surfaces an explicit indeterminate/driver failure and does not automatically replay the mutation. Document that retry safety requires idempotency.
+18. **Pool pressure:** run concurrent operations with a deliberately small pool; assert clients are released on success, conflict and thrown-error paths, with no connection leak/deadlock.
+
+### P1 data/package scenarios
+
+19. **JSONB round trip:** nested objects, arrays, booleans, nulls, strings and numeric values survive state/event round trips without PostgreSQL-specific mutation.
+20. **Bigint boundary:** test event/version conversion at safe integer limits; values beyond the supported JS numeric contract must fail explicitly rather than lose precision.
+21. **Package isolation:** build/import browser/generic Zuno entry points and assert neither `pg` nor Node networking modules enter their dependency graph.
+22. **Type/export verification:** adapter declarations and server-only exports compile under the repository-supported TypeScript/module configurations.
+23. **Restart recovery:** commit mutations, destroy adapter/server instance, reconnect with a new instance, and assert authoritative record, snapshot, replay bounds and events are preserved.
+
+### QA exit gate
+
+PostgreSQL implementation may proceed only after the Core async prerequisite passes its sync-compatibility and publish-after-commit acceptance gate. PostgreSQL itself cannot be marked complete until all P0 scenarios pass against a real PostgreSQL service using at least two concurrent connections. Unit mocks alone are insufficient for locking, transaction, identity-sequence, idempotency-race and pool-lifecycle claims. P1 package/data tests must also pass before publication, with any intentionally deferred performance tuning documented separately.
 
 ## Compatibility and regression risks
 
-Primary risk is API propagation. A partial Promise-aware implementation could create races, publish before commit, or silently change framework behavior. PostgreSQL-specific risks are concurrent absent-row CAS, concurrent idempotency, transaction/commit ambiguity, replay identity gaps, bigint conversion, JSON serialization, startup/schema races, lifecycle ownership, pool exhaustion, compaction cost, and driver bundling boundaries.
+Primary risk remains API propagation. A partial Promise-aware implementation could create races, publish before commit, or silently change framework behavior. PostgreSQL-specific risks are concurrent absent-row CAS, concurrent idempotency, transaction/commit ambiguity, replay identity gaps, bigint conversion, JSON serialization, startup/schema races, lifecycle ownership, pool exhaustion, compaction cost, and driver bundling boundaries.
 
 ## Weekly task breakdown
 
@@ -170,8 +152,9 @@ Primary risk is API propagation. A partial Promise-aware implementation could cr
 - [x] Define replay/event-ID, compaction, failure and packaging semantics.
 
 ### Friday — QA/design review
-- [ ] Review Core prerequisite and PostgreSQL design for races, idempotency, replay, lifecycle and packaging risks.
-- [ ] Turn design risks into explicit PostgreSQL integration-test scenarios.
+- [x] Review Core prerequisite and PostgreSQL design for races, idempotency, replay, lifecycle and packaging risks.
+- [x] Turn design risks into explicit PostgreSQL integration-test scenarios.
+- [x] Define P0/P1 QA exit gate requiring a real PostgreSQL service and concurrent connections.
 
 ### Saturday — blocker closeout
 - [ ] Finalize prerequisite milestone and sprint report.
@@ -191,10 +174,13 @@ Reviewed the persistence contract and SQLite reference. Confirmed the interface 
 Traced the synchronous assumption through `ZunoServerState`, `applyStateEvent()`, benchmarks/capacity tooling and tests. Concluded a generic remote-database path requires explicit async server/application APIs. PostgreSQL formally blocked on a Core prerequisite.
 
 ### Wednesday — 2026-09-09
-Specified the prerequisite contract and acceptance gate. The recommended compatibility shape is an explicit Promise-based persistence/server path alongside the existing synchronous path, not a union-return interface and not an in-place Promise migration. Defined ten behavioral invariants covering commit/publication ordering, CAS, idempotency, replay, delta materialization, failures, tombstones and package boundaries. Defined acceptance tests including concurrent CAS/idempotency races and compile-time sync compatibility. This makes the blocker implementation-ready enough for Thursday's PostgreSQL storage design without prematurely approving a Core API surface.
+Specified the prerequisite contract and acceptance gate. Recommended an explicit Promise-based persistence/server path alongside the existing synchronous path, not a union-return interface or in-place Promise migration. Defined behavioral invariants covering commit/publication ordering, CAS, idempotency, replay, delta materialization, failures, tombstones and package boundaries.
 
 ### Thursday — 2026-09-10
-Completed the PostgreSQL storage design against the proposed async contract. The design mirrors Zuno's persistence-neutral state/event/idempotency model using PostgreSQL JSONB and identity event IDs. CAS is a single transaction with row locking plus a deterministic advisory lock for the absent-row creation race. Partition/idempotency uniqueness is the concurrency authority; duplicate-key races rollback the losing mutation and return the winning authoritative event without publication. Replay explicitly tolerates sequence gaps while preserving monotonic ordering. Compaction stays on the same transaction/client. Lifecycle is explicit and pool ownership is defined. Packaging is isolated to a server-only adapter package so `pg` cannot leak into browser/core bundles. Flagged bigint conversion and ambiguous commit failures as explicit V1 design/test concerns. No adapter code was written because the Core async prerequisite remains unsatisfied.
+Completed PostgreSQL storage design. Defined JSONB/identity schema, single-transaction CAS, advisory locking for absent-row races, partition-scoped idempotency race handling, replay gap semantics, same-transaction compaction, lifecycle ownership, server-only packaging, bigint safety and ambiguous-commit policy.
+
+### Friday — 2026-09-11
+Performed QA/design attack review rather than implementation because the Core prerequisite is still unsatisfied. Converted the highest-risk claims into 23 explicit integration/package scenarios. Seven P0 concurrency/correctness tests cover existing-row and absent-row CAS races, duplicate idempotency, partition isolation, rollback, commit-before-publication and async delta materialization. Replay/retention tests cover identity gaps, scoping, tombstones, compaction atomicity and idempotency retention. Lifecycle/failure tests cover bootstrap races, pool ownership, connection failure, ambiguous commit and pool pressure. P1 tests cover JSONB, bigint boundaries, browser dependency isolation, type exports and restart recovery. Established that real PostgreSQL with multiple connections—not mocks—is required for the P0 exit gate.
 
 ## QA / test checklist
 
@@ -205,6 +191,7 @@ Completed the PostgreSQL storage design against the proposed async contract. The
 - [x] Tooling/tests reviewed for synchronous assumptions.
 - [x] Core async-persistence compatibility acceptance tests specified.
 - [x] PostgreSQL schema/transaction/idempotency/replay/compaction design specified.
+- [x] PostgreSQL concurrency/failure/lifecycle/package integration scenarios specified.
 - [ ] Existing SQLite persistence tests remain green after future Core changes.
 - [ ] PostgreSQL schema/bootstrap deterministic and repeatable.
 - [ ] Round-trip JSON state.
@@ -228,7 +215,7 @@ No implementation code exists, so adapter PR CI is not applicable. Documentation
 
 ## Documentation / versioning status
 
-Sprint source-of-truth updated through Thursday. No README/API/version changes are justified because no supported adapter API exists yet.
+Sprint source-of-truth updated through Friday. No README/API/version changes are justified because no supported adapter API exists yet.
 
 ## Blockers
 
@@ -236,8 +223,8 @@ Sprint source-of-truth updated through Thursday. No README/API/version changes a
 
 ## Deadline assessment
 
-A production PostgreSQL adapter by Saturday is **not realistic under senior-dev/QA standards without the Core prerequisite**. The PostgreSQL storage design is now implementation-ready at the persistence layer, but implementation remains gated by the Core async execution path.
+A production PostgreSQL adapter by Saturday is **not realistic under senior-dev/QA standards without the Core prerequisite**. Friday's QA review strengthens that decision: the critical correctness properties require a real async Core path plus concurrent PostgreSQL integration testing, not a package skeleton or mocked happy path.
 
 ## Final outcome
 
-Pending Saturday closeout. As of Thursday, PostgreSQL remains correctly blocked; both the Core prerequisite and PostgreSQL storage/transaction design are now specified.
+Pending Saturday closeout. As of Friday, PostgreSQL remains correctly blocked. The Core prerequisite, PostgreSQL storage/transaction design, and concrete QA exit gate are now specified sufficiently to make the next implementation phase test-driven rather than speculative.

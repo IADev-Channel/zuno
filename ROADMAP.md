@@ -1,6 +1,6 @@
 # Zuno Roadmap
 
-Last reviewed: 2026-09-03
+Last reviewed: 2026-09-12
 
 This roadmap tracks Zuno's path from an experimental distributed-state engine to a production-ready library. Update the checkboxes and review date whenever a milestone changes.
 
@@ -115,18 +115,35 @@ test, larger runs produce reviewable reports tied to an exact workload profile,
 and documentation prevents simulated gateway results from being presented as a
 production network guarantee.
 
+## Adapter Expansion Prerequisite: Async Remote Persistence
+
+- [ ] Add an explicit Promise-based persistence capability alongside the existing synchronous Memory/SQLite path.
+- [ ] Add an async server/mutation execution path that awaits authoritative reads and durable CAS.
+- [ ] Preserve publication-after-commit, idempotency, replay, tombstone and compaction invariants.
+- [ ] Keep existing synchronous APIs source-compatible and prevent accidental sync/async mixing in TypeScript.
+- [ ] Add compatibility, concurrency and failure tests before implementing remote-database adapters.
+
+PostgreSQL adapter discovery (2026-09-06 through 2026-09-12) proved that the current synchronous persistence/application chain cannot safely host normal production PostgreSQL clients. The PostgreSQL sprint closed blocked rather than shipping a false synchronous abstraction or package skeleton. Its design and QA exit gate are recorded in `docs/sprints/postgres-adapter-2026-09-06.md`.
+
+Completion criteria: a remote async persistence implementation can perform authoritative reads/CAS/replay with publication only after durable commit, while current Memory/SQLite users retain their synchronous behavior.
+
 ## Later Product Expansion
 
+- [ ] PostgreSQL adapter (resume after async remote-persistence prerequisite)
 - [ ] Vue adapter
 - [ ] Svelte adapter
 - [ ] Developer tools and event timeline
 - [ ] Additional persistence adapters beyond the production reference
 - [ ] Cross-language Protocol v1 implementations
 
+After PostgreSQL is genuinely delivered and verified, prioritize a Core synchronization-efficiency/cost review before automatically starting the next database adapter. Measure request/read/write amplification, persistence operations per logical mutation, fan-out work, reconnect/replay behavior and backpressure under subscriber growth; optimize architecture where cost scales unnecessarily with listeners.
+
 ## Decision Log
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-09-12 | Block PostgreSQL on an explicit async remote-persistence/server prerequisite instead of adapting the synchronous contract with hacks. | Production PostgreSQL I/O is asynchronous; correctness requires awaited authoritative reads/CAS and publication only after durable commit while preserving existing Memory/SQLite compatibility. |
+| 2026-09-12 | Review synchronization request/read/write amplification after PostgreSQL is genuinely complete, before automatically expanding to another database adapter. | Subscriber growth should not multiply durable persistence work per logical mutation; fan-out, reconnect/replay and backpressure costs need explicit validation. |
 | 2026-09-03 | Complete Milestone 13 around reusable validation rather than a fixed 200k guarantee. | Real capacity depends on application traffic, deployment topology, database, event bus, proxy, TLS, and regional design; operators should validate the workload they actually run. |
 | 2026-08-31 | Define 200k as a measured distributed-connection target, not one global broadcast domain. | Connection count alone is insufficient; fan-out, write rate, payload size, reconnects, and SLOs determine capacity. |
 | 2026-08-31 | Prioritize subscriptions, partitioning, durable authority, and gateways before adding transports or UI adapters. | WebSockets do not solve global fan-out, persistence contention, or single-process connection ownership. |

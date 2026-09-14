@@ -1,5 +1,6 @@
 export * from "./apply-state-event";
 export * from "./apply-state-event-batch";
+export * from "./async-core";
 export * from "./async-persistence";
 export * from "./connection-gateway";
 export * from "./core";

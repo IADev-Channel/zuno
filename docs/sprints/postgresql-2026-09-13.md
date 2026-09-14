@@ -6,151 +6,124 @@
 - Category: Database / durable persistence
 - Branch: `adapter/postgres-sprint-2026-09-13`
 - Sprint dates: 2026-09-13 through 2026-09-19
-- Status: In progress — planning complete
+- Status: In progress — async persistence boundary implemented
 
 ## Objective / expected outcome
 
-Deliver a production-credible PostgreSQL persistence adapter for Zuno without weakening the synchronous SQLite reference path. The sprint must first introduce the minimum generic async-persistence capability required by a network database, then implement PostgreSQL against that contract, prove conflict/idempotency/recovery semantics with real integration tests, and finish with documentation plus a reviewable PR and green CI.
+Deliver a production-credible PostgreSQL persistence adapter for Zuno without weakening the synchronous SQLite reference path. Introduce the minimum generic async-persistence capability required by a network database, implement PostgreSQL against it, prove conflict/idempotency/recovery semantics with real integration tests, and finish with documentation, PR and green CI. Documentation-only completion is not acceptable.
 
-The sprint is successful only if PostgreSQL actually works end-to-end. Documentation-only completion is not acceptable.
+## Rationale / developer impact
 
-## Why this adapter should exist
-
-PostgreSQL is a high-impact production database and a natural first external persistence adapter beyond the existing SQLite WAL authority. It tests whether Zuno's durable-authority abstraction is genuinely portable to remote, asynchronous storage rather than accidentally coupled to an in-process synchronous database.
-
-Developer impact:
-
-- enables Zuno authority state to live in a common production database;
-- provides a realistic deployment path where application and database are separate processes/services;
-- validates Zuno's CAS, idempotency, replay, snapshot and compaction semantics under async I/O;
-- establishes an async persistence contract reusable by later MongoDB/MySQL/Supabase-style integrations where appropriate.
+PostgreSQL is a high-impact production database and the first external persistence adapter beyond SQLite WAL. It validates that Zuno durable authority can operate over remote async storage while preserving CAS, idempotency, replay, snapshot and compaction semantics. The async contract should also provide reusable infrastructure for later remote database adapters.
 
 ## Architecture / code impact
 
-Expected affected areas:
+Monday established a deliberately separate `ZunoAsyncServerPersistence` contract plus `AsyncZunoServerState` orchestration. Existing `ZunoServerPersistence`, `ZunoServerState`, memory/file/SQLite behavior and synchronous error timing remain unchanged. A compatibility lift helper allows synchronous implementations to run through the async contract for shared semantic tests. PostgreSQL will implement the async contract directly.
 
-1. Core/server persistence contract: introduce the smallest backwards-compatible async boundary needed for remote adapters. Prefer accepting sync-or-promise results at the orchestration boundary rather than converting unrelated public APIs to async.
-2. Existing SQLite adapter: retain current behavior and compatibility; regression tests must prove it remains valid.
-3. Server mutation/replay/snapshot/compaction paths: await persistence only where durable operations require it; preserve ordering and compare-and-set semantics.
-4. New PostgreSQL package/module: connection/configuration, schema/bootstrap strategy, transactional state + event-log mutation, idempotency, replay ranges, snapshots/compaction and cleanup lifecycle.
-5. Tests/CI: unit tests for contract behavior plus PostgreSQL integration tests using an isolated test database/service.
-6. Docs/package metadata: setup, schema/migration expectations, operational caveats, exports and changeset/versioning only after implementation is real.
-
-Compatibility principle: the async capability is infrastructure, not a redesign of Zuno's client state API.
+Expected remaining impact: PostgreSQL package/module and schema, transactional state/event-log writes, idempotency/replay/snapshot/compaction, connection lifecycle, integration tests, docs and package metadata.
 
 ## Key risks
 
-- Async propagation may accidentally change existing synchronous APIs or error timing.
-- Transaction boundaries may not exactly reproduce SQLite atomic state-and-log semantics.
-- Concurrent CAS mutations can expose race conditions hidden by SQLite's local execution model.
-- Idempotency must be database-enforced, not process-memory-enforced.
-- Connection pool exhaustion, transaction retries and database disconnects require deterministic failure behavior.
-- Integration tests can become flaky if database lifecycle/isolation is weak.
-- PostgreSQL-specific SQL/schema decisions must not leak into the generic persistence contract.
-- Scope creep: SSE/transport cost optimization is important but is a separate post-PostgreSQL milestone and must not be mixed into this adapter sprint.
+- Async transport handlers still need an explicit integration path; promises must never leak through synchronous APIs.
+- PostgreSQL transaction boundaries must reproduce SQLite atomic state-and-log semantics.
+- Concurrent CAS, database-enforced idempotency, pool exhaustion, disconnects and retries need deterministic behavior.
+- Integration tests require isolated PostgreSQL lifecycle and must not become flaky.
+- PostgreSQL details must not leak into the generic async contract.
+- SSE/transport cost optimization remains a separate post-PostgreSQL milestone.
 
 ## Weekly task breakdown
 
 ### Sunday — plan and isolate
-
-- [x] Inspect current roadmap and durable-authority direction.
-- [x] Create dedicated sprint branch before modifications.
-- [x] Define async-persistence prerequisite and compatibility constraints.
-- [x] Define PostgreSQL delivery/QA plan and risks.
-- [x] Create this sprint source-of-truth document.
+- [x] Inspect roadmap/durable-authority direction.
+- [x] Create dedicated sprint branch.
+- [x] Define async prerequisite, compatibility constraints, QA plan and risks.
+- [x] Create sprint source-of-truth document.
 
 ### Monday — async persistence contract
-
-- [ ] Inspect all persistence call sites and exact SQLite contract.
-- [ ] Implement minimal sync-or-async persistence typing/orchestration.
-- [ ] Add regression tests proving existing synchronous adapters remain compatible.
-- [ ] Run focused core/server verification.
+- [x] Inspect persistence contract and core call sites.
+- [x] Implement a minimal async persistence contract without widening the existing synchronous API.
+- [x] Add async durable-authority orchestration for record/snapshot/replay/CAS/clear operations.
+- [x] Add compatibility tests covering successful CAS, idempotent duplicate, stale-version conflict, replay and preservation of synchronous behavior.
+- [ ] Execute focused verification in CI/local runtime; no workflow is triggered for the branch without a PR.
 
 ### Tuesday — PostgreSQL foundation
-
 - [ ] Create PostgreSQL adapter package/module following repository conventions.
 - [ ] Add explicit configuration and connection lifecycle.
 - [ ] Define/bootstrap schema with partition/store/version/idempotency constraints.
-- [ ] Implement reads and transactional compare-and-set state mutation foundation.
+- [ ] Implement reads and transactional compare-and-set foundation.
 - [ ] Add first real PostgreSQL integration tests.
 
 ### Wednesday — durable log and recovery semantics
-
-- [ ] Implement atomic state + event-log transaction behavior.
-- [ ] Implement idempotency handling.
-- [ ] Implement ranged replay and required snapshot APIs.
+- [ ] Implement atomic state + event-log transaction behavior and idempotency.
+- [ ] Implement ranged replay and snapshot APIs.
 - [ ] Test duplicate mutation, stale version and restart/reconnect behavior.
 
 ### Thursday — compaction, failures and concurrency
-
-- [ ] Implement compaction/tombstone behavior required by the persistence contract.
-- [ ] Add concurrent CAS contention tests.
-- [ ] Add disconnect/transaction rollback/failure-path tests.
+- [ ] Implement required compaction/tombstone behavior.
+- [ ] Add concurrent CAS contention, disconnect, rollback and failure-path tests.
 - [ ] Verify no correctness dependency on process-local memory.
 
 ### Friday — integration/regression hardening
-
-- [ ] Run full relevant test/build/lint/typecheck suite.
-- [ ] Fix regressions and review API/package ergonomics.
-- [ ] Validate SQLite and PostgreSQL behavior against the same persistence semantics where practical.
-- [ ] Review connection cleanup and test isolation for leaks/flakiness.
+- [ ] Run full relevant test/build/lint/typecheck suite and fix regressions.
+- [ ] Validate SQLite and PostgreSQL against shared persistence semantics.
+- [ ] Review API ergonomics, connection cleanup and test isolation.
 
 ### Saturday — release-quality closure
-
-- [ ] Complete remaining implementation/fixes.
-- [ ] Run full verification and integration QA.
-- [ ] Update README/ROADMAP/persistence docs and examples.
+- [ ] Complete implementation/fixes and full QA.
+- [ ] Update README/ROADMAP/persistence docs/examples.
 - [ ] Add changeset/version metadata only if release-ready.
-- [ ] Finalize this sprint report and unresolved-risk section.
-- [ ] Push final branch state, open PR, inspect GitHub Actions, and fix CI failures until green or precisely blocked.
+- [ ] Finalize sprint report and unresolved risks.
+- [ ] Open PR, inspect GitHub Actions and fix CI until green or precisely blocked.
 
 ## QA / test checklist
 
-- [ ] Existing SQLite persistence regression suite passes unchanged or with intentional compatibility updates.
-- [ ] Sync persistence implementation remains supported.
-- [ ] Async persistence implementation is awaited correctly in all durable paths.
+- [ ] Existing SQLite persistence regression suite passes.
+- [x] Synchronous persistence API remains structurally unchanged.
+- [x] Async authority awaits the remote persistence contract explicitly.
+- [x] Compatibility test covers CAS success, duplicate idempotency and stale conflict semantics.
 - [ ] PostgreSQL schema constraints enforce store/version/idempotency invariants.
-- [ ] Successful CAS mutation persists state and corresponding durable log atomically.
+- [ ] Successful PostgreSQL CAS persists state and durable log atomically.
 - [ ] Stale CAS cannot partially append/log or overwrite state.
 - [ ] Duplicate idempotency key cannot apply a mutation twice.
-- [ ] Replay ordering/ranges are deterministic.
-- [ ] Snapshot/recovery restores authoritative state correctly.
+- [ ] Replay ordering/ranges and snapshot/recovery are deterministic.
 - [ ] Tombstone/compaction semantics match the generic contract.
 - [ ] Transaction failure rolls back all related durable changes.
-- [ ] Concurrent writers produce one valid authority outcome rather than lost updates.
-- [ ] Database disconnect/reconnect surfaces controlled errors and recovers cleanly.
-- [ ] Connections/pools are closed in tests and process shutdown paths.
+- [ ] Concurrent writers produce one valid authority outcome.
+- [ ] Disconnect/reconnect surfaces controlled errors and recovers cleanly.
+- [ ] Connections/pools close correctly.
 - [ ] TypeScript declarations/build pass.
 - [ ] Biome/lint pass.
 - [ ] Full repository regression suite passes.
-- [ ] GitHub Actions passes on the final PR.
+- [ ] GitHub Actions passes on final PR.
 
 ## CI status
 
-Not run yet. Sunday is planning-only; CI becomes meaningful after implementation begins.
+No GitHub Actions run exists yet for Monday's branch head because the sprint branch has no PR and the repository workflow did not trigger on these commits. Verification remains explicitly pending rather than being reported as green.
 
 ## Documentation / versioning status
 
-- Sprint plan: complete.
+- Sprint plan/progress: current through Monday.
 - User-facing PostgreSQL setup docs: pending implementation.
 - ROADMAP completion update: pending verified delivery.
-- Changeset/version bump: intentionally pending; do not version an unimplemented adapter.
+- Changeset/version bump: intentionally pending.
 
 ## Blockers
 
-The prior PostgreSQL discovery established that remote persistence needs an async-capable orchestration boundary. This is now planned as the first implementation deliverable of this sprint rather than treated as a reason to stop the adapter. No external blocker is known at sprint start.
+No external blocker currently. The async persistence prerequisite is no longer a design-only blocker: the minimal separate async contract and orchestration now exist. Tuesday's critical dependency is obtaining a real PostgreSQL-backed integration path and test database lifecycle.
 
 ## Senior developer / QA deadline assessment
 
-Saturday delivery is **realistic but medium-risk**. The PostgreSQL SQL itself is not the main risk; the critical path is introducing async persistence without destabilizing SQLite or changing public client semantics. The schedule is achievable if Monday keeps the async boundary narrow and backwards-compatible, and Tuesday produces a real database integration test early. If async propagation expands into a broad Core redesign, scope must be reduced to the minimum contract necessary for PostgreSQL rather than hiding incomplete implementation behind documentation.
-
-Go/no-go checkpoint: by end of Tuesday, a real PostgreSQL integration test should connect, bootstrap schema and exercise at least one authoritative read/CAS path. Missing that checkpoint puts Saturday completion at high risk.
+Saturday remains realistic but medium-risk. Monday kept the compatibility boundary narrow by not converting existing synchronous server APIs to union/promise returns. Tuesday remains the go/no-go checkpoint: a real PostgreSQL integration test must connect, bootstrap schema and exercise at least one authoritative read/CAS path. Missing that checkpoint moves delivery to high risk.
 
 ## Daily progress log
 
 ### 2026-09-13 — Sunday
 
-Created `adapter/postgres-sprint-2026-09-13` from `main`. Reviewed the roadmap: SQLite WAL remains the production reference authority and additional persistence adapters are explicitly planned. Converted last sprint's async-persistence discovery into this week's concrete implementation critical path. Defined compatibility boundaries, daily deliverables, integration/concurrency/failure QA, and a Tuesday go/no-go checkpoint. No product code changed today, per Sunday planning rule.
+Created `adapter/postgres-sprint-2026-09-13` from `main`, reviewed the SQLite durable-authority direction, converted the previous discovery into an implementation plan, and defined compatibility, integration, concurrency and failure QA checkpoints. No product code changed per Sunday planning rule.
+
+### 2026-09-14 — Monday
+
+Inspected `ZunoServerPersistence`, `ZunoServerState`, `applyStateEvent` and persistence call sites. The existing contract is fully synchronous and is directly consumed by synchronous server APIs, so widening its return values to promises would silently break callers. Implemented `ZunoAsyncServerPersistence` as a separate remote-storage contract and `AsyncZunoServerState` as explicit awaited durable-authority orchestration. Added `asAsyncZunoServerPersistence` so existing sync adapters can participate in shared semantic tests without changing their public behavior. Added tests for CAS success, duplicate idempotency, stale-version conflict, record/replay access, replay bounds, and proof that the original memory persistence still returns synchronously. Exported the new async infrastructure from the server entry point. No PostgreSQL-specific code was started early. GitHub Actions has not run on the branch head, so runtime verification remains pending and is not represented as passing.
 
 ## Final outcome
 

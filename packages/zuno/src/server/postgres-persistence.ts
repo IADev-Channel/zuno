@@ -112,6 +112,9 @@ export class PostgresZunoServerPersistence implements ZunoAsyncServerPersistence
 		await this.pool.query(
 			`CREATE INDEX IF NOT EXISTS ${this.events}_store_event_idx ON ${this.events} (store_key, event_id)`,
 		);
+		await this.pool.query(
+			`CREATE INDEX IF NOT EXISTS ${this.events}_partition_topic_event_idx ON ${this.events} (partition_key, topic, event_id)`,
+		);
 	}
 
 	async close(): Promise<void> {
@@ -128,27 +131,45 @@ export class PostgresZunoServerPersistence implements ZunoAsyncServerPersistence
 	}
 
 	async getSnapshot(partition?: string, topics?: ReadonlySet<string>): Promise<Record<string, UniverseRecord>> {
+		const values: unknown[] = [];
+		const where: string[] = [];
+		if (partition) {
+			values.push(partition);
+			where.push(`partition_key = $${values.length}`);
+		}
+		if (topics) {
+			const topicList = [...topics];
+			if (topicList.length === 0) return {};
+			values.push(topicList);
+			where.push(`topic = ANY($${values.length}::text[])`);
+		}
 		const result = await this.pool.query<StateRow>(
-			`SELECT store_key, state, version FROM ${this.states}`,
+			`SELECT store_key, state, version FROM ${this.states}${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`,
+			values,
 		);
 		const snapshot: Record<string, UniverseRecord> = {};
-		for (const row of result.rows) {
-			if (partition && partitionOf(row.store_key) !== partition) continue;
-			if (topics && !topics.has(topicOf(row.store_key))) continue;
-			snapshot[row.store_key] = { state: row.state, version: Number(row.version) };
-		}
+		for (const row of result.rows) snapshot[row.store_key] = { state: row.state, version: Number(row.version) };
 		return snapshot;
 	}
 
 	async readEvents(query: ZunoReplayQuery): Promise<ZunoStateEvent[]> {
+		if (query.limit <= 0 || (query.topics && query.topics.size === 0)) return [];
+		const values: unknown[] = [query.afterEventId];
+		const where = ["event_id > $1"];
+		if (query.partition) {
+			values.push(query.partition);
+			where.push(`partition_key = $${values.length}`);
+		}
+		if (query.topics) {
+			values.push([...query.topics]);
+			where.push(`topic = ANY($${values.length}::text[])`);
+		}
+		values.push(query.limit);
 		const result = await this.pool.query<EventRow>(
-			`SELECT * FROM ${this.events} WHERE event_id > $1 ORDER BY event_id ASC`,
-			[query.afterEventId],
+			`SELECT * FROM ${this.events} WHERE ${where.join(" AND ")} ORDER BY event_id ASC LIMIT $${values.length}`,
+			values,
 		);
-		return result.rows
-			.map(toEvent)
-			.filter((event) => (!query.partition || partitionOf(event.storeKey) === query.partition) && (!query.topics || query.topics.has(topicOf(event.storeKey))))
-			.slice(0, query.limit);
+		return result.rows.map(toEvent);
 	}
 
 	async getReplayBounds(): Promise<ZunoReplayBounds> {
@@ -183,7 +204,12 @@ export class PostgresZunoServerPersistence implements ZunoAsyncServerPersistence
 		try {
 			await client.query("BEGIN");
 			const partition = partitionOf(event.storeKey);
+
+			// Transaction-scoped advisory locks serialize both absent-row creation and
+			// idempotency races without relying on process-local mutexes. Lock order is
+			// deterministic: idempotency key first, store key second.
 			if (event.idempotencyKey) {
+				await this.lock(client, `idempotency:${partition}:${event.idempotencyKey}`);
 				const duplicate = await client.query<EventRow>(
 					`SELECT * FROM ${this.events} WHERE partition_key = $1 AND idempotency_key = $2 LIMIT 1`,
 					[partition, event.idempotencyKey],
@@ -193,6 +219,7 @@ export class PostgresZunoServerPersistence implements ZunoAsyncServerPersistence
 					return { ok: true, event: toEvent(duplicate.rows[0]), duplicate: true };
 				}
 			}
+			await this.lock(client, `store:${event.storeKey}`);
 
 			const locked = await client.query<StateRow>(
 				`SELECT store_key, state, version FROM ${this.states} WHERE store_key = $1 FOR UPDATE`,
@@ -230,22 +257,36 @@ export class PostgresZunoServerPersistence implements ZunoAsyncServerPersistence
 	}
 
 	async compact(policy: ZunoCompactionPolicy, now = Date.now()): Promise<number> {
-		const before = await this.getReplayBounds();
-		if (policy.retentionMs != null) {
-			await this.pool.query(`DELETE FROM ${this.events} WHERE ts < $1`, [now - policy.retentionMs]);
+		const before = await this.countEvents();
+		const client = await this.pool.connect();
+		try {
+			await client.query("BEGIN");
+			if (policy.retentionMs != null) {
+				await client.query(`DELETE FROM ${this.events} WHERE ts < $1`, [now - policy.retentionMs]);
+			}
+			await this.trimEvents(client, policy.maxEvents);
+			await client.query("COMMIT");
+		} catch (error) {
+			await client.query("ROLLBACK");
+			throw error;
+		} finally {
+			client.release?.();
 		}
-		await this.pool.query(
-			`DELETE FROM ${this.events} WHERE event_id NOT IN (SELECT event_id FROM ${this.events} ORDER BY event_id DESC LIMIT $1)`,
-			[Math.max(0, policy.maxEvents)],
-		);
-		const after = await this.getReplayBounds();
-		const beforeCount = before.lastEventId - (before.firstEventId ?? before.lastEventId) + (before.firstEventId ? 1 : 0);
-		const afterCount = after.lastEventId - (after.firstEventId ?? after.lastEventId) + (after.firstEventId ? 1 : 0);
-		return Math.max(0, beforeCount - afterCount);
+		const after = await this.countEvents();
+		return Math.max(0, before - after);
 	}
 
 	async clear(): Promise<void> {
 		await this.pool.query(`TRUNCATE TABLE ${this.events}, ${this.states} RESTART IDENTITY`);
+	}
+
+	private async lock(client: ZunoPostgresQueryable, key: string): Promise<void> {
+		await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key]);
+	}
+
+	private async countEvents(): Promise<number> {
+		const result = await this.pool.query<{ count: string | number }>(`SELECT COUNT(*) AS count FROM ${this.events}`);
+		return Number(result.rows[0]?.count ?? 0);
 	}
 
 	private async insertEvent(client: ZunoPostgresQueryable, event: ZunoStateEvent): Promise<ZunoStateEvent> {

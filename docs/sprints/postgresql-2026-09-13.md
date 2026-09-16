@@ -5,7 +5,7 @@
 - Category: Database / durable persistence
 - Branch: `adapter/postgres-sprint-2026-09-13`
 - Sprint dates: 2026-09-13 through 2026-09-19
-- Status: In progress — PostgreSQL foundation implemented
+- Status: In progress — concurrency/replay semantics hardened; live PostgreSQL proof pending
 
 ## Objective / expected outcome
 Deliver a production-credible PostgreSQL persistence adapter for Zuno without weakening the synchronous SQLite reference path. Introduce the minimum generic async-persistence capability required by a network database, implement PostgreSQL against it, prove conflict/idempotency/recovery semantics with real integration tests, and finish with documentation, PR and green CI. Documentation-only completion is not acceptable.
@@ -14,15 +14,15 @@ Deliver a production-credible PostgreSQL persistence adapter for Zuno without we
 PostgreSQL is a high-impact production database and the first external persistence adapter beyond SQLite WAL. It validates that Zuno durable authority can operate over remote async storage while preserving CAS, idempotency, replay, snapshot and compaction semantics. The async contract should also provide reusable infrastructure for later remote database adapters.
 
 ## Architecture / code impact
-Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZunoServerState` orchestration, preserving existing synchronous persistence. Tuesday added `PostgresZunoServerPersistence` against that async contract with an injected structural pool/client interface, schema bootstrap, reads/snapshots/replay bounds, event append, transactional compare-and-set, database idempotency uniqueness, clear/compaction foundation, lifecycle helpers and a `./server/postgres` package export. No PostgreSQL driver is hard-coded into Core; applications can supply a compatible pool (for example node-postgres) without making the core package depend on a particular driver.
+Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZunoServerState` orchestration, preserving existing synchronous persistence. Tuesday added `PostgresZunoServerPersistence` against that async contract with an injected structural pool/client interface. Wednesday hardened the authority path with transaction-scoped PostgreSQL advisory locks: idempotency locks serialize duplicate requests per partition/key and store locks serialize both existing-row and first-write CAS, including the absent-row race that `SELECT ... FOR UPDATE` alone cannot protect. Replay and snapshot filtering now execute in SQL rather than loading/filtering unbounded data in JavaScript, and compaction now counts actual rows instead of inferring count from potentially gapped BIGSERIAL IDs. No PostgreSQL driver is hard-coded into Core.
 
 ## Key risks
-- The PostgreSQL foundation has not yet been executed against a live PostgreSQL instance; real-driver integration is now the highest-priority QA gap.
-- Concurrent creation of the same previously-absent store key needs explicit contention testing; row locking alone only protects existing rows and database uniqueness/retry behavior must be validated.
-- Idempotency races must be normalized into deterministic duplicate results rather than leaking unique-constraint errors.
-- Compaction count is currently derived from event-id bounds and must be hardened for gaps/deletions before release.
-- Tombstone retention semantics remain incomplete.
+- The PostgreSQL implementation has still not executed against a live PostgreSQL instance; real-driver integration is the highest-priority remaining QA gap.
+- Advisory-lock behavior and lock ordering are designed to remove first-write/idempotency races but require live concurrent integration proof.
+- Tombstone retention semantics remain incomplete and are Thursday's main implementation target.
 - Async transport handlers still need an explicit integration path; promises must never leak through synchronous APIs.
+- `BIGINT` event/version conversion currently uses JavaScript `Number`; safe-range behavior must be explicitly bounded or documented before release.
+- Ambiguous connection loss during COMMIT remains a distributed-systems failure case that needs a documented recovery/idempotency strategy.
 - SSE/transport cost optimization remains a separate post-PostgreSQL milestone.
 
 ## Weekly task breakdown
@@ -47,19 +47,21 @@ Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZ
 - [ ] Add first real PostgreSQL integration tests — implementation exists, but this run has no provisioned PostgreSQL service/driver execution environment.
 
 ### Wednesday — durable log and recovery semantics
-- [ ] Harden atomic state + event-log transaction behavior and idempotency races.
-- [ ] Harden ranged replay and snapshot APIs with SQL-side filtering/limits.
-- [ ] Test duplicate mutation, stale version and restart/reconnect behavior against PostgreSQL.
+- [x] Harden atomic state + event-log transaction behavior and idempotency races with transaction-scoped advisory locks.
+- [x] Harden ranged replay and snapshot APIs with SQL-side filtering/limits.
+- [x] Remove compaction's incorrect assumption that BIGSERIAL IDs are gap-free by counting rows directly.
+- [ ] Prove duplicate mutation, stale version, first-write contention and restart/reconnect behavior against a live PostgreSQL service.
 
 ### Thursday — compaction, failures and concurrency
-- [ ] Complete compaction/tombstone behavior.
-- [ ] Add concurrent CAS contention, disconnect, rollback and failure-path tests.
+- [ ] Complete tombstone/retention behavior.
+- [ ] Add concurrent CAS contention, disconnect, rollback and failure-path integration tests.
 - [ ] Verify no correctness dependency on process-local memory.
+- [ ] Decide safe BIGINT/event-id boundary behavior.
 
 ### Friday — integration/regression hardening
 - [ ] Run full relevant test/build/lint/typecheck suite and fix regressions.
 - [ ] Validate SQLite and PostgreSQL against shared persistence semantics.
-- [ ] Review API ergonomics, connection cleanup and test isolation.
+- [ ] Review API ergonomics, package boundary, connection cleanup and test isolation.
 
 ### Saturday — release-quality closure
 - [ ] Complete implementation/fixes and full QA.
@@ -74,13 +76,16 @@ Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZ
 - [x] Async authority awaits the remote persistence contract explicitly.
 - [x] Compatibility test covers CAS success, duplicate idempotency and stale conflict semantics.
 - [x] PostgreSQL schema defines store primary key/version check and partition-scoped idempotency uniqueness.
+- [x] First-write CAS has a database-scoped serialization mechanism rather than process-local locking; live proof pending.
+- [x] Duplicate idempotency races have a database-scoped serialization mechanism; live proof pending.
+- [x] Replay partition/topic filtering and limit are pushed into SQL.
+- [x] Compaction count no longer assumes gap-free sequence IDs.
 - [ ] Successful PostgreSQL CAS persists state and durable log atomically — code path implemented, live integration proof pending.
 - [ ] Stale CAS cannot partially append/log or overwrite state — transactional path implemented, live proof pending.
-- [ ] Duplicate idempotency key cannot apply a mutation twice — lookup + DB uniqueness implemented, race QA pending.
-- [ ] Replay ordering/ranges and snapshot/recovery are deterministic.
+- [ ] Replay ordering/ranges and snapshot/recovery are deterministic against live PostgreSQL.
 - [ ] Tombstone/compaction semantics match the generic contract.
 - [ ] Transaction failure rolls back all related durable changes.
-- [ ] Concurrent writers produce one valid authority outcome.
+- [ ] Concurrent writers produce one valid authority outcome under live contention.
 - [ ] Disconnect/reconnect surfaces controlled errors and recovers cleanly.
 - [x] Pool/client ownership is explicit; transaction clients release in `finally`, optional pool close is exposed.
 - [ ] TypeScript declarations/build pass.
@@ -92,17 +97,17 @@ Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZ
 No PR exists yet, so branch CI remains unverified. Do not interpret implemented code paths as passing QA until build/typecheck/tests and a real PostgreSQL integration run have executed.
 
 ## Documentation / versioning status
-- Sprint plan/progress: current through Tuesday.
-- PostgreSQL package subpath: added as `@iadev93/zuno/server/postgres`.
+- Sprint plan/progress: current through Wednesday.
+- PostgreSQL implementation currently lives behind `@iadev93/zuno/server/postgres`; final package-boundary review remains scheduled for Friday rather than restructuring solely for naming consistency.
 - User-facing PostgreSQL setup docs: pending integration validation.
 - ROADMAP completion update: pending verified delivery.
 - Changeset/version bump: intentionally pending.
 
 ## Blockers
-No design blocker. The current verification gap is environmental: a live PostgreSQL service plus compatible driver/runtime is required to prove the adapter's SQL and transaction behavior. This does not stop implementation; Wednesday should continue hardening semantics and add integration-test scaffolding while preserving truthful QA status.
+No design blocker. The remaining verification gap is environmental: a live PostgreSQL service plus compatible driver/runtime is required to prove actual SQL, advisory-lock, rollback, reconnect and concurrent transaction behavior. This does not justify marking those checks as passed from mocks or static review.
 
 ## Senior developer / QA deadline assessment
-Saturday remains achievable but now high-risk until a live PostgreSQL test passes. Tuesday met the code-foundation checkpoint but not the stronger live-integration checkpoint. Wednesday must prioritize real integration proof and race correctness over feature breadth.
+Saturday remains achievable but high-risk until a live PostgreSQL integration run passes. Wednesday materially reduced two known correctness risks in code instead of adding feature breadth. Thursday should focus on tombstones/failure semantics and integration-test readiness; release status remains contingent on real database proof.
 
 ## Daily progress log
 ### 2026-09-13 — Sunday
@@ -113,6 +118,9 @@ Inspected `ZunoServerPersistence`, `ZunoServerState`, `applyStateEvent` and pers
 
 ### 2026-09-15 — Tuesday
 Implemented the first PostgreSQL-specific product code. Added an injected PostgreSQL query/pool contract and `PostgresZunoServerPersistence`; schema bootstrap creates materialized-state and replay-event tables with version and partition-scoped idempotency constraints. Added authoritative reads, snapshots, replay/bounds, append, transactional CAS, state upsert/delete, replay trimming, clear/compaction foundation, explicit client release/pool close, server barrel export and `./server/postgres` package subpath. Kept the driver structural rather than adding a runtime dependency to Core. QA review identified two release-critical items for Wednesday: prove behavior against a real PostgreSQL instance and harden races for first-write CAS/idempotency. No live PostgreSQL test or CI run was available today, so those checks remain explicitly unverified.
+
+### 2026-09-16 — Wednesday
+Hardened PostgreSQL correctness rather than expanding API surface. Added transaction-scoped advisory locking with deterministic lock order (partition/idempotency before store) so simultaneous duplicate requests and simultaneous creation of an absent store key serialize at the database rather than relying on `FOR UPDATE` over a row that may not exist. Moved partition/topic replay filters, replay limits and snapshot filters into SQL and added a matching index. Fixed compaction accounting to use actual row counts, because rolled-back/removed BIGSERIAL IDs can contain gaps. Live PostgreSQL verification is still unavailable, so advisory-lock/concurrency behavior remains designed and implemented but not falsely marked as proven.
 
 ## Final outcome
 Pending sprint completion.

@@ -5,7 +5,7 @@
 - Category: Database / durable persistence
 - Branch: `adapter/postgres-sprint-2026-09-13`
 - Sprint dates: 2026-09-13 through 2026-09-19
-- Status: In progress — failure/retention semantics hardened; live PostgreSQL proof pending
+- Status: In progress — Friday package-boundary QA found/fixed missing build entry; live PostgreSQL proof pending
 
 ## Objective / expected outcome
 Deliver a production-credible PostgreSQL persistence adapter for Zuno without weakening the synchronous SQLite reference path. Introduce the minimum generic async-persistence capability required by a network database, implement PostgreSQL against it, prove conflict/idempotency/recovery semantics with real integration tests, and finish with documentation, PR and green CI. Documentation-only completion is not acceptable.
@@ -14,7 +14,7 @@ Deliver a production-credible PostgreSQL persistence adapter for Zuno without we
 PostgreSQL is a high-impact production database and the first external persistence adapter beyond SQLite WAL. It validates that Zuno durable authority can operate over remote async storage while preserving CAS, idempotency, replay, snapshot and compaction semantics. The async contract should also provide reusable infrastructure for later remote database adapters.
 
 ## Architecture / code impact
-Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZunoServerState` orchestration, preserving existing synchronous persistence. Tuesday added `PostgresZunoServerPersistence` against that async contract with an injected structural pool/client interface. Wednesday hardened concurrency with transaction-scoped advisory locks and SQL-side replay/snapshot filtering. Thursday aligned compaction with the generic tombstone policy, added explicit JavaScript safe-integer guards for PostgreSQL BIGINT identifiers/versions/timestamps/counts, prevented version overflow, added an operation/timestamp retention index, and made rollback best-effort so a failed connection during rollback does not mask the original transaction error. No PostgreSQL driver is hard-coded into Core.
+Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZunoServerState` orchestration, preserving existing synchronous persistence. Tuesday added `PostgresZunoServerPersistence` against that async contract with an injected structural pool/client interface. Wednesday hardened concurrency with transaction-scoped advisory locks and SQL-side replay/snapshot filtering. Thursday aligned compaction with the generic tombstone policy, added explicit JavaScript safe-integer guards for PostgreSQL BIGINT identifiers/versions/timestamps/counts, prevented version overflow, added an operation/timestamp retention index, and made rollback best-effort so a failed connection during rollback does not mask the original transaction error. Friday package-boundary review found that `./server/postgres` was exported from package metadata but was missing from the tsup entry list; the build entry was added. No PostgreSQL driver is hard-coded into Core.
 
 ## Key risks
 - The PostgreSQL implementation has still not executed against a live PostgreSQL instance; real-driver integration is the highest-priority remaining QA gap.
@@ -52,9 +52,11 @@ Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZ
 - [ ] Add/run live concurrent CAS, disconnect and rollback integration tests — environment remains unavailable.
 
 ### Friday — integration/regression hardening
-- [ ] Run full relevant test/build/lint/typecheck suite and fix regressions.
-- [ ] Validate SQLite and PostgreSQL against shared persistence semantics.
-- [ ] Review API ergonomics, package boundary, connection cleanup and test isolation.
+- [x] Review API/package boundary and catch missing PostgreSQL build entry.
+- [x] Add `src/server/postgres-persistence.ts` to tsup entries so the published `./server/postgres` export has actual ESM/CJS/declaration artifacts.
+- [ ] Run full relevant test/build/lint/typecheck suite and fix regressions — execution environment unavailable in this run; final PR CI remains required.
+- [ ] Validate SQLite and PostgreSQL against shared persistence semantics with executable integration coverage.
+- [x] Review connection cleanup and package isolation statically.
 
 ### Saturday — release-quality closure
 - [ ] Complete implementation/fixes and full QA.
@@ -75,6 +77,7 @@ Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZ
 - [x] State version increment refuses to cross JavaScript's safe-integer boundary.
 - [x] Rollback failure cannot replace the original transaction/connection error.
 - [x] Pool/client ownership is explicit; transaction clients release in `finally`.
+- [x] Package export now has a matching tsup build entry.
 - [ ] Successful PostgreSQL CAS persists state and log atomically — implemented, live proof pending.
 - [ ] Stale CAS cannot partially append/log or overwrite state — implemented, live proof pending.
 - [ ] Concurrent writers produce one valid authority outcome under live contention.
@@ -85,18 +88,18 @@ Monday established a separate `ZunoAsyncServerPersistence` contract plus `AsyncZ
 - [ ] GitHub Actions passes on final PR.
 
 ## CI status
-No PR exists yet, so branch CI remains unverified. Implemented paths are not considered QA-passed until build/typecheck/tests and a real PostgreSQL integration run execute.
+No PR exists yet, so branch CI remains unverified. Friday static/package QA found a release-blocking packaging defect before PR: `package.json` exported `@iadev93/zuno/server/postgres`, but tsup did not build `postgres-persistence.ts`; commit `2544c2a` fixes the build entry. The branch is still not considered QA-passed until build/typecheck/tests, live PostgreSQL integration and final PR CI execute.
 
 ## Documentation / versioning status
-- Sprint plan/progress: current through Thursday.
-- PostgreSQL currently remains behind `@iadev93/zuno/server/postgres`; final package-boundary review is Friday and will be based on dependency/API isolation rather than naming alone.
+- Sprint plan/progress: current through Friday.
+- PostgreSQL remains behind `@iadev93/zuno/server/postgres`; the structural pool/client contract keeps driver choice outside Core.
 - User-facing PostgreSQL setup docs, ROADMAP completion and changeset/version bump remain pending verified delivery.
 
 ## Blockers
-No design blocker. The verification gap is environmental: a live PostgreSQL service plus compatible driver/runtime is required to prove SQL, advisory locks, rollback/reconnect and concurrent transactions. Static review is not treated as live proof.
+No design blocker. The verification gap is environmental: a live PostgreSQL service plus compatible driver/runtime is required to prove SQL, advisory locks, rollback/reconnect and concurrent transactions. The available repository connector can review and mutate source but cannot execute the repository; the local execution environment also cannot reach GitHub to clone/install dependencies. Static review is not treated as executable proof.
 
 ## Senior developer / QA deadline assessment
-Saturday remains possible but release readiness is high-risk until real PostgreSQL execution passes. Thursday closed two correctness gaps that could otherwise silently corrupt semantics: tombstones now obey their own retention window and PostgreSQL BIGINT values cannot silently lose precision in JavaScript. Friday must prioritize verification and shared-semantics regression over new functionality.
+Saturday remains possible but release readiness is high-risk until executable verification runs. Friday demonstrated why release/package review matters: the implementation existed and package metadata advertised it, but the bundler would not have emitted the exported PostgreSQL entrypoint. That defect is now fixed. Saturday must not mark the adapter complete unless executable verification and real PostgreSQL behavior are proven; if final PR CI cannot provide the database proof, the exact remaining blocker must stay explicit.
 
 ## Daily progress log
 ### 2026-09-13 — Sunday
@@ -113,6 +116,9 @@ Added transaction-scoped advisory locking for absent-row CAS and idempotency rac
 
 ### 2026-09-17 — Thursday
 Aligned PostgreSQL compaction with `ZunoCompactionPolicy`: ordinary events now use `retentionMs` while delete tombstones independently use `tombstoneRetentionMs`, with an operation/timestamp index supporting retention cleanup. Replaced unchecked PostgreSQL BIGINT-to-Number conversions with explicit safe-integer validation across event IDs, state/event versions, timestamps and counts; version increments now refuse unsafe overflow. Hardened transaction failure handling with best-effort rollback so a broken connection during rollback cannot mask the original failure. Reconfirmed that correctness locking is PostgreSQL-scoped rather than process-local. Live database concurrency/disconnect proof remains intentionally unclaimed.
+
+### 2026-09-18 — Friday
+Performed package/release-boundary QA rather than adding scope. Found a concrete release blocker: `package.json` already exposed `./server/postgres`, but `packages/zuno/tsup.config.ts` only built root, server and SQLite entries, so published PostgreSQL ESM/CJS/declaration files would have been missing. Added the PostgreSQL persistence entry to tsup in commit `2544c2a`. Reviewed the branch against main: it is isolated to the async persistence foundation, PostgreSQL implementation/tests, package export/build entry and sprint documentation. Executable verification remains unclaimed because no live PostgreSQL/runtime execution environment is available in this run.
 
 ## Final outcome
 Pending sprint completion.

@@ -8,24 +8,16 @@
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"sideEffects": false,
-	"engines": {
-		"node": ">=22"
-	},
+	"engines": { "node": ">=22" },
 	"files": ["dist", "README.md", "LICENSE"],
 	"exports": {
 		".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" },
 		"./server": { "types": "./dist/server/index.d.ts", "import": "./dist/server/index.js", "require": "./dist/server/index.cjs" },
-		"./server/sqlite": { "types": "./dist/server/sqlite-persistence.d.ts", "import": "./dist/server/sqlite-persistence.js", "require": "./dist/server/sqlite-persistence.cjs" },
-		"./server/postgres": { "types": "./dist/server/postgres-persistence.d.ts", "import": "./dist/server/postgres-persistence.js", "require": "./dist/server/postgres-persistence.cjs" }
+		"./server/sqlite": { "types": "./dist/server/sqlite-persistence.d.ts", "import": "./dist/server/sqlite-persistence.js", "require": "./dist/server/sqlite-persistence.cjs" }
 	},
 	"scripts": { "build": "tsup", "dev": "tsup --watch", "typecheck": "tsc --noEmit" },
 	"keywords": ["state", "state-management", "sync", "sse", "server-sent-events", "broadcastchannel", "distributed-state", "event-sourcing", "universal-state", "realtime"],
 	"homepage": "https://github.com/IADev-Channel/zuno",
 	"repository": { "type": "git", "url": "git+https://github.com/IADev-Channel/zuno.git" },
-	"devDependencies": {
-		"@types/node": "^22.0.0",
-		"@typescript/native": "npm:typescript@7.0.2",
-		"tsup": "^8.5.1",
-		"typescript": "npm:@typescript/typescript6@6.0.2"
-	}
+	"devDependencies": { "@types/node": "^22.0.0", "@typescript/native": "npm:typescript@7.0.2", "tsup": "^8.5.1", "typescript": "npm:@typescript/typescript6@6.0.2" }
 }

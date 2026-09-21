@@ -4,102 +4,84 @@
 - Adapter: `@iadev93/zuno-postgresql`
 - Category: Database / durable persistence
 - Branch: `adapter/postgresql-package-2026-09-20`
-- Target dates: 2026-09-20 through 2026-09-22 (3-day closure target)
-- Status: Planning / extraction continuation
+- Target dates: 2026-09-20 through 2026-09-22
+- Status: Extraction implemented; executable proof remains release-blocking
 
-## Objective / expected outcome
-Finish the PostgreSQL work already developed on PR #10 by correcting the package boundary: Zuno Core owns only the generic async persistence contract/orchestration, while all PostgreSQL-specific implementation, schema/SQL, transaction/advisory-lock behavior and PostgreSQL integration tests live in a standalone `@iadev93/zuno-postgresql` package. Then establish executable PostgreSQL and repository verification before declaring the adapter complete.
-
-## Rationale / developer impact
-A universal state-management core should define persistence behavior without owning every database implementation. A standalone PostgreSQL adapter keeps Core database-agnostic, makes the dependency/driver boundary explicit, gives future MongoDB/MySQL/etc. adapters a consistent package pattern, and lets developers install only the persistence technology they use.
+## Executive decision frame
+- **PROBLEM:** PostgreSQL-specific SQL and transaction behavior had leaked into Core, making a universal package own a database implementation.
+- **CUSTOMER:** Server-side Zuno adopters who need durable multi-process authority on PostgreSQL; Core users also benefit from not carrying irrelevant database surface.
+- **OUTCOME:** Core owns a stable async persistence contract; PostgreSQL becomes independently installable and evolvable.
+- **PRIORITY:** Finish the existing two-week PostgreSQL investment cleanly before performance work; do not compound boundary debt.
+- **COST:** Small package/CI/documentation overhead now; lower future adapter coupling and regression blast radius.
+- **RISK:** Public-contract insufficiency, workspace/build breakage, and unproven concurrency semantics.
+- **ALTERNATIVES:** Keep PostgreSQL in Core (simpler packaging, worse long-term boundary); abandon PostgreSQL (wastes useful work); use only SQLite (insufficient for common distributed/server deployments).
+- **DECISION:** Extract PostgreSQL; retain only generic async persistence/orchestration in Core.
+- **SUCCESS METRICS:** zero PostgreSQL implementation/export/build entry in Core; adapter imports only public Core APIs; package builds/types; real PostgreSQL concurrency/failure suite passes; repository CI green.
 
 ## Architecture / code impact
-### Keep in `@iadev93/zuno`
-- `ZunoAsyncServerPersistence` generic contract.
-- `AsyncZunoServerState` generic orchestration.
-- Generic persistence types/semantics and compatibility coverage.
-- Existing built-in SQLite behavior remains unchanged for this sprint.
+Core retains `ZunoAsyncServerPersistence`, `AsyncZunoServerState`, generic persistence semantics and built-in SQLite. PostgreSQL implementation/schema/CAS/idempotency/advisory locking/replay/compaction move to `packages/zuno-postgresql`, consuming `@iadev93/zuno` and `@iadev93/zuno/server` public surfaces only.
 
-### Move to `@iadev93/zuno-postgresql`
-- `PostgresZunoServerPersistence` / PostgreSQL adapter implementation.
-- PostgreSQL schema/bootstrap SQL.
-- PostgreSQL transaction, CAS, idempotency and advisory-lock logic.
-- PostgreSQL BIGINT conversion guards.
-- PostgreSQL replay/compaction SQL behavior.
-- PostgreSQL-specific unit/integration tests and package documentation.
+## Monday progress
+- [x] Inspected existing workspace package conventions.
+- [x] Created `packages/zuno-postgresql` with package metadata, TypeScript and tsup build configuration.
+- [x] Moved PostgreSQL implementation to adapter source and changed imports to public Zuno package contracts.
+- [x] Removed `./server/postgres` from Core package exports.
+- [x] Removed PostgreSQL from Core server barrel and tsup entries.
+- [x] Deleted PostgreSQL implementation from Core source.
+- [ ] Add real PostgreSQL integration harness/driver coverage.
+- [ ] Execute package/core build, typecheck, lint and regression suite.
+- [ ] Execute concurrency/idempotency/rollback/reconnect/replay/compaction against live PostgreSQL.
 
-### Remove from Core public/package surface
-- `@iadev93/zuno/server/postgres` export.
-- Core tsup PostgreSQL build entry.
-- Any PostgreSQL-specific implementation files/tests that no longer belong to Core.
-
-The standalone package should depend on Core's public generic contract rather than private/internal implementation details. Driver ownership remains explicit; no PostgreSQL client should leak into browser/core paths.
-
-## Key risks
-- Package extraction can accidentally create circular workspace dependencies or import Core internals rather than public contracts.
-- Moving tests without live PostgreSQL proof could preserve a structurally clean but unverified adapter.
-- Existing async persistence changes must not regress SQLite or synchronous APIs.
-- PostgreSQL advisory-lock/CAS/idempotency behavior still requires real concurrent integration proof.
-- Package exports, declarations and workspace build order must be verified after extraction.
-- Do not broaden scope into MongoDB/MySQL or Peak Optimization during this closure sprint.
-
-## Weekly / 3-day task breakdown
-### Sunday — boundary and plan
-- [x] Continue from the unmerged PostgreSQL implementation rather than start a second adapter.
-- [x] Create dedicated continuation branch from PR #10 head before making changes.
-- [x] Record the agreed architecture: contract in Core; PostgreSQL in `@iadev93/zuno-postgresql`.
-- [x] Create this sprint source-of-truth document.
-- [ ] Inspect existing workspace package conventions and exact extraction file set before implementation.
-
-### Monday — extraction + executable proof
-- [ ] Create standalone PostgreSQL workspace package following existing package conventions.
-- [ ] Move PostgreSQL implementation/tests out of Core and wire imports only through public generic persistence APIs.
-- [ ] Remove Core PostgreSQL export/build entry and confirm Core remains PostgreSQL-agnostic.
-- [ ] Add/configure real PostgreSQL integration coverage for schema/bootstrap, CAS, first-write concurrency, duplicate idempotency, rollback/retry, replay and compaction.
-- [ ] Run focused package/core verification and fix discovered defects.
-
-### Tuesday — closure target
-- [ ] Run full relevant build/typecheck/lint/tests and SQLite regressions.
-- [ ] Run live concurrent PostgreSQL integration suite and failure/recovery cases.
-- [ ] Verify package exports/declarations/install boundary.
-- [ ] Fix defects only; no new PostgreSQL features.
-- [ ] Update README/roadmap/package docs and version metadata only when verification is green.
-- [ ] Push final branch state, update/replace PR as appropriate for the new branch boundary, and inspect CI to green or document exact external blocker.
-- [ ] Finalize sprint report and mark complete only if release gates pass.
-
-## QA / test checklist
-- [ ] Core has no PostgreSQL-specific public export/build entry/implementation.
-- [ ] `@iadev93/zuno-postgresql` consumes the public async persistence contract.
-- [ ] Existing synchronous SQLite API/regression suite remains green.
-- [ ] Core async persistence semantic tests remain green.
+## QA / release gates
+- [x] Structural package separation is implemented.
+- [x] Core no longer publicly exports/builds PostgreSQL implementation.
+- [x] Adapter depends on public Core contract rather than relative Core internals.
+- [ ] SQLite/core regression suite green.
 - [ ] PostgreSQL schema initializes against a real database.
-- [ ] Successful CAS persists state and event atomically.
-- [ ] Stale CAS cannot partially mutate state/log.
-- [ ] Concurrent first-write/writer contention has one valid authority outcome.
-- [ ] Concurrent duplicate idempotency keys do not double-apply mutations.
-- [ ] Transaction rollback and retry behavior is controlled.
-- [ ] Disconnect/reconnect behavior surfaces controlled errors and recovers.
-- [ ] Replay/snapshot/compaction/tombstone retention semantics pass.
-- [ ] BIGINT safe-integer guards pass boundary cases.
-- [ ] Package build emits ESM/CJS/declarations matching exports.
-- [ ] Typecheck/lint/full relevant repository tests pass.
-- [ ] GitHub Actions passes on final PR head.
+- [ ] CAS state+event atomicity and stale-CAS rollback proven.
+- [ ] Concurrent first-write and duplicate-idempotency races proven.
+- [ ] Disconnect/reconnect and rollback failure behavior proven.
+- [ ] Replay/snapshot/compaction/tombstone semantics proven.
+- [ ] BIGINT boundaries proven.
+- [ ] Adapter ESM/CJS/declarations/package install verified.
+- [ ] GitHub Actions green.
 
 ## CI status
-Not evaluated for this continuation branch yet. PR #10 remains unmerged and is the source implementation; its prior release gate was explicitly blocked on executable/live PostgreSQL verification. The continuation branch starts from that PR head so no implementation work is discarded.
+Not yet eligible to claim green. This branch now has meaningful implementation commits, but a PR/CI run should be created only after the live-test harness and repository wiring are ready; otherwise CI would validate packaging without validating the principal database correctness risk.
 
-## Documentation / versioning status
-This planning document is the only Sunday documentation change. User-facing release docs and package/version metadata remain gated on successful extraction and executable verification; they must not imply release readiness prematurely.
+## Documentation / versioning
+Package metadata exists at initial adapter version `0.1.0`; release-facing README/roadmap/changeset remain gated on executable proof. No release-readiness claim is made.
 
 ## Blockers
-No architecture blocker. The main technical release gate remains executable verification against a real PostgreSQL instance plus repository CI. If the available execution/CI environment cannot provision PostgreSQL, the adapter remains blocked rather than being marked complete.
+The remaining blocker is executable evidence, especially a real PostgreSQL service/driver environment. The GitHub connector can mutate and inspect the repository but cannot itself execute Node/PostgreSQL. If CI is wired with a PostgreSQL service, that becomes the preferred repeatable proof path.
 
-## Senior developer / QA deadline assessment
-A three-day closure is realistic because the substantive PostgreSQL implementation already exists. Scope is intentionally constrained to package extraction, verification and defects revealed by verification. The deadline becomes unrealistic only if live testing exposes a correctness flaw in transaction/concurrency semantics; such a flaw must be fixed rather than hidden to meet the date.
+## Executive learning log
+1. **WHAT WE LEARNED:** A plugin boundary is valuable only if implementation dependencies point inward through a public contract; a folder named `postgres` inside Core is not an adapter architecture.
+2. **WHY IT MATTERS TO USERS:** Users install only the persistence technology they need and Core behavior is less likely to change because of database-specific work.
+3. **WHY IT MATTERS TO THE BUSINESS:** Lower coupling reduces future adapter delivery cost and makes the ecosystem extensible by contributors rather than only the Core team.
+4. **ARCHITECTURE/THEORY:** Dependency inversion: policy/contract belongs to Core; database mechanism belongs at the edge. PostgreSQL advisory locks serialize authority races across processes, but correctness still needs live proof.
+5. **COST & ECONOMICS:** One extra package adds release/CI overhead, but avoids multiplying database-specific maintenance inside the highest-blast-radius package.
+6. **RISK & FAILURE MODE:** A clean package boundary can create false confidence if transaction, lock and recovery semantics are only statically reviewed.
+7. **MANAGEMENT LESSON:** Correct boundary debt before starting the next roadmap item; freeze feature scope while closing verification.
+8. **FOUNDER/ENTREPRENEUR LESSON:** Ecosystem breadth is not advantage by itself. A stable extension contract that lets others add integrations is leverage.
+9. **WHAT WE WOULD DELEGATE:** Package boilerplate, repetitive compatibility tests and documentation assembly; retain architecture boundary and concurrency acceptance criteria at senior/CTO ownership.
+10. **WHAT WE WOULD MEASURE:** Core dependency/surface growth, adapter install/build success, transaction correctness under contention, DB operations per mutation, regression count, CI duration and maintenance effort.
+11. **KEYPOINTS TO REMEMBER:** contract in Core; mechanism at edge; package separation is not proof; concurrency requires database-level testing; stop adding features until release gates pass.
+
+**CEO — Does this create enough value to deserve resources?** Yes, because it protects Core while preserving a high-value PostgreSQL capability; cap the remaining investment at verification/defect closure.
+
+**FOUNDER — Does this strengthen product-market advantage or validate an assumption?** It strengthens extensibility, but PostgreSQL demand/adoption still needs validation after release.
+
+**CTO — Is this the simplest architecture that meets the required scale/reliability?** Yes at the boundary level: one generic async contract plus one external adapter; avoid introducing a plugin framework or ORM abstraction.
+
+**MANAGER — Is the team solving the right problem with clear ownership and success criteria?** Yes. Remaining ownership is QA/verification, not new feature development.
 
 ## Daily progress log
 ### 2026-09-20 — Sunday
-Reviewed the open PostgreSQL work and the newly agreed package boundary. Created `adapter/postgresql-package-2026-09-20` directly from PR #10 head (`546cb2881687c6523baa727eaaf52d21e3401535`) so the existing implementation is preserved while the package architecture is corrected. Defined a three-day closure plan: Sunday boundary/planning, Monday extraction plus live proof, Tuesday regression/CI/docs closure. No product implementation was changed on Sunday.
+Created continuation branch from PR #10 head and locked the contract-in-Core / PostgreSQL-in-adapter decision.
+
+### 2026-09-21 — Monday
+Implemented the package boundary: standalone `@iadev93/zuno-postgresql`, public-contract imports, and removal of PostgreSQL implementation/export/build entry from Core. Did not claim executable correctness. Remaining work is live PostgreSQL integration proof, repository verification, defects, CI and release documentation.
 
 ## Final outcome
-Pending. Completion requires both the standalone `@iadev93/zuno-postgresql` boundary and executable PostgreSQL/CI evidence. After closure, the next milestone is Zuno sync/SSE peak-efficiency optimization rather than another database adapter immediately.
+Pending. Structural extraction is complete; release correctness is not yet proven. After proof and closure, move to sync/SSE efficiency and write/network amplification rather than another adapter immediately.

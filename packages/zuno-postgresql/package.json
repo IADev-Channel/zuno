@@ -1,0 +1,20 @@
+{
+  "name": "@iadev93/zuno-postgresql",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "engines": { "node": ">=22" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/index.cjs" } },
+  "scripts": { "build": "tsup", "dev": "tsup --watch", "typecheck": "tsc --noEmit" },
+  "peerDependencies": { "@iadev93/zuno": "workspace:*" },
+  "devDependencies": { "@iadev93/zuno": "workspace:*", "@types/node": "^22.0.0", "tsup": "^8.5.1", "typescript": "npm:@typescript/typescript6@6.0.2" },
+  "keywords": ["zuno", "postgresql", "postgres", "persistence", "state-management", "distributed-state", "event-sourcing"],
+  "homepage": "https://github.com/IADev-Channel/zuno",
+  "repository": { "type": "git", "url": "git+https://github.com/IADev-Channel/zuno.git" },
+  "author": "Ibrahim Aftab",
+  "license": "MIT"
+}

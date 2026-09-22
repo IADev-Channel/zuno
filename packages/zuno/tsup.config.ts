@@ -1,12 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-	entry: [
-		"src/index.ts",
-		"src/server/index.ts",
-		"src/server/sqlite-persistence.ts",
-		"src/server/postgres-persistence.ts",
-	],
+	entry: ["src/index.ts", "src/server/index.ts", "src/server/sqlite-persistence.ts"],
 	format: ["cjs", "esm"],
 	dts: true,
 	splitting: false,
